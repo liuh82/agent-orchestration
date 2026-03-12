@@ -60,13 +60,25 @@ class ApprovalUpdate(ApprovalBase):
     metadata: Optional[str] = None
 
 
+class ApprovalHistory(BaseModel):
+    """审批历史"""
+    id: str
+    approval_id: str
+    action: str  # create, update, approve, reject, cancel
+    actor_id: str
+    actor_name: str
+    comment: Optional[str] = None
+    status: ApprovalStatus
+    created_at: datetime
+    model_config = {"from_attributes": True, "arbitrary_types_allowed": True}
+
+
 class Approval(ApprovalBase):
     """审批完整信息"""
     id: str
     created_at: datetime
     updated_at: datetime
-    approval_history: List['ApprovalHistory'] = []
-
+    approval_history: List[ApprovalHistory] = []
     model_config = {"from_attributes": True, "arbitrary_types_allowed": True}
 
 
@@ -82,20 +94,6 @@ class ApprovalListResponse(BaseModel):
     success: bool
     data: List[Approval]
     message: str = ""
-
-
-class ApprovalHistory(BaseModel):
-    """审批历史"""
-    id: str
-    approval_id: str
-    action: str  # create, update, approve, reject, cancel
-    actor_id: str
-    actor_name: str
-    comment: Optional[str] = None
-    status: ApprovalStatus
-    created_at: datetime
-
-    model_config = {"from_attributes": True, "arbitrary_types_allowed": True}
 
 
 class ApprovalHistoryResponse(BaseModel):
