@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, Table, Button, Space, Tag, Modal, Form, Input, Select, InputNumber, message } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, PlayCircleOutlined, PauseCircleOutlined } from '@ant-design/icons';
 import { useAgentsStore } from '../stores/agents';
@@ -133,7 +133,7 @@ export const AgentsPage = () => {
     {
       title: '操作',
       key: 'action',
-      render: (_, record: Agent) => (
+      render: (_: unknown, record: Agent) => (
         <Space size="middle">
           <Button
             type="link"
@@ -280,6 +280,3 @@ export const AgentsPage = () => {
     </div>
   );
 };
-
-// 修复 useState 导入
-const { useState } = React;

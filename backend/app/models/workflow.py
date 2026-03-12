@@ -3,6 +3,21 @@ from typing import List, Any, Optional
 from pydantic import BaseModel, Field
 
 
+class LogEntry(BaseModel):
+    timestamp: datetime
+    level: str = Field(default="info")
+    message: str
+
+
+class ExecutionStatus(BaseModel):
+    id: str
+    status: str
+    startTime: datetime
+    progress: int = Field(default=0, ge=0, le=100)
+    currentStep: str = Field(default="")
+    logs: List[LogEntry] = Field(default_factory=list)
+
+
 class WorkflowConfig(BaseModel):
     timeout: int = Field(default=3600, gt=0)
     retry_policy: dict = Field(default_factory=dict)

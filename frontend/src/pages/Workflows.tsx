@@ -1,17 +1,44 @@
-import React, { useState } from 'react';
-import { Card, Table, Button, Space, Tag, Modal, Form, Input, Select, InputNumber, message, Divider, Tabs } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, PlayCircleOutlined, FolderOutlined, SettingOutlined } from '@ant-design/icons';
-import { useAgentsStore } from '../stores/agents';
-import { useTasksStore } from '../stores/tasks';
+import { useState } from 'react';
+import { Card, Table, Button, Space, Tag, Modal, Form, Input, Select, message, Tabs } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { useQuery } from 'react-query';
-import { agentsApi, workflowsApi } from '../api';
+import { workflowsApi } from '../api/workflows';
+
+interface WorkflowDefinition {
+  id: string;
+  name: string;
+  description: string;
+  engine: string;
+  createdAt: string;
+}
+
+interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  engine: string;
+}
+
+interface WorkflowNode {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+}
+
+interface WorkflowConnection {
+  id: string;
+  from: string;
+  to: string;
+}
 
 const { Option } = Select;
 const { TextArea } = Input;
 const { TabPane } = Tabs;
 
 // 工作流节点类型
-const NODE_TYPES = {
+const NODE_TYPES: Record<string, { name: string; color: string }> = {
   start: { name: '开始', color: '#52c41a' },
   task: { name: '任务', color: '#1890ff' },
   condition: { name: '条件判断', color: '#faad14' },
@@ -20,35 +47,32 @@ const NODE_TYPES = {
 };
 
 export const WorkflowsPage = () => {
-  const { agents } = useAgentsStore();
-  const { tasks } = useTasksStore();
-  const [workflows, setWorkflows] = useState([]);
-  const [templates, setTemplates] = useState([]);
+  const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([]);
+  const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingWorkflow, setEditingWorkflow] = useState(null);
-  const [selectedWorkflow, setSelectedWorkflow] = useState(null);
+  const [editingWorkflow, setEditingWorkflow] = useState<WorkflowDefinition | null>(null);
 
   // 使用 react-query 获取数据
-  const { data: workflowsData, refetch: refetchWorkflows } = useQuery(
+  const { refetch: refetchWorkflows } = useQuery(
     'workflows',
     () => workflowsApi.getWorkflows().then(res => res.data),
-    { onSuccess: (data) => setWorkflows(data) }
+    { onSuccess: (data: WorkflowDefinition[]) => setWorkflows(data) }
   );
 
-  const { data: templatesData, refetch: refetchTemplates } = useQuery(
+  useQuery(
     'templates',
     () => workflowsApi.getTemplates().then(res => res.data),
-    { onSuccess: (data) => setTemplates(data) }
+    { onSuccess: (data: WorkflowTemplate[]) => setTemplates(data) }
   );
 
-  const showModal = (workflow = null) => {
+  const showModal = (workflow: WorkflowDefinition | null = null) => {
     setEditingWorkflow(workflow);
     setModalVisible(true);
   };
 
   const handleOk = async () => {
     // TODO: 实现工作流保存逻辑
-    modalVisible(false);
+    setModalVisible(false);
     message.success('工作流保存成功');
     refetchWorkflows();
   };
@@ -68,7 +92,7 @@ export const WorkflowsPage = () => {
     });
   };
 
-  const handleExecute = (workflow: any) => {
+  const handleExecute = (workflow: WorkflowDefinition) => {
     Modal.confirm({
       title: '执行工作流',
       content: '确定要执行这个工作流吗？',
@@ -77,7 +101,7 @@ export const WorkflowsPage = () => {
       cancelText: '取消',
       onOk: async () => {
         try {
-          const response = await workflowsApi.executeWorkflow(workflow.id);
+          await workflowsApi.executeWorkflow(workflow.id);
           message.success('工作流执行已开始');
         } catch (error) {
           message.error('工作流执行失败');
@@ -117,7 +141,7 @@ export const WorkflowsPage = () => {
     {
       title: '操作',
       key: 'action',
-      render: (_, record: any) => (
+      render: (_: unknown, record: WorkflowDefinition) => (
         <Space size="middle">
           <Button
             type="link"
@@ -172,13 +196,13 @@ export const WorkflowsPage = () => {
   ];
 
   const WorkflowEditor = () => {
-    const [nodes, setNodes] = useState([
+    const [nodes, setNodes] = useState<WorkflowNode[]>([
       { id: '1', type: 'start', x: 100, y: 50 },
       { id: '2', type: 'task', x: 100, y: 150 },
       { id: '3', type: 'end', x: 100, y: 250 },
     ]);
 
-    const [connections, setConnections] = useState([
+    const [connections, setConnections] = useState<WorkflowConnection[]>([
       { id: '1-2', from: '1', to: '2' },
       { id: '2-3', from: '2', to: '3' },
     ]);

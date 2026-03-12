@@ -33,7 +33,7 @@ class BudgetConfig(BaseModel):
     name: str
     amount: float = Field(gt=0)
     currency: str = Field(default="USD")
-    period: str = Field(regex='^(daily|weekly|monthly|yearly)$')
+    period: str = Field(pattern='^(daily|weekly|monthly|yearly)$')
     alert_threshold: float = Field(ge=0, le=1)  # 0-1之间的比例
     notifications: List[str] = Field(default_factory=list)
     created_at: datetime

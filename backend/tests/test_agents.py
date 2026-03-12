@@ -1,11 +1,15 @@
 import pytest
-from httpx import AsyncClient
-from app.main import app
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from httpx import AsyncClient, ASGITransport
+from main import app
 
 @pytest.mark.asyncio
 async def test_create_agent():
     """测试创建 Agent"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post("/api/agents/", json={
             "name": "test-agent",
             "type": "claude-code",
@@ -22,7 +26,7 @@ async def test_create_agent():
 @pytest.mark.asyncio
 async def test_get_agents():
     """测试获取 Agent 列表"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/agents/")
         assert response.status_code == 200
         assert isinstance(response.json(), list)
@@ -31,7 +35,7 @@ async def test_get_agents():
 @pytest.mark.asyncio
 async def test_get_agent():
     """测试获取单个 Agent"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # 先创建一个 Agent
         create_response = await client.post("/api/agents/", json={
             "name": "test-agent-2",

@@ -19,7 +19,7 @@ interface TasksState {
   assignTask: (id: string, agentId: string) => Promise<void>;
 }
 
-export const useTasksStore = create<TasksState>((set, get) => ({
+export const useTasksStore = create<TasksState>((set) => ({
   tasks: [],
   loading: false,
   error: null,
@@ -30,7 +30,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       const response = await tasksApi.getTasks(params);
       set({ tasks: response.data, loading: false });
     } catch (error) {
-      set({ error: error.message || 'Failed to fetch tasks', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to fetch tasks', loading: false });
     }
   },
 
@@ -43,7 +43,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to create task', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to create task', loading: false });
     }
   },
 
@@ -58,7 +58,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to update task', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to update task', loading: false });
     }
   },
 
@@ -71,7 +71,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to delete task', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to delete task', loading: false });
     }
   },
 
@@ -82,7 +82,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       set({ loading: false });
       return response.data;
     } catch (error) {
-      set({ error: error.message || 'Failed to fetch task', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to fetch task', loading: false });
       throw error;
     }
   },
@@ -100,7 +100,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to execute task', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to execute task', loading: false });
     }
   },
 
@@ -117,7 +117,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to pause task', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to pause task', loading: false });
     }
   },
 
@@ -134,7 +134,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to resume task', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to resume task', loading: false });
     }
   },
 
@@ -151,7 +151,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to cancel task', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to cancel task', loading: false });
     }
   },
 
@@ -168,7 +168,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to assign task', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to assign task', loading: false });
     }
   },
 }));

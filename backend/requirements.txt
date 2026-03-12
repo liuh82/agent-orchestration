@@ -3,7 +3,6 @@ uvicorn[standard]==0.24.0
 pydantic==2.5.0
 pydantic-settings==2.1.0
 sqlalchemy==2.0.23
-sqlite3
 python-multipart==0.0.6
 httpx==0.25.2
 python-jose[cryptography]==3.3.0

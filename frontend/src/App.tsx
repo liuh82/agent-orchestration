@@ -4,7 +4,6 @@ import { AgentsPage } from './pages/Agents';
 import { TasksPage } from './pages/Tasks';
 import { WorkflowsPage } from './pages/Workflows';
 import { DashboardPage } from './pages/Dashboard';
-import { GlobalStyles } from './styles';
 import { Header } from './components/Header';
 
 const { Content } = Layout;

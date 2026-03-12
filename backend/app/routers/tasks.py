@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from pydantic import BaseModel
 
 from ..models.task import TaskCreate, TaskUpdate, Task
 from ..services.task import TaskService

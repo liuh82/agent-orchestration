@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from ..models.workflow import WorkflowDefinition, WorkflowTemplate
 from ..services.workflow import WorkflowService

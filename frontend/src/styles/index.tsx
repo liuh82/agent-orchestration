@@ -1,6 +1,6 @@
-import { GlobalStyle } from 'antd';
+import { createGlobalStyle } from 'styled-components';
 
-export const GlobalStyles = GlobalStyle`
+export const GlobalStyles = createGlobalStyle`
   body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,

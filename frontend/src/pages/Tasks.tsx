@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, Space, Tag, Modal, Form, Input, Select, InputNumber, message, DatePicker } from 'antd';
+import { useEffect, useState } from 'react';
+import { Card, Table, Button, Space, Tag, Modal, Form, Input, Select, message } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, PlayCircleOutlined, PauseCircleOutlined, RedoOutlined } from '@ant-design/icons';
 import { useTasksStore } from '../stores/tasks';
 import { Task } from '../types';
@@ -163,7 +163,7 @@ export const TasksPage = () => {
     {
       title: '操作',
       key: 'action',
-      render: (_, record: Task) => (
+      render: (_: unknown, record: Task) => (
         <Space size="middle">
           {record.status === 'pending' && (
             <Button

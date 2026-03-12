@@ -65,7 +65,7 @@ export const DashboardPage = () => {
                 <Col span={8}>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ color: '#52c41a', fontSize: 24 }}>{completedTasks}</div>
-                    <div style={{ color: '#666', fontSize: 12 }}已完成</div>
+                    <div style={{ color: '#666', fontSize: 12 }}>已完成</div>
                   </div>
                 </Col>
                 <Col span={8}>

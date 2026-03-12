@@ -16,7 +16,7 @@ interface AgentsState {
   stopAgent: (id: string) => Promise<void>;
 }
 
-export const useAgentsStore = create<AgentsState>((set, get) => ({
+export const useAgentsStore = create<AgentsState>((set) => ({
   agents: [],
   loading: false,
   error: null,
@@ -27,7 +27,7 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
       const response = await agentsApi.getAgents();
       set({ agents: response.data, loading: false });
     } catch (error) {
-      set({ error: error.message || 'Failed to fetch agents', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to fetch agents', loading: false });
     }
   },
 
@@ -40,7 +40,7 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to create agent', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to create agent', loading: false });
     }
   },
 
@@ -55,7 +55,7 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to update agent', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to update agent', loading: false });
     }
   },
 
@@ -68,7 +68,7 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to delete agent', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to delete agent', loading: false });
     }
   },
 
@@ -79,7 +79,7 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
       set({ loading: false });
       return response.data;
     } catch (error) {
-      set({ error: error.message || 'Failed to fetch agent', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to fetch agent', loading: false });
       throw error;
     }
   },
@@ -97,7 +97,7 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to start agent', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to start agent', loading: false });
     }
   },
 
@@ -114,7 +114,7 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: error.message || 'Failed to stop agent', loading: false });
+      set({ error: error instanceof Error ? error.message : 'Failed to stop agent', loading: false });
     }
   },
 }));
