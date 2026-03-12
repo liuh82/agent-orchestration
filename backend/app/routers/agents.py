@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 
-from ..models.agent import AgentCreate, AgentUpdate, Agent
+from ..models.agent import AgentCreate, AgentUpdate, Agent, AgentStats, AgentLogsRequest
 from ..services.agent import AgentService
 
 router = APIRouter()
@@ -74,12 +74,47 @@ async def delete_agent(agent_id: str):
 @router.post("/{agent_id}/start")
 async def start_agent(agent_id: str):
     """启动 Agent"""
-    # TODO: 实现实际的 Agent 启动逻辑
-    return {"success": True, "message": "Agent started"}
+    agent = await agent_service.start_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    return {"success": True, "message": "Agent started", "data": agent}
 
 
 @router.post("/{agent_id}/stop")
 async def stop_agent(agent_id: str):
     """停止 Agent"""
-    # TODO: 实现实际的 Agent 停止逻辑
-    return {"success": True, "message": "Agent stopped"}
+    agent = await agent_service.stop_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    return {"success": True, "message": "Agent stopped", "data": agent}
+
+
+@router.get("/{agent_id}/stats")
+async def get_agent_stats(agent_id: str):
+    """获取 Agent 性能统计"""
+    stats = await agent_service.get_agent_stats(agent_id)
+    if not stats:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    return {
+        "success": True,
+        "data": stats,
+        "message": "Agent statistics retrieved successfully"
+    }
+
+
+@router.get("/{agent_id}/logs")
+async def get_agent_logs(agent_id: str, page: int = 1, page_size: int = 50,
+                        start_time: Optional[datetime] = None,
+                        end_time: Optional[datetime] = None,
+                        level: Optional[str] = None):
+    """获取 Agent 运行日志"""
+    logs = await agent_service.get_agent_logs(agent_id, page, page_size, start_time, end_time, level)
+
+    return {
+        "success": True,
+        "data": logs,
+        "message": "Agent logs retrieved successfully"
+    }

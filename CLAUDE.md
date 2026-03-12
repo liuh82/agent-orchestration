@@ -233,3 +233,4 @@ gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
 
 - 需求文档: `agent-orchestration-requirements.md`
 - 架构文档: `agent-orchestration-architecture.md`
+- 后续开发计划：`agent-orchestration-v2-plan`

@@ -4,11 +4,13 @@ from typing import List, Optional
 from uuid import uuid4
 
 from ..models.task import TaskCreate, TaskUpdate, Task
+from ..services.agent import AgentService
 
 
 class TaskService:
     def __init__(self):
         self.conn = sqlite3.connect('tasks.db', check_same_thread=False)
+        self.agent_service = AgentService()
         self._init_db()
 
     def _init_db(self):
@@ -156,4 +158,16 @@ class TaskService:
 
     async def assign_task(self, task_id: str, agent_id: str) -> Optional[Task]:
         """分配任务"""
-        return await self.update_task(task_id, TaskUpdate(assigned_to=agent_id))
+        # Check if agent exists and is running
+        agent = await self.agent_service.get_agent(agent_id)
+        if not agent or agent.status != 'running':
+            return None
+
+        # Assign task in database
+        updated_task = await self.update_task(task_id, TaskUpdate(assigned_to=agent_id))
+
+        if updated_task:
+            # Create assignment record in agent service
+            await self.agent_service.assign_task(task_id, agent_id)
+
+        return updated_task
