@@ -21,12 +21,14 @@
     "react-router-dom": "^6.20.1",
     "recharts": "^2.8.0",
     "styled-components": "^6.3.11",
+    "xlsx": "^0.18.5",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@types/styled-components": "^5.1.36",
+    "@types/xlsx": "^0.0.36",
     "@typescript-eslint/eslint-plugin": "^6.10.0",
     "@typescript-eslint/parser": "^6.10.0",
     "@vitejs/plugin-react": "^4.1.1",
