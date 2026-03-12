@@ -25,7 +25,18 @@
       "Bash(python -m pytest tests/test_new_features.py::test_start_agent -v -s)",
       "Bash(python -m pytest tests/test_new_features.py::test_start_agent -v -s --capture=no)",
       "Bash(python -m pytest tests/test_new_features.py::test_start_agent -v -s -k \"start\" --capture=no --tb=short)",
-      "Bash(python -m pytest /Users/lh8/projects/agent-orchestration/backend/tests/ -v --tb=short)"
+      "Bash(python -m pytest /Users/lh8/projects/agent-orchestration/backend/tests/ -v --tb=short)",
+      "Bash(ls -la /Users/lh8/projects/agent-orchestration/backend/*.py)",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/tasks.db \".schema heartbeat_logs\")",
+      "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/workflows.db \".schema heartbeat_logs\")",
+      "Bash(ls -la /Users/lh8/projects/agent-orchestration/*.db)",
+      "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/tasks.db \".tables\")",
+      "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/workflows.db \".tables\")",
+      "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/tasks.db \".schema approval_history\")",
+      "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/tasks.db \".schema agent_logs\")",
+      "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/tasks.db \".indexes\")",
+      "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/tasks.db \".schema\")"
     ],
     "additionalDirectories": [
       "/Users/lh8/projects/agent-orchestration/backend"

@@ -129,3 +129,142 @@ export interface ExecutionStatus {
   currentStep: string;
   logs: LogEntry[];
 }
+
+// ==================== Org 相关类型 ====================
+export interface OrgNode {
+  id: string;
+  name: string;
+  title: string;
+  department: string;
+  level: number;
+  parentId: string | null;
+  childrenIds: string[];
+  children?: OrgNode[];
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  permissions: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Member {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  avatar: string | null;
+  departmentId: string;
+  position: string;
+  roleIds: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Goal {
+  id: string;
+  title: string;
+  description: string | null;
+  type: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'draft' | 'active' | 'completed' | 'archived';
+  ownerId: string;
+  departmentId: string | null;
+  dueDate: string | null;
+  progress: number;
+  tags: string[];
+  metrics: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Approval {
+  id: string;
+  title: string;
+  type: string;
+  content: string;
+  requesterId: string;
+  approverIds: string[];
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  priority: string;
+  dueDate: string | null;
+  metadata: string | null;
+  createdAt: string;
+  updatedAt: string;
+  approvalHistory: ApprovalHistory[];
+}
+
+export interface ApprovalHistory {
+  id: string;
+  approvalId: string;
+  action: string;
+  actorId: string;
+  actorName: string;
+  comment: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  createdAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  type: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  userId: string;
+  userName: string;
+  departmentId: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  requestData: string | null;
+  responseData: string | null;
+  statusCode: number;
+  errorMessage: string | null;
+  durationMs: number | null;
+  metadata: string | null;
+  createdAt: string;
+}
+
+// ==================== Heartbeats 相关类型 ====================
+export interface Heartbeat {
+  id: string;
+  name: string;
+  description: string | null;
+  actionType: string;
+  actionParams: Record<string, any> | null;
+  intervalSeconds: number;
+  isActive: boolean;
+  lastRunAt: string | null;
+  nextRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HeartbeatLog {
+  id: string;
+  heartbeatId: string;
+  status: 'running' | 'success' | 'failed';
+  result: Record<string, any> | null;
+  errorMessage: string | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+export interface HeartbeatStats {
+  total: number;
+  active: number;
+  inactive: number;
+  failed24h: number;
+}
