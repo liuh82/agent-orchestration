@@ -1,7 +1,34 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(ping -c 3 github.com)",
+      "Bash(git config:*)",
+      "Bash(echo $HTTP_PROXY $HTTPS_PROXY $http_proxy $https_proxy)",
+      "Bash(curl -I https://github.com/liuh82/agent-orchestration.git)",
+      "Bash(python -m pytest -v --tb=short --cov=app --cov-report=html --cov-report=term)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(python -m pytest tests/test_new_features.py::test_cost_by_agent -v)",
+      "Bash(python -m pytest tests/test_new_features.py::test_cost_alerts -v -s)",
+      "Bash(python -m pytest tests/test_new_features.py::test_cost_by_agent tests/test_new_features.py::test_task_assignment -v)",
+      "Bash(python -m pytest tests/test_new_features.py -v)",
+      "Bash(python -c \"from fastapi.testclient import TestClient; from main import app; client = TestClient\\(app\\); agent_data = {''name'': ''Test Agent'', ''type'': ''claude-code'', ''model'': ''claude-3-opus'', ''timeout'': 300}; r = client.post\\(''/api/agents/'', json=agent_data\\); print\\(''Agent:'', r.json\\(\\)\\); agent_id = r.json\\(\\)[''data''][''id'']; cr = client.get\\(''/api/cost/by-agent'', params={''agent_id'': agent_id}\\); print\\(''Status:'', cr.status_code\\); print\\(''Response:'', cr.text\\)\")",
+      "Bash(python -c \":*)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m pytest tests/ -v --tb=line)",
+      "Bash(python -m pytest tests/test_org_features.py::TestRole::test_create_role -v -s)",
+      "Bash(python -m pytest tests/test_agents.py::test_create_agent -v -s)",
+      "Bash(python -m pytest tests/test_agents.py tests/test_new_features.py tests/test_org_features.py -v --tb=short)",
+      "Bash(python -m pytest tests/test_agents.py tests/test_new_features.py -v)",
+      "Bash(python -m pytest tests/test_new_features.py::test_start_agent -v -s)",
+      "Bash(python -m pytest tests/test_new_features.py::test_start_agent -v -s --capture=no)",
+      "Bash(python -m pytest tests/test_new_features.py::test_start_agent -v -s -k \"start\" --capture=no --tb=short)",
+      "Bash(python -m pytest /Users/lh8/projects/agent-orchestration/backend/tests/ -v --tb=short)"
+    ],
+    "additionalDirectories": [
+      "/Users/lh8/projects/agent-orchestration/backend"
     ]
   }
 }

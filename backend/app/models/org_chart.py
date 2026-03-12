@@ -19,8 +19,7 @@ class OrganizationChartNode(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class OrganizationChartCreate(BaseModel):
@@ -53,8 +52,7 @@ class OrganizationChart(OrganizationChartCreate):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class OrgChartResponse(BaseModel):

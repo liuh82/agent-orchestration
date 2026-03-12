@@ -7,6 +7,8 @@ from ..models.org_chart import (
     OrganizationChartCreate, OrganizationChartUpdate, OrganizationChartNode,
     OrgChartResponse, OrgChartDataResponse
 )
+# Alias for consistency with existing usage
+OrganizationChartDataResponse = OrgChartDataResponse
 from ..models.role import RoleCreate, RoleUpdate, Role, RoleResponse, RoleListResponse
 from ..models.member import MemberCreate, MemberUpdate, Member, MemberResponse, MemberListResponse
 from ..models.goal import (

@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field
+from enum import Enum
 
 
-class AuditLogType(str):
+class AuditLogType(str, Enum):
     """审计日志类型"""
     CREATE = "create"
     UPDATE = "update"
@@ -17,7 +18,7 @@ class AuditLogType(str):
     ASSIGN = "assign"
 
 
-class AuditLogAction(str):
+class AuditLogAction(str, Enum):
     """审计操作"""
     AGENT_CREATE = "agent_create"
     AGENT_UPDATE = "agent_update"
@@ -69,8 +70,7 @@ class AuditLogBase(BaseModel):
     duration_ms: Optional[int] = None  # 执行耗时（毫秒）
     metadata: Optional[str] = None  # 额外信息，JSON字符串
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = {"arbitrary_types_allowed": True}
 
 
 class AuditLogCreate(AuditLogBase):
@@ -83,8 +83,7 @@ class AuditLog(AuditLogBase):
     id: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True, "arbitrary_types_allowed": True}
 
 
 class AuditLogResponse(BaseModel):

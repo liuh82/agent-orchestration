@@ -71,7 +71,7 @@ class RoleService:
     async def get_role(self, role_id: str) -> Optional[Role]:
         """获取单个角色"""
         cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM roles WHERE id = ?', (role_id,))
+        cursor.execute('SELECT * FROM roles WHERE id = ? AND is_active = ?', (role_id, True))
         row = cursor.fetchone()
 
         if not row:

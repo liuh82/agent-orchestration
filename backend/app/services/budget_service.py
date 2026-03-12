@@ -263,9 +263,10 @@ class BudgetService:
         total_cost = sum(row[1] for row in rows)
         task_count = sum(row[2] for row in rows)
 
-        # Get agent name
+        # Get agent name - handle case where agent doesn't exist
         cursor.execute('SELECT name FROM agents WHERE id = ?', (agent_id,))
-        agent_name = cursor.fetchone()[0]
+        agent_row = cursor.fetchone()
+        agent_name = agent_row[0] if agent_row else f"Agent {agent_id}"
 
         return AgentCostSummary(
             agent_id=agent_id,
@@ -312,3 +313,37 @@ class BudgetService:
 
         # Update budget costs
         await self._update_budget_costs()
+
+    async def _update_budget_costs(self):
+        """更新预算的当前成本"""
+        cursor = self.conn.cursor()
+
+        # Get all budgets
+        budgets = await self.get_all_budgets()
+
+        for budget in budgets:
+            # Calculate total cost for this budget's period
+            if budget.period == 'monthly':
+                # Get costs for current month
+                current_month = datetime.now().strftime('%Y-%m')
+            elif budget.period == 'yearly':
+                # Get costs for current year
+                current_month = datetime.now().strftime('%Y')
+            else:
+                # Default to month
+                current_month = datetime.now().strftime('%Y-%m')
+
+            cursor.execute('''
+                SELECT SUM(total_cost) FROM daily_costs
+                WHERE date LIKE ?
+            ''', (f'{current_month}%',))
+            total_cost = cursor.fetchone()[0] or 0.0
+
+            # Update budget
+            cursor.execute('''
+                UPDATE budgets
+                SET current_cost = ?
+                WHERE id = ?
+            ''', (total_cost, budget.id))
+
+        self.conn.commit()

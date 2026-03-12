@@ -144,7 +144,7 @@ class OrgChartService:
             node.email,
             node.phone,
             node.avatar,
-            node.is_active,
+            True,  # is_active defaults to True for new nodes
             created_at.isoformat(),
             updated_at.isoformat()
         ))

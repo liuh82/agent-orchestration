@@ -1,167 +1,138 @@
-# AI Agent Orchestration 测试报告
+# AI Agent Orchestration - 测试报告
 
-## 测试概览
-
-**测试日期**: 2026-03-12
-**测试版本**: Phase 1 核心功能增强
-**测试环境**: macOS 13.6, Python 3.13.2, Node.js 18.x
+**测试日期**: 2026-03-12  
+**测试环境**: Python 3.13.2, Node.js  
+**测试范围**: 后端单元测试 + 前端构建测试
 
 ---
 
-## 测试结果汇总
+## 后端测试结果
 
-| 模块 | 状态 | 测试用例数 | 通过 | 失败 | 耗时 | 覆盖率 |
-|------|------|-----------|------|------|------|--------|
-| 后端核心功能 | ✅ 部分通过 | 8 | 5 | 3 | 0.41s | 85% |
-| 前端构建 | ✅ 通过 | - | - | - | 3.44s | - |
-| 服务启动 | ⚠️ 需要验证 | - | - | - | < 1s | - |
+### 测试命令
+```bash
+cd backend && pip install -r requirements.txt && python -m pytest -v --tb=short --cov=app --cov-report=html --cov-report=term
+```
+
+### 测试统计
+- **总测试数**: 23
+- **通过**: 9
+- **失败**: 10
+- **错误**: 4
+- **通过率**: 39.1%
+
+### 代码覆盖率
+- **总体覆盖率**: 57% (1287/2250 行)
+- **覆盖率报告**: 见 `backend/htmlcov/` 目录
+
+### 详细测试结果
+
+#### 通过的测试 (9/23)
+```
+tests/test_agents.py::test_create_agent PASSED
+tests/test_agents.py::test_get_agents PASSED
+tests/test_agents.py::test_get_agent PASSED
+tests/test_new_features.py::test_start_agent PASSED
+tests/test_new_features.py::test_stop_agent PASSED
+tests/test_new_features.py::test_get_agent_stats PASSED
+tests/test_new_features.py::test_get_agent_logs PASSED
+tests/test_new_features.py::test_budget_endpoints PASSED
+tests/test_org_features.py::TestOrgChart::test_get_org_chart PASSED
+```
+
+#### 失败的测试 (10/23)
+```
+tests/test_new_features.py::test_cost_by_agent - assert 404 == 200
+tests/test_new_features.py::test_cost_alerts - assert 400 == 200
+tests/test_new_features.py::test_task_assignment - sqlite3.IntegrityError
+tests/test_org_features.py::TestOrgChart::test_create_org_node - AttributeError
+tests/test_org_features.py::TestRole::test_create_role - AttributeError
+tests/test_org_features.py::TestGoal::test_create_goal - AttributeError
+tests/test_org_features.py::TestGoal::test_create_goal_alignment - AttributeError
+tests/test_org_features.py::TestApproval::test_create_approval - AttributeError
+tests/test_org_features.py::TestAudit::test_create_audit_log - AttributeError
+tests/test_org_features.py::TestAudit::test_get_audit_logs - AssertionError
+```
+
+#### 错误的测试 (4/23)
+```
+tests/test_org_features.py::TestOrgChart::test_create_child_node - fixture 'parent_id' not found
+tests/test_org_features.py::TestRole::test_update_role - fixture 'role_id' not found
+tests/test_org_features.py::TestRole::test_delete_role - fixture 'role_id' not found
+tests/test_org_features.py::TestApproval::test_update_approval_status - fixture 'approval_id' not found
+```
+
+### 模块覆盖率明细
+
+| 模块 | 语句数 | 未覆盖 | 覆盖率 |
+|------|--------|--------|--------|
+| app/routers/agents.py | 62 | 14 | 77% |
+| app/routers/cost.py | 72 | 35 | 51% |
+| app/routers/org.py | 221 | 133 | 40% |
+| app/routers/tasks.py | 58 | 22 | 62% |
+| app/routers/workflows.py | 79 | 42 | 47% |
+| app/services/agent.py | 123 | 40 | 67% |
+| app/services/approval.py | 126 | 92 | 27% |
+| app/services/audit.py | 116 | 63 | 46% |
+| app/services/budget_service.py | 107 | 55 | 49% |
+| app/services/cost.py | 77 | 77 | 0% |
+| app/services/goal.py | 128 | 89 | 30% |
+| app/services/member.py | 90 | 66 | 27% |
+| app/services/org_chart.py | 126 | 78 | 38% |
+| app/services/role.py | 71 | 45 | 37% |
+| app/services/task.py | 61 | 20 | 67% |
+| app/services/workflow.py | 78 | 55 | 29% |
 
 ---
 
-## 后端测试详情
+## 前端构建结果
 
-### 1. 原有测试 (test_agents.py)
+### 构建命令
+```bash
+cd frontend && npm install && npm run build
+```
 
-| 测试用例 | 状态 | 耗时 | 说明 |
-|----------|------|------|------|
-| test_create_agent | ✅ PASS | 0.03s | 创建 Agent |
-| test_get_agents | ✅ PASS | 0.05s | 获取 Agent 列表 |
-| test_get_agent | ✅ PASS | 0.06s | 获取单个 Agent |
+### 构建统计
+- **状态**: ✅ 成功
+- **构建时间**: 3.48s
+- **输出目录**: `frontend/dist/`
 
-**总计**: 3/3 通过, 0.30s
+### 输出文件
+| 文件 | 大小 | Gzip 大小 |
+|------|------|-----------|
+| dist/index.html | 0.39 kB | 0.31 kB |
+| dist/assets/index-9b81c652.js | 1,172.23 kB | 375.02 kB |
 
-### 2. 新功能测试 (test_new_features.py)
-
-#### ✅ 通过的测试 (5/8)
-
-| 测试用例 | 状态 | 耗时 | 说明 |
-|----------|------|------|------|
-| test_start_agent | ✅ PASS | 0.04s | 成功启动 Agent |
-| test_stop_agent | ✅ PASS | 0.05s | 成功停止 Agent |
-| test_get_agent_stats | ✅ PASS | 0.03s | 获取 Agent 统计信息 |
-| test_get_agent_logs | ✅ PASS | 0.04s | 获取 Agent 日志 |
-| test_budget_endpoints | ✅ PASS | 0.07s | 预算管理端点 |
-
-#### ❌ 失败的测试 (3/8)
-
-| 测试用例 | 错误类型 | 问题描述 | 修复建议 |
-|----------|----------|----------|----------|
-| test_cost_by_agent | 404 Not Found | 数据库无相关数据 | 需要先添加成本数据或修改测试逻辑 |
-| test_cost_alerts | 400 Bad Request | API 参数可能不符合预期 | 检查 API 参数格式 |
-| test_task_assignment | sqlite3.IntegrityError | 数据库约束错误 | 需要更新任务创建逻辑 |
+### 构建警告
+⚠️ 部分代码块超过 500 kB 建议使用动态导入进行代码分割
 
 ---
 
-## 问题修复记录
+## 问题汇总
 
-### 1. Pydantic v2 警告
-**问题**: 使用了已弃用的 class-based config
-**影响**: 无功能影响，但有警告信息
-**修复方案**: 更新为 ConfigDict（不影响当前功能）
+### 后端问题
+1. **依赖兼容性问题**: 已修复 - 升级了 pydantic 和 pydantic-settings 版本
+2. **导入错误**: 已修复 - 添加了 OrganizationChartDataResponse 别名
+3. **测试数据问题**: 部分测试由于数据模型属性不匹配导致失败
+4. **Fixture 缺失**: 部分测试依赖的 fixture 未定义
 
-### 2. 数据库模型兼容性
-**问题**: 任务服务中新字段导致的兼容性问题
-**影响**: 任务分配测试失败
-**修复方案**: 需要确保数据库结构一致
-
-### 3. API 端点测试问题
-**问题**: 部分新端点测试需要特定的前置条件
-**影响**: 端点功能正常，但测试逻辑需要完善
-
----
-
-## 服务启动状态
-
-| 服务 | 状态 | 端口 | 备注 |
-|------|------|------|------|
-| 后端 (FastAPI) | ✅ 已启动 | 8000 | uvicorn 运行中 |
-| 前端 (React) | ✅ 已构建 | 3000 | 构建成功，dist 目录生成 |
-
----
-
-## 性能指标
-
-### 构建性能
-- 前端构建时间: 3.44s
-- 包大小: 1.17MB (gzip: 375KB)
-- Vite 预构建: 3153 个模块
-
-### 测试性能
-- 总测试时间: 0.71s
-- 测试用例执行时间: 0.41s
-- 每个测试平均耗时: 0.05s
+### 前端问题
+- ⚠️ 打包体积较大 (1.17 MB)，建议进行代码分割优化
 
 ---
 
 ## 建议
 
-### 1. 代码改进
-- ✅ 已实现完整的 API 端点
-- ✅ 数据库模型设计合理
-- ⚠️ 需要添加更多单元测试覆盖
-- ⚠️ 需要处理 Pydantic v2 的弃用警告
+1. **修复后端测试**:
+   - 修复数据模型属性映射问题
+   - 添加缺失的 pytest fixture
+   - 提高测试覆盖率至目标 70%+
 
-### 2. 测试优化
-- 添加集成测试，确保端到端功能
-- 添加性能测试，确保 API 响应时间
-- 添加边界条件测试
+2. **前端优化**:
+   - 使用动态 import() 进行代码分割
+   - 配置 build.rollupOptions.output.manualChunks
+   - 考虑懒加载路由组件
 
-### 3. 部署建议
-- 使用 Docker 容器化部署
-- 添加环境变量配置
-- 实现数据库迁移脚本
-
----
-
-## 测试结论
-
-**整体状态**: 🟡 基本功能正常，需要完善测试
-
-Phase 1 核心功能增强已基本实现：
-- ✅ Agent 管理增强（启动/停止/日志/统计）
-- ✅ 任务分配功能
-- ✅ 预算控制系统
-- ✅ API 端点正常响应
-
-**待改进项**：
-1. 完善测试覆盖，特别是边缘案例
-2. 修复数据库约束问题
-3. 添加更多集成测试
-4. 更新 Pydantic 配置以消除警告
-
-**建议优先级**：
-1. 🔴 高: 修复数据库约束问题
-2. 🟡 中: 完善 API 测试
-3. 🟢 低: 优化构建配置
-
----
-
-## 附录
-
-### 测试命令
-```bash
-# 后端测试
-cd backend
-pip install -r requirements.txt
-pytest -v
-
-# 前端构建
-cd frontend
-npm install
-npm run build
-
-# 启动服务
-cd backend
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### 测试环境信息
-- Python: 3.13.2
-- FastAPI: 0.104.1
-- Pydantic: 2.5.0
-- Node.js: 18.x
-- npm: 9.x
-- Vite: 4.5.14
-
----
-*报告生成时间: 2026-03-12*
+3. **持续改进**:
+   - 添加更多边界情况测试
+   - 引入集成测试
+   - 设置 CI/CD 自动化测试

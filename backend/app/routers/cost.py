@@ -145,5 +145,7 @@ async def get_cost_by_agent(
             "data": summary,
             "message": "Agent cost summary retrieved successfully"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

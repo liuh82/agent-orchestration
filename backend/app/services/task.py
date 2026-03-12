@@ -130,9 +130,14 @@ class TaskService:
         cursor = self.conn.cursor()
         cursor.execute('''
             UPDATE tasks
-            SET title = ?, description = ?, status = ?, priority = ?,
-                assigned_to = ?, updated_at = ?, completed_at = ?,
-                output = ?
+            SET title = COALESCE(?, title),
+                description = COALESCE(?, description),
+                status = COALESCE(?, status),
+                priority = COALESCE(?, priority),
+                assigned_to = COALESCE(?, assigned_to),
+                updated_at = ?,
+                completed_at = CASE WHEN ? = 'completed' THEN ? ELSE completed_at END,
+                output = COALESCE(?, output)
             WHERE id = ?
         ''', (
             task.title,
@@ -141,8 +146,9 @@ class TaskService:
             task.priority,
             task.assigned_to,
             updated_at.isoformat(),
-            datetime.now().isoformat() if task.status == 'completed' else None,
-            str(task.output),
+            task.status,
+            datetime.now().isoformat(),
+            str(task.output) if task.output is not None else None,
             task_id
         ))
         self.conn.commit()

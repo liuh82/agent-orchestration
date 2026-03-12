@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field
+from enum import Enum
 
 
-class ApprovalStatus(str):
+class ApprovalStatus(str, Enum):
     """审批状态"""
     PENDING = "pending"
     APPROVED = "approved"
@@ -11,7 +12,7 @@ class ApprovalStatus(str):
     CANCELLED = "cancelled"
 
 
-class ApprovalType(str):
+class ApprovalType(str, Enum):
     """审批类型"""
     AGENT_CREATE = "agent_create"
     AGENT_UPDATE = "agent_update"
@@ -38,8 +39,7 @@ class ApprovalBase(BaseModel):
     due_date: Optional[datetime] = None
     metadata: Optional[str] = None  # 额外信息，JSON字符串
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = {"arbitrary_types_allowed": True}
 
 
 class ApprovalCreate(ApprovalBase):
@@ -66,9 +66,7 @@ class Approval(ApprovalBase):
     updated_at: datetime
     approval_history: List['ApprovalHistory'] = []
 
-    class Config:
-        from_attributes = True
-        arbitrary_types_allowed = True
+    model_config = {"from_attributes": True, "arbitrary_types_allowed": True}
 
 
 class ApprovalResponse(BaseModel):
@@ -96,9 +94,7 @@ class ApprovalHistory(BaseModel):
     status: ApprovalStatus
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-        arbitrary_types_allowed = True
+    model_config = {"from_attributes": True, "arbitrary_types_allowed": True}
 
 
 class ApprovalHistoryResponse(BaseModel):

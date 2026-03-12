@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field
+from enum import Enum
 
 
-class GoalStatus(str):
+class GoalStatus(str, Enum):
     """目标状态"""
     DRAFT = "draft"
     ACTIVE = "active"
@@ -11,7 +12,7 @@ class GoalStatus(str):
     ARCHIVED = "archived"
 
 
-class GoalPriority(str):
+class GoalPriority(str, Enum):
     """目标优先级"""
     LOW = "low"
     MEDIUM = "medium"
@@ -24,8 +25,8 @@ class GoalBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
     type: str = Field(default="objective")  # objective, key_result, milestone
-    priority: GoalPriority = Field(default=GoalPriority.MEDIUM)
-    status: GoalStatus = Field(default=GoalStatus.DRAFT)
+    priority: GoalPriority = GoalPriority.MEDIUM
+    status: GoalStatus = GoalStatus.DRAFT
     owner_id: str
     department_id: Optional[str] = None
     due_date: Optional[datetime] = None
@@ -33,8 +34,7 @@ class GoalBase(BaseModel):
     tags: List[str] = Field(default_factory=list)
     metrics: List[str] = Field(default_factory=list)
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = {"arbitrary_types_allowed": True}
 
 
 class GoalCreate(GoalBase):
@@ -42,7 +42,7 @@ class GoalCreate(GoalBase):
     pass
 
 
-class GoalUpdate(GoalBase):
+class GoalUpdate(BaseModel):
     """更新目标"""
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
@@ -63,9 +63,7 @@ class Goal(GoalBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-        arbitrary_types_allowed = True
+    model_config = {"from_attributes": True, "arbitrary_types_allowed": True}
 
 
 class GoalResponse(BaseModel):
@@ -84,10 +82,13 @@ class GoalListResponse(BaseModel):
 
 class GoalAlignment(BaseModel):
     """目标对齐关系"""
+    id: str
     parent_id: str
     child_id: str
     weight: float = Field(default=1.0, ge=0, le=1)  # 权重
     description: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
 
 
 class GoalAlignmentCreate(BaseModel):
