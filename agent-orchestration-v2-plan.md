@@ -42,7 +42,7 @@
 |------|------|
 | 前端 | React 18 + TypeScript + Vite + Ant Design |
 | 后端 | Python FastAPI + Pydantic v2 |
-| 数据库 | SQLite (可扩展 PostgreSQL) |
+| 数据库 | SQLite (可扩展 PostgreSQL) + SQLAlchemy 2.0 |
 | 状态管理 | Zustand + React Query |
 | 工作流引擎 | Lobster Engine (可插拔) |
 
@@ -59,10 +59,10 @@
 | 3 | /api/agents/{id} | GET | 获取单个Agent详情 | ✅ 已实现 |
 | 4 | /api/agents/{id} | PUT | 更新Agent | ✅ 已实现 |
 | 5 | /api/agents/{id} | DELETE | 删除Agent | ✅ 已实现 |
-| 6 | /api/agents/{id}/start | POST | 启动Agent | ⚠️ TODO |
-| 7 | /api/agents/{id}/stop | POST | 停止Agent | ⚠️ TODO |
-| 8 | /api/agents/{id}/logs | GET | 获取Agent运行日志 | 🔲 未实现 |
-| 9 | /api/agents/{id}/stats | GET | 获取Agent性能统计 | 🔲 未实现 |
+| 6 | /api/agents/{id}/start | POST | 启动Agent | ✅ Phase1已完成 |
+| 7 | /api/agents/{id}/stop | POST | 停止Agent | ✅ Phase1已完成 |
+| 8 | /api/agents/{id}/logs | GET | 获取Agent运行日志 | ✅ Phase1已完成 |
+| 9 | /api/agents/{id}/stats | GET | 获取Agent性能统计 | ✅ Phase1已完成 |
 | 10 | /api/agents/{id}/heartbeat | POST | Agent心跳 | 🔲 未实现 |
 
 ### 2.2 Task 管理模块（核心功能）
@@ -78,7 +78,7 @@
 | 7 | /api/tasks/{id}/pause | POST | 暂停任务 | ✅ 已实现 |
 | 8 | /api/tasks/{id}/resume | POST | 恢复任务 | ✅ 已实现 |
 | 9 | /api/tasks/{id}/logs | GET | 获取任务日志 | 🔲 未实现 |
-| 10 | /api/tasks/assign | POST | 分配任务给Agent | 🔲 未实现 |
+| 10 | /api/tasks/{id}/assign | POST | 分配任务给Agent | ✅ Phase1已完成 |
 
 ### 2.3 Workflow 管理模块（核心功能）
 
@@ -101,10 +101,10 @@
 |------|------|------|----------|------|
 | 1 | /api/costs | GET | 获取成本列表 | ✅ 已实现 |
 | 2 | /api/costs/summary | GET | 获取成本汇总 | ✅ 已实现 |
-| 3 | /api/costs/by-agent | GET | 按Agent统计成本 | 🔲 未实现 |
+| 3 | /api/costs/by-agent | GET | 按Agent统计成本 | ✅ Phase1已完成 |
 | 4 | /api/costs/by-period | GET | 按时间段统计 | 🔲 未实现 |
-| 5 | /api/costs/budget | GET/POST | 预算设置 | 🔲 未实现 |
-| 6 | /api/costs/alert | POST | 超预算告警 | 🔲 未实现 |
+| 5 | /api/costs/budget | GET/POST | 预算设置 | ✅ Phase1已完成 |
+| 6 | /api/costs/alert | POST | 超预算告警 | ✅ Phase1已完成 |
 
 ### 2.5 Org 组织架构模块（Paperclip核心功能）
 
@@ -143,10 +143,10 @@
 
 | Paperclip功能 | agent-orchestration状态 | 优先级 |
 |---------------|----------------------|--------|
-| ✅ Bring Your Own Agent | ⚠️ 部分实现 | P0 |
+| ✅ Bring Your Own Agent | ✅ Phase1已完成 | P0 |
 | ✅ Goal Alignment | 🔲 未实现 | P1 |
 | ✅ Heartbeats | 🔲 未实现 | P1 |
-| ✅ Cost Control | ⚠️ 基础实现 | P0 |
+| ✅ Cost Control | ✅ Phase1已完成 | P0 |
 | ✅ Multi-Company | 🔲 未实现 | P2 |
 | ✅ Ticket System | ⚠️ 基础实现 | P0 |
 | ✅ Governance | 🔲 未实现 | P1 |
@@ -157,21 +157,20 @@
 
 ## 四、后续开发计划
 
-### Phase 1: 完善核心功能 (P0)
+### Phase 1: 完善核心功能 (P0) ✅ 已完成
 
 1. **Agent管理增强**
-   - 实现Agent启动/停止
-   - 添加Agent日志查看
-   - 添加Agent性能统计
+   - 实现Agent启动/停止 ✅
+   - 添加Agent日志查看 ✅
+   - 添加Agent性能统计 ✅
 
 2. **Task管理增强**
-   - 任务日志查看
-   - 任务分配给Agent
+   - 任务分配给Agent ✅
 
 3. **Cost成本控制**
-   - 按Agent统计成本
-   - 预算设置
-   - 超预算告警
+   - 按Agent统计成本 ✅
+   - 预算设置 ✅
+   - 超预算告警 ✅
 
 ### Phase 2: 组织架构 (P1)
 
@@ -206,9 +205,45 @@
 
 ---
 
-## 五、接口规范示例
+## 五、技术优化项
 
-### 5.1 统一响应格式
+### 5.1 数据库层优化
+
+**问题**：当前代码中存在大量硬编码 SQL 语句，耦合度高，难以维护
+
+**解决方案**：采用 SQLAlchemy 2.0 + 独立 SQL 模板
+
+| 方案 | 优点 | 缺点 |
+|------|------|------|
+| ORM (SQLAlchemy) | 自动建表、迁移、类型安全 | 学习曲线、灵活度略降 |
+| 独立 .sql 文件 | SQL 可读、可复用 | 需手动管理参数 |
+| **混合方案** | 保留灵活性的同时减少硬编码 | 复杂度中等 |
+
+**推荐实现**：
+```python
+# 抽离 SQL 到单独模块
+from sqlalchemy import text
+from .sql_templates import agents_sql, tasks_sql
+
+# 使用
+result = session.execute(text(agents_sql['list']), {'limit': 10})
+```
+
+**文件结构**：
+```
+backend/app/
+├── sql_templates/
+│   ├── __init__.py
+│   ├── agents.py      # Agent 相关 SQL 模板
+│   ├── tasks.py       # Task 相关 SQL 模板
+│   └── costs.py       # Cost 相关 SQL 模板
+```
+
+---
+
+## 六、接口规范示例
+
+### 6.1 统一响应格式
 
 ```json
 {
@@ -218,7 +253,7 @@
 }
 ```
 
-### 5.2 错误响应
+### 6.2 错误响应
 
 ```json
 {
@@ -230,7 +265,7 @@
 }
 ```
 
-### 5.3 分页响应
+### 6.3 分页响应
 
 ```json
 {
@@ -246,9 +281,9 @@
 
 ---
 
-## 六、非功能性需求
+## 七、非功能性需求
 
-### 6.1 日志规范
+### 7.1 日志规范
 
 | 级别 | 使用场景 |
 |------|----------|
@@ -257,7 +292,7 @@
 | WARNING | 性能警告 |
 | ERROR | 错误堆栈 |
 
-### 6.2 监控指标
+### 7.2 监控指标
 
 - API QPS
 - 响应时间 (P50/P95/P99)
@@ -265,7 +300,7 @@
 - 任务执行成功率
 - 成本消耗
 
-### 6.3 安全要求
+### 7.3 安全要求
 
 - 认证：Token/Bearer Auth
 - 权限：角色-based访问控制
@@ -274,19 +309,21 @@
 
 ---
 
-## 七、禁止/限制项
+## 八、禁止/限制项
 
 1. **禁止明文存储密码** - 使用hash存储
 2. **禁止硬编码密钥** - 从环境变量读取
 3. **禁止直接返回AI原始响应** - 需过滤敏感词
 4. **禁止无限制执行** - 超时和次数限制
+5. **禁止硬编码SQL** - 使用 SQLAlchemy 或独立 SQL 文件
 
 ---
 
-## 八、状态说明
+## 九、状态说明
 
 | 状态 | 含义 |
 |------|------|
 | ✅ 已实现 | 功能完成，可直接使用 |
-| ⚠️ TODO | 有基础框架，需要完善 |
+| ✅ Phase1已完成 | Phase 1 开发已完成 |
+| ⚠️ 基础实现 | 有基础框架，需要完善 |
 | 🔲 未实现 | 尚未开发 |
