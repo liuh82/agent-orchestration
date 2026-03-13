@@ -1,7 +1,8 @@
-# AI Agent Orchestration 完整开发方案 (v2.0)
+# AI Agent Orchestration 开发方案 (v3.0)
 
 > 基于 agent-orchestration 项目现状 + Paperclip 功能对比
-> 日期：2026-03-12
+> 更新日期：2026-03-13
+> 当前版本：v2.3.4 (commit: 0fe326a)
 
 ---
 
@@ -12,13 +13,13 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         前端层 (React + TypeScript)                     │
-│   Dashboard │ Agents │ Tasks │ Workflows │ Costs │ Settings              │
+│   Dashboard │ Agents │ Tasks │ Workflows │ Org │ Approvals │ Audit │ HB   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       API Gateway (FastAPI)                            │
-│   认证 │ 限流 │ 日志 │ 路由                                                   │
+│   API Key 认证 │ 限流 │ 日志 │ 路由                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
         ┌───────────────────────────┼───────────────────────────┐
@@ -31,8 +32,8 @@
         └───────────────────────────┼───────────────────────────┘
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         数据层 (SQLite)                              │
-│   agents │ tasks │ workflows │ costs │ logs │ org_chart               │
+│                         数据层 (SQLite → SQLAlchemy 2.0 ORM)          │
+│   agents │ tasks │ workflows │ costs │ logs │ org │ goals │ approvals │ hb  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -42,222 +43,337 @@
 |------|------|
 | 前端 | React 18 + TypeScript + Vite + Ant Design |
 | 后端 | Python FastAPI + Pydantic v2 |
-| 数据库 | SQLite (可扩展 PostgreSQL) + SQLAlchemy 2.0 |
+| 数据库 | SQLite (WAL模式) + **SQLAlchemy 2.0 ORM** (待迁移) |
 | 状态管理 | Zustand + React Query |
 | 工作流引擎 | Lobster Engine (可插拔) |
+| 认证 | API Key (MVP) |
 
 ---
 
-## 二、完整功能清单
+## 二、功能实现进度
 
-### 2.1 Agent 管理模块（核心功能）
+### 2.1 Agent 管理模块
 
-| 序号 | 接口 | 方法 | 功能描述 | 状态 |
-|------|------|------|----------|------|
-| 1 | /api/agents | GET | 获取Agent列表 | ✅ 已实现 |
-| 2 | /api/agents | POST | 创建Agent | ✅ 已实现 |
-| 3 | /api/agents/{id} | GET | 获取单个Agent详情 | ✅ 已实现 |
-| 4 | /api/agents/{id} | PUT | 更新Agent | ✅ 已实现 |
-| 5 | /api/agents/{id} | DELETE | 删除Agent | ✅ 已实现 |
-| 6 | /api/agents/{id}/start | POST | 启动Agent | ✅ Phase1已完成 |
-| 7 | /api/agents/{id}/stop | POST | 停止Agent | ✅ Phase1已完成 |
-| 8 | /api/agents/{id}/logs | GET | 获取Agent运行日志 | ✅ Phase1已完成 |
-| 9 | /api/agents/{id}/stats | GET | 获取Agent性能统计 | ✅ Phase1已完成 |
-| 10 | /api/agents/{id}/heartbeat | POST | Agent心跳 | 🔲 未实现 |
+| 接口 | 方法 | 功能 | 状态 |
+|------|------|------|------|
+| /api/agents | GET | Agent列表 | ✅ 已实现 |
+| /api/agents | POST | 创建Agent | ✅ 已实现 |
+| /api/agents/{id} | GET | Agent详情 | ✅ 已实现 |
+| /api/agents/{id} | PUT | 更新Agent | ✅ 已实现 |
+| /api/agents/{id} | DELETE | 删除Agent | ✅ 已实现 |
+| /api/agents/{id}/start | POST | 启动Agent | ✅ Phase1 |
+| /api/agents/{id}/stop | POST | 停止Agent | ✅ Phase1 |
+| /api/agents/{id}/logs | GET | 运行日志 | ✅ Phase1 |
+| /api/agents/{id}/stats | GET | 性能统计 | ✅ Phase1 |
+| /api/agents/{id}/heartbeat | POST | Agent心跳 | 🔲 未实现 |
 
-### 2.2 Task 管理模块（核心功能）
+### 2.2 Task 管理模块
 
-| 序号 | 接口 | 方法 | 功能描述 | 状态 |
-|------|------|------|----------|------|
-| 1 | /api/tasks | GET | 获取任务列表(支持分页) | ✅ 已实现 |
-| 2 | /api/tasks | POST | 创建任务 | ✅ 已实现 |
-| 3 | /api/tasks/{id} | GET | 获取任务详情 | ✅ 已实现 |
-| 4 | /api/tasks/{id} | PUT | 更新任务 | ✅ 已实现 |
-| 5 | /api/tasks/{id} | DELETE | 删除任务 | ✅ 已实现 |
-| 6 | /api/tasks/{id}/execute | POST | 执行任务 | ✅ 已实现 |
-| 7 | /api/tasks/{id}/pause | POST | 暂停任务 | ✅ 已实现 |
-| 8 | /api/tasks/{id}/resume | POST | 恢复任务 | ✅ 已实现 |
-| 9 | /api/tasks/{id}/logs | GET | 获取任务日志 | 🔲 未实现 |
-| 10 | /api/tasks/{id}/assign | POST | 分配任务给Agent | ✅ Phase1已完成 |
+| 接口 | 方法 | 功能 | 状态 |
+|------|------|------|------|
+| /api/tasks | GET | 任务列表(分页) | ✅ |
+| /api/tasks | POST | 创建任务 | ✅ |
+| /api/tasks/{id} | GET | 任务详情 | ✅ |
+| /api/tasks/{id} | PUT | 更新任务 | ✅ |
+| /api/tasks/{id} | DELETE | 删除任务 | ✅ |
+| /api/tasks/{id}/execute | POST | 执行任务 | ✅ |
+| /api/tasks/{id}/pause | POST | 暂停任务 | ✅ |
+| /api/tasks/{id}/resume | POST | 恢复任务 | ✅ |
+| /api/tasks/{id}/assign | POST | 分配Agent | ✅ Phase1 |
+| /api/tasks/{id}/logs | GET | 任务日志 | 🔲 未实现 |
 
-### 2.3 Workflow 管理模块（核心功能）
+### 2.3 Workflow 管理模块
 
-| 序号 | 接口 | 方法 | 功能描述 | 状态 |
-|------|------|------|----------|------|
-| 1 | /api/workflows | GET | 获取工作流列表 | ✅ 已实现 |
-| 2 | /api/workflows | POST | 创建工作流 | ✅ 已实现 |
-| 3 | /api/workflows/{id} | GET | 获取工作流详情 | ✅ 已实现 |
-| 4 | /api/workflows/{id} | PUT | 更新工作流 | ✅ 已实现 |
-| 5 | /api/workflows/{id} | DELETE | 删除工作流 | ✅ 已实现 |
-| 6 | /api/workflows/{id}/execute | POST | 执行工作流 | ✅ 已实现 |
-| 7 | /api/workflows/status/{exec_id} | GET | 获取执行状态 | ✅ 已实现 |
-| 8 | /api/workflows/logs/{exec_id} | GET | 获取执行日志 | ✅ 已实现 |
-| 9 | /api/workflows/templates | GET | 获取工作流模板 | ✅ 已实现 |
-| 10 | /api/workflows/visual-editor | GET | 可视化编辑器数据 | 🔲 未实现 |
+| 接口 | 方法 | 功能 | 状态 |
+|------|------|------|------|
+| /api/workflows | GET | 工作流列表 | ✅ |
+| /api/workflows | POST | 创建工作流 | ✅ |
+| /api/workflows/{id} | GET | 工作流详情 | ✅ |
+| /api/workflows/{id} | PUT | 更新工作流 | ✅ |
+| /api/workflows/{id} | DELETE | 删除工作流 | ✅ |
+| /api/workflows/{id}/execute | POST | 执行工作流 | ✅ |
+| /api/workflows/{id}/status/{exec_id} | GET | 执行状态 | ✅ |
+| /api/workflows/{id}/logs/{exec_id} | GET | 执行日志 | ✅ |
+| /api/workflows/templates | GET | 工作流模板 | ✅ |
+| /api/workflows/visual-editor | GET | 可视化编辑器 | 🔲 未实现 |
 
-### 2.4 Cost 成本控制模块（扩展功能）
+### 2.4 Cost 成本控制模块
 
-| 序号 | 接口 | 方法 | 功能描述 | 状态 |
-|------|------|------|----------|------|
-| 1 | /api/costs | GET | 获取成本列表 | ✅ 已实现 |
-| 2 | /api/costs/summary | GET | 获取成本汇总 | ✅ 已实现 |
-| 3 | /api/costs/by-agent | GET | 按Agent统计成本 | ✅ Phase1已完成 |
-| 4 | /api/costs/by-period | GET | 按时间段统计 | 🔲 未实现 |
-| 5 | /api/costs/budget | GET/POST | 预算设置 | ✅ Phase1已完成 |
-| 6 | /api/costs/alert | POST | 超预算告警 | ✅ Phase1已完成 |
+| 接口 | 方法 | 功能 | 状态 |
+|------|------|------|------|
+| /api/costs | GET | 成本列表 | ✅ |
+| /api/costs/summary | GET | 成本汇总 | ✅ |
+| /api/costs/by-agent | GET | 按Agent统计 | ✅ Phase1 |
+| /api/costs/by-period | GET | 按时间段统计 | 🔲 未实现 |
+| /api/costs/budget | GET/POST | 预算设置 | ✅ Phase1 |
+| /api/costs/alert | POST | 超预算告警 | ✅ Phase1 |
 
-### 2.5 Org 组织架构模块（Paperclip核心功能）
+### 2.5 Org 组织架构模块
 
-| 序号 | 接口 | 方法 | 功能描述 | 状态 |
-|------|------|------|----------|------|
-| 1 | /api/org/chart | GET | 获取组织架构图 | ✅ Phase2后端已完成 |
-| 2 | /api/org/roles | GET | 获取角色列表 | ✅ Phase2后端已完成 |
-| 3 | /api/org/roles | POST | 创建角色 | ✅ Phase2后端已完成 |
-| 4 | /api/org/members | GET | 获取成员列表 | ✅ Phase2后端已完成 |
-| 5 | /api/org/members | POST | 添加成员 | ✅ Phase2后端已完成 |
-| 6 | /api/goals | GET | 获取目标列表 | ✅ Phase2后端已完成 |
-| 7 | /api/goals | POST | 创建目标 | ✅ Phase2后端已完成 |
-| 8 | /api/goals/align | POST | 目标对齐 | ✅ Phase2后端已完成 |
+| 接口 | 方法 | 功能 | 状态 |
+|------|------|------|------|
+| /api/org/chart | GET | 组织架构图 | ✅ 后端+前端 |
+| /api/org/roles | GET/POST | 角色管理 | ✅ 后端+前端 |
+| /api/org/members | GET/POST | 成员管理 | ✅ 后端+前端 |
+| /api/goals | GET/POST | 目标管理 | ✅ 后端+前端 |
+| /api/goals/align | POST | 目标对齐 | ✅ 后端+前端 |
 
-### 2.6 Governance 治理模块（Paperclip核心功能）
+### 2.6 Governance 治理模块
 
-| 序号 | 接口 | 方法 | 功能描述 | 状态 |
-|------|------|------|----------|------|
-| 1 | /api/approvals | GET | 待审批列表 | ✅ Phase2后端已完成 |
-| 2 | /api/approvals/{id} | POST | 审批操作 | ✅ Phase2后端已完成 |
-| 3 | /api/approvals/history | GET | 审批历史 | ✅ Phase2后端已完成 |
-| 4 | /api/audit/logs | GET | 审计日志 | ✅ Phase2后端已完成 |
+| 接口 | 方法 | 功能 | 状态 |
+|------|------|------|------|
+| /api/approvals | GET | 待审批列表 | ✅ 后端+前端 |
+| /api/approvals/{id} | POST | 审批操作 | ✅ 后端+前端 |
+| /api/approvals/history | GET | 审批历史 | ✅ 后端+前端 |
+| /api/audit/logs | GET | 审计日志 | ✅ 后端+前端 |
 
-### 2.7 Heartbeat 心跳模块（Paperclip核心功能）
+### 2.7 Heartbeat 心跳模块
 
-| 序号 | 接口 | 方法 | 功能描述 | 状态 |
-|------|------|------|----------|------|
-| 1 | /api/heartbeats | GET | 获取心跳配置 | 🔲 未实现 |
-| 2 | /api/heartbeats | POST | 创建心跳任务 | 🔲 未实现 |
-| 3 | /api/heartbeats/{id} | PUT | 更新心跳配置 | 🔲 未实现 |
-| 4 | /api/heartbeats/{id}/disable | POST | 禁用心跳 | 🔲 未实现 |
-
----
-
-## 三、Paperclip 核心功能对比
-
-| Paperclip功能 | agent-orchestration状态 | 优先级 |
-|---------------|----------------------|--------|
-| ✅ Bring Your Own Agent | ✅ Phase1已完成 | P0 |
-| ✅ Goal Alignment | ✅ Phase2后端已完成 | P1 |
-| ✅ Heartbeats | 🔲 未实现 | P1 |
-| ✅ Cost Control | ✅ Phase1已完成 | P0 |
-| ✅ Multi-Company | 🔲 未实现 | P2 |
-| ✅ Ticket System | ⚠️ 基础实现 | P0 |
-| ✅ Governance | ✅ Phase2后端已完成 | P1 |
-| ✅ Org Chart | ✅ Phase2后端已完成 | P1 |
-| ✅ Mobile Ready | 🔲 未实现 | P2 |
+| 接口 | 方法 | 功能 | 状态 |
+|------|------|------|------|
+| /api/heartbeats | GET | 心跳配置列表 | ✅ 后端+前端 |
+| /api/heartbeats | POST | 创建心跳任务 | ✅ 后端+前端 |
+| /api/heartbeats/{id} | PUT | 更新心跳配置 | ✅ 后端+前端 |
+| /api/heartbeats/{id}/trigger | POST | 手动触发 | ✅ 后端+前端 |
+| /api/heartbeats/{id}/disable | POST | 禁用心跳 | ✅ 后端+前端 |
+| /api/heartbeats/{id}/enable | POST | 启用心跳 | ✅ 后端+前端 |
+| /api/heartbeats/{id}/logs | GET | 执行日志 | ✅ 后端+前端 |
+| /api/heartbeats/stats | GET | 统计信息 | ✅ 后端+前端 |
 
 ---
 
-## 四、后续开发计划
+## 三、版本发布记录
 
-### Phase 1: 完善核心功能 (P0) ✅ 已完成
+### v2.0 — Phase 1 核心功能 ✅ (2026-03-09)
 
-1. **Agent管理增强**
-   - 实现Agent启动/停止 ✅
-   - 添加Agent日志查看 ✅
-   - 添加Agent性能统计 ✅
+- Agent CRUD + 启停 + 日志 + 统计
+- Task CRUD + 分配
+- Workflow CRUD + 执行
+- Cost 按Agent统计 + 预算 + 告警
+- 前端基础页面
 
-2. **Task管理增强**
-   - 任务分配给Agent ✅
+### v2.1 — Phase 2 后端扩展 ✅ (2026-03-12)
 
-3. **Cost成本控制**
-   - 按Agent统计成本 ✅
-   - 预算设置 ✅
-   - 超预算告警 ✅
+- Org Chart 组织架构后端
+- Goal Alignment 目标对齐后端
+- Governance 审批流程 + 审计日志后端
+- 后端 pytest 23/23 通过
 
-### Phase 2: 组织架构 (P1) ⚠️ 后端已完成，前端待开发
+### v2.2 — Phase 2.5 + Phase 3 ✅ (2026-03-12)
 
-4. **Org Chart**
-   - 组织架构图 ✅ (后端)
-   - 角色管理 ✅ (后端)
-   - 成员管理 ✅ (后端)
-   - 🔲 前端页面未实现
+- 前端 Org / Goals / Approvals / Audit 页面
+- 后端 Heartbeats 心跳模块
+- 后端 pytest 23/23 通过
 
-5. **Goal Alignment**
-   - 目标创建 ✅ (后端)
-   - 目标对齐 ✅ (后端)
-   - 🔲 前端页面未实现
+### v2.3 — 审查修复第一轮 ✅ (2026-03-13)
 
-6. **Governance**
-   - 审批流程 ✅ (后端)
-   - 审计日志 ✅ (后端)
-   - 🔲 前端页面未实现
+**修复内容（8 commits: c1cc91e → 9f685ef）：**
+- 🔴 SQL 注入修复 — 字段白名单 + 参数化查询
+- 🔴 单例线程安全 — 双重检查锁定 + threading.Lock()
+- 🔴 API Key 认证中间件 — MVP 版本 (auth.py)
+- 🔴 前端轮询清理 — 配置常量化（30s）
+- 🟡 数据库连接管理 — 上下文管理器
+- 🟡 前端防抖 — asyncDebounce
+- 🟡 未使用参数清理
+- 🟡 前端错误处理统一
 
-### Phase 2.5: 前端页面开发 ⚠️ 待开发
+### v2.3.4 — 前端清理 ✅ (2026-03-13)
 
-**需要开发的前端页面：**
-- `/org` - 组织架构页面（Org Chart + 角色 + 成员）
-- `/goals` - 目标管理页面
-- `/approvals` - 审批中心页面
-- `/audit` - 审计日志页面
+**最新提交（0fe326a）：**
+- 清理未使用的 import 和变量（Audit/Heartbeats/Org/org.ts）
+- types/index.ts 类型扩展
+- 前端 TypeScript 0 error
+- 前端 build 成功
 
-**前端路由更新：**
-- App.tsx 需要添加新路由
-
-### Phase 3: 自动化 (P1)
-
-7. **Heartbeats**
-   - 定时任务配置
-   - 自动执行
-
-### Phase 4: 扩展功能 (P2)
-
-8. **Multi-Company**
-   - 多公司数据隔离
-   - 公司切换
-
-9. **Mobile适配**
-   - 响应式UI
-   - 移动端优化
+### v2.4 — 待开发
 
 ---
 
-## 五、技术优化项
+## 四、测试报告汇总
 
-### 5.1 数据库层优化
+### 4.1 测试报告 1（2026-03-12，本地测试）
 
-**问题**：当前代码中存在大量硬编码 SQL 语句，耦合度高，难以维护
+- 后端 3/3 通过（仅 Agent 测试）
+- 前端构建成功
+- **报告文件**: `TEST_REPORT.md`
 
-**解决方案**：采用 SQLAlchemy 2.0 + 独立 SQL 模板
+### 4.2 测试报告 2（2026-03-12，首次完整测试）
 
-| 方案 | 优点 | 缺点 |
-|------|------|------|
-| ORM (SQLAlchemy) | 自动建表、迁移、类型安全 | 学习曲线、灵活度略降 |
-| 独立 .sql 文件 | SQL 可读、可复用 | 需手动管理参数 |
-| **混合方案** | 保留灵活性的同时减少硬编码 | 复杂度中等 |
+- 后端 9/23 通过，10 失败，4 错误
+- 代码覆盖率 57%
+- 主要问题：数据模型属性映射、fixture 缺失、Pydantic V2 兼容
+- **报告文件**: `test-report.md`
 
-**推荐实现**：
+### 4.3 测试报告 3（2026-03-12，修复后）
+
+- 后端 **23/23 通过**，0 失败，0 错误 ✅
+- 代码覆盖率 57%
+- 修复内容：Pydantic V2 迁移、fixture 补充、数据模型修复、API 路由修复
+- **报告文件**: `backend/test-report.md`
+
+### 4.4 当前验证状态（2026-03-13）
+
+| 检查项 | 结果 |
+|--------|------|
+| 后端 pytest | ✅ 23/23 通过 |
+| 前端 tsc --noEmit | ✅ 0 error |
+| 前端 npm run build | ✅ 成功 |
+
+---
+
+## 五、代码审查记录
+
+### 5.1 审查 1（2026-03-12 初审）
+
+- 结构清晰，技术栈正确
+- 无认证授权（中等风险）
+- SQLite 无连接池（低风险）
+- **结论**: 通过，可合并
+
+### 5.2 审查 2（2026-03-13 Phase 2.5 + Phase 3）
+
+**审查范围**: 24 个文件，新增 3829 行
+
+| 严重程度 | 数量 | 主要问题 |
+|----------|------|----------|
+| 🔴 严重 | 4 | SQL注入、单例不安全、无认证、轮询泄漏 |
+| 🟡 质量 | 8 | 类型验证缺失、防抖、连接管理、错误处理 |
+| 🔵 API | 4 | 无分页、同步触发、无版本控制 |
+| 🟢 建议 | 6 | JWT、rate limiting、虚拟滚动 |
+
+**评分**: 代码质量⭐⭐⭐ / API设计⭐⭐⭐ / 安全性⭐⭐ / 可维护性⭐⭐⭐⭐
+
+**修复状态**: 🔴 4/4 全部修复，🟡 3/5 已修复 → **可合并**
+
+---
+
+## 六、下一步开发计划
+
+### Phase 5：数据库层 ORM 迁移 🔴 当前重点
+
+**背景**: 后端 12 个 service 文件共 **328 处原生 SQL**，全部使用 `cursor.execute` / `fetchall` / `sqlite3` 裸操作。`sqlalchemy==2.0.23` 已在 requirements.txt 中但从未使用。
+
+**目标**: 全面迁移到 SQLAlchemy 2.0 ORM，彻底消除原生 SQL。
+
+#### 5.1 创建 ORM 模型
+
+在 `app/models/` 下新建或改写 ORM 模型，对应现有数据库表：
+
+| ORM 模型 | 数据库表 |
+|----------|----------|
+| Agent | agents |
+| AgentLog | agent_logs |
+| Task | tasks |
+| TaskAssignment | task_assignments |
+| Workflow | workflows |
+| OrgNode | org_nodes |
+| Role | roles |
+| Member | members |
+| Goal | goals |
+| GoalAlignment | goal_alignments |
+| Approval | approvals |
+| ApprovalHistory | approval_history |
+| AuditLog | audit_logs |
+| Heartbeat | heartbeats |
+| HeartbeatLog | heartbeat_logs |
+| CostRecord | cost_records |
+
+使用 SQLAlchemy 2.0 声明式映射（`DeclarativeBase` + `Mapped`），字段与现有表完全一致。
+
+#### 5.2 创建数据库会话管理
+
+在 `app/database.py` 中：
+- `engine` — `create_engine`，SQLite + WAL 模式
+- `SessionLocal` — sessionmaker
+- `get_db()` — FastAPI 依赖注入
+- `Base.metadata.create_all()` — 启动时自动建表
+
+#### 5.3 重写 12 个 Service
+
+| 文件 | 原生 SQL 处数 |
+|------|-------------|
+| heartbeat.py | 42 |
+| budget_service.py | 39 |
+| agent.py | 38 |
+| goal.py | 38 |
+| approval.py | 36 |
+| member.py | 33 |
+| org_chart.py | 27 |
+| audit.py | 31 |
+| workflow.py | 31 |
+| role.py | 26 |
+| cost.py | 24 |
+| task.py | 18 |
+
+**重写规则**:
+- `SELECT` → `session.query()` 或 `session.execute(select(...))`
+- `INSERT` → `session.add()`
+- `UPDATE` → 修改 ORM 对象属性
+- `DELETE` → `session.delete()`
+- `cursor.fetchone()` → `.scalar()` / `.first()`
+- `cursor.fetchall()` → `.scalars().all()`
+- 条件过滤 → `.where()` / `.filter()`
+- 分页 → `.offset().limit()`
+- 事务 → Session 自动管理，异常时 `session.rollback()`
+- 完全删除 `_get_connection()` 和手动 `sqlite3.connect()`
+
+#### 5.4 更新 Router 层
+
+所有 router 改为依赖注入：
 ```python
-# 抽离 SQL 到单独模块
-from sqlalchemy import text
-from .sql_templates import agents_sql, tasks_sql
+from app.database import get_db
 
-# 使用
-result = session.execute(text(agents_sql['list']), {'limit': 10})
+@router.get("/agents")
+def get_agents(db: Session = Depends(get_db)):
+    return agent_service.get_agents(db)
 ```
 
-**文件结构**：
-```
-backend/app/
-├── sql_templates/
-│   ├── __init__.py
-│   ├── agents.py      # Agent 相关 SQL 模板
-│   ├── tasks.py       # Task 相关 SQL 模板
-│   └── costs.py       # Cost 相关 SQL 模板
-```
+#### 5.5 验收标准
+
+1. **零原生 SQL** — `grep -rn "cursor.execute\|cursor.fetchall\|cursor.fetchone\|sqlite3.connect\|_get_connection" app/services/` 返回空
+2. **pytest 23/23 通过**
+3. **前端 tsc 0 error，build 成功**
+4. **启动无报错**
+5. **所有 API 端点返回正确**
+
+### Phase 6：功能补齐（P2）
+
+8. **Multi-Company** — 多公司数据隔离
+9. **Mobile 适配** — 响应式 UI
+10. **Workflow 可视化编辑器**
+11. **按时间段成本统计**
+12. **Agent 心跳独立接口**
+
+### Phase 7：优化改进
+
+13. **JWT 认证** — 替换 API Key MVP
+14. **Rate Limiting** — 100 req/min
+15. **前端代码分割** — 当前 JS 1.17MB，需 dynamic import
+16. **CI/CD 集成** — 自动化测试 + 构建
+17. **Pydantic ConfigDict 迁移** — 消除 V2 弃用警告
+18. **测试覆盖率提升** — 目标 70%+
 
 ---
 
-## 六、接口规范示例
+## 七、Paperclip 核心功能对比
 
-### 6.1 统一响应格式
+| Paperclip 功能 | agent-orchestration 状态 | 优先级 |
+|---------------|----------------------|--------|
+| Bring Your Own Agent | ✅ Phase1 | P0 ✅ |
+| Goal Alignment | ✅ 后端+前端 | P1 ✅ |
+| Heartbeats | ✅ 后端+前端 | P1 ✅ |
+| Cost Control | ✅ Phase1 | P0 ✅ |
+| Governance | ✅ 后端+前端 | P1 ✅ |
+| Org Chart | ✅ 后端+前端 | P1 ✅ |
+| Ticket System | ⚠️ 基础实现 | P0 |
+| Multi-Company | 🔲 未实现 | P2 |
+| Mobile Ready | 🔲 未实现 | P2 |
+
+---
+
+## 八、技术规范
+
+### 8.1 统一响应格式
 
 ```json
 {
@@ -267,7 +383,7 @@ backend/app/
 }
 ```
 
-### 6.2 错误响应
+### 8.2 错误响应
 
 ```json
 {
@@ -279,7 +395,7 @@ backend/app/
 }
 ```
 
-### 6.3 分页响应
+### 8.3 分页响应
 
 ```json
 {
@@ -295,50 +411,42 @@ backend/app/
 
 ---
 
-## 七、非功能性需求
+## 九、非功能性需求
 
-### 7.1 日志规范
+### 9.1 安全要求
 
-| 级别 | 使用场景 |
-|------|----------|
-| DEBUG | 详细调试信息 |
-| INFO | 请求参数、响应状态 |
-| WARNING | 性能警告 |
-| ERROR | 错误堆栈 |
+- ✅ API Key 认证（MVP 已实现）
+- 🔲 JWT/Session 认证（待 Phase 7）
+- 🔲 Rate Limiting（待 Phase 7）
+- 🔲 CSRF 保护
+- ✅ SQL 注入防御（参数化查询）
 
-### 7.2 监控指标
+### 9.2 代码规范
 
-- API QPS
-- 响应时间 (P50/P95/P99)
-- Agent运行状态
-- 任务执行成功率
-- 成本消耗
-
-### 7.3 安全要求
-
-- 认证：Token/Bearer Auth
-- 权限：角色-based访问控制
-- 审计：所有操作记录日志
-- 脱敏：敏感数据加密存储
+- ❌ 禁止硬编码 SQL — 必须使用 SQLAlchemy ORM（Phase 5 完成后强制）
+- ❌ 禁止硬编码密钥 — 从环境变量读取
+- ❌ 禁止明文存储密码
+- ✅ API 文档注释（FastAPI 自动生成）
 
 ---
 
-## 八、禁止/限制项
+## 十、Git 提交历史
 
-1. **禁止明文存储密码** - 使用hash存储
-2. **禁止硬编码密钥** - 从环境变量读取
-3. **禁止直接返回AI原始响应** - 需过滤敏感词
-4. **禁止无限制执行** - 超时和次数限制
-5. **禁止硬编码SQL** - 使用 SQLAlchemy 或独立 SQL 文件
-
----
-
-## 九、状态说明
-
-| 状态 | 含义 |
-|------|------|
-| ✅ 已实现 | 功能完成，可直接使用 |
-| ✅ Phase1已完成 | Phase 1 开发已完成 |
-| ✅ Phase2后端已完成 | Phase 2 后端开发已完成 |
-| ⚠️ 后端已完成，前端待开发 | 后端功能完成，前端页面未实现 |
-| 🔲 未实现 | 尚未开发 |
+| Commit | 日期 | 说明 |
+|--------|------|------|
+| 0fe326a | 2026-03-13 | fix: 修复前端TypeScript类型错误和未使用变量 |
+| f3f4d8e | 2026-03-13 | Merge remote-tracking branch |
+| 264be35 | 2026-03-13 | chore: 更新配置和任务数据 |
+| 2b8241e | 2026-03-13 | fix: 清理前端未使用的 import 和变量 |
+| 9f685ef | 2026-03-13 | fix: 修复TypeScript编译错误 |
+| f48b762 | 2026-03-13 | fix: 前端防抖 |
+| c4dfcdd | 2026-03-13 | fix: 数据库连接管理 |
+| 3abb74b | 2026-03-13 | fix: 前端轮询清理 |
+| de42d74 | 2026-03-13 | feat: 添加API Key认证中间件 |
+| 83661ab | 2026-03-13 | fix: 单例线程安全修复 |
+| 5af7ff5 | 2026-03-13 | fix: SQL注入修复 |
+| c1cc91e | 2026-03-13 | fix: 修复安全和性能问题 |
+| d05b77b | 2026-03-13 | chore: 添加依赖 |
+| 14a8695 | 2026-03-12 | feat: Phase 2.5 前端 + Phase 3 Heartbeats |
+| efca492 | 2026-03-12 | fix: lifespan handler, WAL mode |
+| 52312b8 | 2026-03-11 | feat: Phase 2 组织架构 |
