@@ -1,20 +1,17 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
-class HeartbeatActionType(str):
-    """Heartbeat action types"""
-    CHECK_AGENT_STATUS = "check_agent_status"
-    SEND_REMINDER = "send_reminder"
-    CUSTOM = "custom"
+# 定义有效的 action_type 值
+ActionType = Literal["check_agent_status", "send_reminder", "custom"]
 
 
 class HeartbeatBase(BaseModel):
     """Heartbeat base information"""
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
-    action_type: str = Field(..., description="check_agent_status, send_reminder, custom")
+    action_type: ActionType = Field(..., description="check_agent_status, send_reminder, custom")
     action_params: Optional[dict] = Field(default_factory=dict)
     interval_seconds: int = Field(..., ge=10, description="Minimum 10 seconds")
     is_active: bool = Field(default=True)
@@ -31,7 +28,7 @@ class HeartbeatUpdate(BaseModel):
     """Update heartbeat"""
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
-    action_type: Optional[str] = None
+    action_type: Optional[ActionType] = None
     action_params: Optional[dict] = None
     interval_seconds: Optional[int] = Field(None, ge=10)
     is_active: Optional[bool] = None

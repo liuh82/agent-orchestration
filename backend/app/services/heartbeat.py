@@ -1,3 +1,5 @@
+import asyncio
+import os
 import sqlite3
 import uuid
 from datetime import datetime
@@ -6,11 +8,27 @@ from typing import List, Optional
 from ..models.heartbeat import Heartbeat, HeartbeatCreate, HeartbeatUpdate
 from ..models.heartbeat_log import HeartbeatLog, HeartbeatLogCreate, HeartbeatLogStatus
 
+# 允许更新的字段白名单
+HEARTBEAT_UPDATE_FIELDS = {
+    "name", "description", "action_type", "action_params",
+    "interval_seconds", "is_active", "last_run_at", "next_run_at"
+}
+
+HEARTBEAT_LOG_UPDATE_FIELDS = {
+    "status", "result", "error_message", "completed_at"
+}
+
 
 class HeartbeatService:
     """Heartbeat service for CRUD operations"""
 
-    def __init__(self, db_path: str = "tasks.db"):
+    def __init__(self, db_path: Optional[str] = None):
+        # 使用绝对路径，默认基于项目根目录
+        if db_path is None:
+            # 获取项目根目录（当前文件的祖父目录）
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            db_path = os.path.join(project_root, "tasks.db")
+
         self.db_path = db_path
         self._init_db()
 
@@ -73,6 +91,17 @@ class HeartbeatService:
         conn.row_factory = sqlite3.Row
         return conn
 
+    def _run_sync_query(self, query: str, params: tuple = ()):
+        """Run synchronous query in thread pool"""
+        return asyncio.to_thread(self._execute_sync, query, params)
+
+    def _execute_sync(self, query: str, params: tuple = ()):
+        """Execute synchronous query"""
+        with self._get_connection() as conn:
+            cursor = conn.execute(query, params)
+            conn.commit()
+            return cursor
+
     def _row_to_heartbeat(self, row: sqlite3.Row) -> Heartbeat:
         """Convert database row to Heartbeat model"""
         return Heartbeat(
@@ -117,33 +146,26 @@ class HeartbeatService:
 
     async def get_all_heartbeats(self) -> List[Heartbeat]:
         """Get all heartbeats"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                "SELECT * FROM heartbeats ORDER BY created_at DESC"
-            )
-            rows = cursor.fetchall()
-            return [self._row_to_heartbeat(row) for row in rows]
+        query = "SELECT * FROM heartbeats ORDER BY created_at DESC"
+        cursor = await self._run_sync_query(query)
+        rows = cursor.fetchall()
+        return [self._row_to_heartbeat(row) for row in rows]
 
     async def get_active_heartbeats(self) -> List[Heartbeat]:
         """Get active heartbeats"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                "SELECT * FROM heartbeats WHERE is_active = 1 ORDER BY created_at DESC"
-            )
-            rows = cursor.fetchall()
-            return [self._row_to_heartbeat(row) for row in rows]
+        query = "SELECT * FROM heartbeats WHERE is_active = 1 ORDER BY created_at DESC"
+        cursor = await self._run_sync_query(query)
+        rows = cursor.fetchall()
+        return [self._row_to_heartbeat(row) for row in rows]
 
     async def get_heartbeat(self, heartbeat_id: str) -> Optional[Heartbeat]:
         """Get single heartbeat by ID"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                "SELECT * FROM heartbeats WHERE id = ?",
-                (heartbeat_id,)
-            )
-            row = cursor.fetchone()
-            if not row:
-                return None
-            return self._row_to_heartbeat(row)
+        query = "SELECT * FROM heartbeats WHERE id = ?"
+        cursor = await self._run_sync_query(query, (heartbeat_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return self._row_to_heartbeat(row)
 
     async def create_heartbeat(self, data: HeartbeatCreate) -> Heartbeat:
         """Create new heartbeat"""
@@ -151,35 +173,34 @@ class HeartbeatService:
         now = datetime.now()
         next_run = now
 
-        with self._get_connection() as conn:
-            conn.execute(
-                """INSERT INTO heartbeats
-                (id, name, description, action_type, action_params,
-                 interval_seconds, is_active, last_run_at, next_run_at,
-                 created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    heartbeat_id,
-                    data.name,
-                    data.description,
-                    data.action_type,
-                    self._serialize_json(data.action_params),
-                    data.interval_seconds,
-                    1 if data.is_active else 0,
-                    None,
-                    next_run.isoformat(),
-                    now.isoformat(),
-                    now.isoformat(),
-                )
-            )
-            conn.commit()
+        query = """
+            INSERT INTO heartbeats
+            (id, name, description, action_type, action_params,
+             interval_seconds, is_active, last_run_at, next_run_at,
+             created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            heartbeat_id,
+            data.name,
+            data.description,
+            data.action_type,
+            self._serialize_json(data.action_params),
+            data.interval_seconds,
+            1 if data.is_active else 0,
+            None,
+            next_run.isoformat(),
+            now.isoformat(),
+            now.isoformat(),
+        )
 
+        await self._run_sync_query(query, params)
         return await self.get_heartbeat(heartbeat_id)
 
     async def update_heartbeat(
         self, heartbeat_id: str, data: HeartbeatUpdate
     ) -> Optional[Heartbeat]:
-        """Update heartbeat"""
+        """Update heartbeat with field whitelist for SQL injection prevention"""
         heartbeat = await self.get_heartbeat(heartbeat_id)
         if not heartbeat:
             return None
@@ -187,111 +208,98 @@ class HeartbeatService:
         updates = []
         params = []
 
-        if data.name is not None:
-            updates.append("name = ?")
-            params.append(data.name)
-        if data.description is not None:
-            updates.append("description = ?")
-            params.append(data.description)
-        if data.action_type is not None:
-            updates.append("action_type = ?")
-            params.append(data.action_type)
-        if data.action_params is not None:
-            updates.append("action_params = ?")
-            params.append(self._serialize_json(data.action_params))
-        if data.interval_seconds is not None:
-            updates.append("interval_seconds = ?")
-            params.append(data.interval_seconds)
-        if data.is_active is not None:
-            updates.append("is_active = ?")
-            params.append(1 if data.is_active else 0)
+        # 白名单验证字段名
+        field_map = {
+            "name": data.name,
+            "description": data.description,
+            "action_type": data.action_type,
+            "action_params": data.action_params,
+            "interval_seconds": data.interval_seconds,
+            "is_active": data.is_active,
+        }
+
+        for field, value in field_map.items():
+            if value is not None:
+                updates.append(f"{field} = ?")
+                if field == "action_params":
+                    params.append(self._serialize_json(value))
+                elif field == "is_active":
+                    params.append(1 if value else 0)
+                else:
+                    params.append(value)
 
         if updates:
             updates.append("updated_at = ?")
             params.append(datetime.now().isoformat())
             params.append(heartbeat_id)
 
-            with self._get_connection() as conn:
-                conn.execute(
-                    f"UPDATE heartbeats SET {', '.join(updates)} WHERE id = ?",
-                    params
-                )
-                conn.commit()
+            query = f"UPDATE heartbeats SET {', '.join(updates)} WHERE id = ?"
+            await self._run_sync_query(query, tuple(params))
 
         return await self.get_heartbeat(heartbeat_id)
 
     async def delete_heartbeat(self, heartbeat_id: str) -> bool:
         """Delete heartbeat"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                "DELETE FROM heartbeats WHERE id = ?",
-                (heartbeat_id,)
-            )
-            conn.commit()
-            return cursor.rowcount > 0
+        query = "DELETE FROM heartbeats WHERE id = ?"
+        cursor = await self._run_sync_query(query, (heartbeat_id,))
+        return cursor.rowcount > 0
 
     async def update_run_times(
         self, heartbeat_id: str, last_run: datetime, next_run: datetime
     ) -> bool:
         """Update last_run_at and next_run_at"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                """UPDATE heartbeats
-                SET last_run_at = ?, next_run_at = ?, updated_at = ?
-                WHERE id = ?""",
-                (last_run.isoformat(), next_run.isoformat(), datetime.now().isoformat(), heartbeat_id)
-            )
-            conn.commit()
-            return cursor.rowcount > 0
+        query = """
+            UPDATE heartbeats
+            SET last_run_at = ?, next_run_at = ?, updated_at = ?
+            WHERE id = ?
+        """
+        params = (last_run.isoformat(), next_run.isoformat(), datetime.now().isoformat(), heartbeat_id)
+        cursor = await self._run_sync_query(query, params)
+        return cursor.rowcount > 0
 
     async def create_log(self, data: HeartbeatLogCreate) -> HeartbeatLog:
         """Create heartbeat log entry"""
         log_id = str(uuid.uuid4())
         now = datetime.now()
 
-        with self._get_connection() as conn:
-            conn.execute(
-                """INSERT INTO heartbeat_logs
-                (id, heartbeat_id, status, result, error_message, started_at, completed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    log_id,
-                    data.heartbeat_id,
-                    data.status.value,
-                    self._serialize_json(data.result),
-                    data.error_message,
-                    now.isoformat(),
-                    data.completed_at.isoformat() if data.completed_at else None,
-                )
-            )
-            conn.commit()
+        query = """
+            INSERT INTO heartbeat_logs
+            (id, heartbeat_id, status, result, error_message, started_at, completed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            log_id,
+            data.heartbeat_id,
+            data.status.value,
+            self._serialize_json(data.result),
+            data.error_message,
+            now.isoformat(),
+            data.completed_at.isoformat() if data.completed_at else None,
+        )
 
+        await self._run_sync_query(query, params)
         return await self.get_log(log_id)
 
     async def get_log(self, log_id: str) -> Optional[HeartbeatLog]:
         """Get single log by ID"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                "SELECT * FROM heartbeat_logs WHERE id = ?",
-                (log_id,)
-            )
-            row = cursor.fetchone()
-            if not row:
-                return None
-            return self._row_to_log(row)
+        query = "SELECT * FROM heartbeat_logs WHERE id = ?"
+        cursor = await self._run_sync_query(query, (log_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return self._row_to_log(row)
 
     async def get_logs_by_heartbeat(self, heartbeat_id: str, limit: int = 50) -> List[HeartbeatLog]:
         """Get logs for a heartbeat"""
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                """SELECT * FROM heartbeat_logs
-                WHERE heartbeat_id = ?
-                ORDER BY started_at DESC
-                LIMIT ?""",
-                (heartbeat_id, limit)
-            )
-            rows = cursor.fetchall()
-            return [self._row_to_log(row) for row in rows]
+        query = """
+            SELECT * FROM heartbeat_logs
+            WHERE heartbeat_id = ?
+            ORDER BY started_at DESC
+            LIMIT ?
+        """
+        cursor = await self._run_sync_query(query, (heartbeat_id, limit))
+        rows = cursor.fetchall()
+        return [self._row_to_log(row) for row in rows]
 
     def _row_to_log(self, row: sqlite3.Row) -> HeartbeatLog:
         """Convert database row to HeartbeatLog model"""
@@ -310,17 +318,18 @@ class HeartbeatService:
         result: Optional[dict] = None, error_message: Optional[str] = None,
         completed_at: Optional[datetime] = None
     ) -> Optional[HeartbeatLog]:
-        """Update heartbeat log"""
+        """Update heartbeat log with field whitelist for SQL injection prevention"""
         updates = []
         params = []
 
-        if result is not None:
+        # 白名单验证字段名
+        if result is not None and "result" in HEARTBEAT_LOG_UPDATE_FIELDS:
             updates.append("result = ?")
             params.append(self._serialize_json(result))
-        if error_message is not None:
+        if error_message is not None and "error_message" in HEARTBEAT_LOG_UPDATE_FIELDS:
             updates.append("error_message = ?")
             params.append(error_message)
-        if completed_at is not None:
+        if completed_at is not None and "completed_at" in HEARTBEAT_LOG_UPDATE_FIELDS:
             updates.append("completed_at = ?")
             params.append(completed_at.isoformat())
 
@@ -329,37 +338,34 @@ class HeartbeatService:
             params.append(status.value)
             params.append(log_id)
 
-            with self._get_connection() as conn:
-                conn.execute(
-                    f"UPDATE heartbeat_logs SET {', '.join(updates)} WHERE id = ?",
-                    params
-                )
-                conn.commit()
+            query = f"UPDATE heartbeat_logs SET {', '.join(updates)} WHERE id = ?"
+            await self._run_sync_query(query, tuple(params))
 
         return await self.get_log(log_id)
 
     async def get_stats(self) -> dict:
         """Get heartbeat statistics"""
-        with self._get_connection() as conn:
-            cursor = conn.execute("""
-                SELECT
-                    COUNT(*) as total,
-                    SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active,
-                    SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive
-                FROM heartbeats
-            """)
-            row = cursor.fetchone()
+        query1 = """
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive
+            FROM heartbeats
+        """
+        cursor1 = await self._run_sync_query(query1)
+        row = cursor1.fetchone()
 
-            cursor2 = conn.execute("""
-                SELECT COUNT(*) as failed
-                FROM heartbeat_logs
-                WHERE status = 'failed' AND started_at > datetime('now', '-24 hours')
-            """)
-            row2 = cursor2.fetchone()
+        query2 = """
+            SELECT COUNT(*) as failed
+            FROM heartbeat_logs
+            WHERE status = 'failed' AND started_at > datetime('now', '-24 hours')
+        """
+        cursor2 = await self._run_sync_query(query2)
+        row2 = cursor2.fetchone()
 
-            return {
-                "total": row["total"] or 0,
-                "active": row["active"] or 0,
-                "inactive": row["inactive"] or 0,
-                "failed_24h": row2["failed"] or 0,
-            }
+        return {
+            "total": row["total"] or 0,
+            "active": row["active"] or 0,
+            "inactive": row["inactive"] or 0,
+            "failed_24h": row2["failed"] or 0,
+        }

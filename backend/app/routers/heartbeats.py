@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 
 from ..models.heartbeat import (
@@ -11,6 +12,8 @@ from ..models.heartbeat_log import (
 from ..services.heartbeat import HeartbeatService
 from ..services.scheduler import scheduler
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 # Initialize services
@@ -22,11 +25,14 @@ scheduler.set_heartbeat_service(heartbeat_service)
 async def get_heartbeats():
     """Get all heartbeat configurations"""
     heartbeats = await heartbeat_service.get_all_heartbeats()
-    # Add next run time info from scheduler
+    # Batch get next run times to avoid N+1 query
+    heartbeat_ids = [hb.id for hb in heartbeats]
+    jobs_info = scheduler.get_jobs_info_batch(heartbeat_ids)
+
     heartbeats_with_next_run = []
     for hb in heartbeats:
-        job_info = scheduler.get_job_info(hb.id)
         hb_dict = hb.model_dump()
+        job_info = jobs_info.get(hb.id)
         if job_info:
             hb_dict["next_run_at"] = job_info["next_run_time"]
         heartbeats_with_next_run.append(hb_dict)
@@ -41,32 +47,42 @@ async def get_heartbeats():
 @router.get("/stats")
 async def get_heartbeat_stats():
     """Get heartbeat statistics"""
-    stats = await heartbeat_service.get_stats()
-    return {
-        "success": True,
-        "data": stats,
-        "message": "Stats retrieved successfully"
-    }
+    try:
+        stats = await heartbeat_service.get_stats()
+        return {
+            "success": True,
+            "data": stats,
+            "message": "Stats retrieved successfully"
+        }
+    except Exception as e:
+        logger.error(f"Failed to get heartbeat stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve heartbeat statistics")
 
 
 @router.get("/{heartbeat_id}", response_model=HeartbeatResponse)
 async def get_heartbeat(heartbeat_id: str):
     """Get single heartbeat configuration"""
-    heartbeat = await heartbeat_service.get_heartbeat(heartbeat_id)
-    if not heartbeat:
-        raise HTTPException(status_code=404, detail="Heartbeat not found")
+    try:
+        heartbeat = await heartbeat_service.get_heartbeat(heartbeat_id)
+        if not heartbeat:
+            raise HTTPException(status_code=404, detail="Heartbeat not found")
 
-    # Add next run time from scheduler
-    job_info = scheduler.get_job_info(heartbeat_id)
-    hb_dict = heartbeat.model_dump()
-    if job_info:
-        hb_dict["next_run_at"] = job_info["next_run_time"]
+        # Add next run time from scheduler
+        job_info = scheduler.get_job_info(heartbeat_id)
+        hb_dict = heartbeat.model_dump()
+        if job_info:
+            hb_dict["next_run_at"] = job_info["next_run_time"]
 
-    return HeartbeatResponse(
-        success=True,
-        data=hb_dict,
-        message="Heartbeat retrieved successfully"
-    )
+        return HeartbeatResponse(
+            success=True,
+            data=hb_dict,
+            message="Heartbeat retrieved successfully"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get heartbeat {heartbeat_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve heartbeat")
 
 
 @router.post("", response_model=HeartbeatResponse)
@@ -75,7 +91,7 @@ async def create_heartbeat(data: HeartbeatCreate, background_tasks: BackgroundTa
     try:
         new_heartbeat = await heartbeat_service.create_heartbeat(data)
 
-        # Schedule the heartbeat
+        # Schedule heartbeat
         if data.is_active:
             scheduler.schedule_heartbeat(new_heartbeat.id, data.interval_seconds)
 
@@ -84,8 +100,12 @@ async def create_heartbeat(data: HeartbeatCreate, background_tasks: BackgroundTa
             data=new_heartbeat,
             message="Heartbeat created successfully"
         )
+    except ValueError as e:
+        logger.error(f"Invalid heartbeat data: {e}")
+        raise HTTPException(status_code=400, detail="Invalid heartbeat data")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Failed to create heartbeat: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create heartbeat")
 
 
 @router.put("/{heartbeat_id}", response_model=HeartbeatResponse)
@@ -111,7 +131,8 @@ async def update_heartbeat(heartbeat_id: str, data: HeartbeatUpdate):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Failed to update heartbeat {heartbeat_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update heartbeat")
 
 
 @router.delete("/{heartbeat_id}")
@@ -122,7 +143,7 @@ async def delete_heartbeat(heartbeat_id: str):
         if not deleted:
             raise HTTPException(status_code=404, detail="Heartbeat not found")
 
-        # Unschedule the job
+        # Unschedule job
         scheduler.unschedule_heartbeat(heartbeat_id)
 
         return {
@@ -132,75 +153,98 @@ async def delete_heartbeat(heartbeat_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Failed to delete heartbeat {heartbeat_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete heartbeat")
 
 
 @router.post("/{heartbeat_id}/enable")
 async def enable_heartbeat(heartbeat_id: str):
     """Enable a heartbeat"""
-    heartbeat = await heartbeat_service.get_heartbeat(heartbeat_id)
-    if not heartbeat:
-        raise HTTPException(status_code=404, detail="Heartbeat not found")
+    try:
+        heartbeat = await heartbeat_service.get_heartbeat(heartbeat_id)
+        if not heartbeat:
+            raise HTTPException(status_code=404, detail="Heartbeat not found")
 
-    # Update heartbeat
-    updated = await heartbeat_service.update_heartbeat(
-        heartbeat_id,
-        HeartbeatUpdate(is_active=True)
-    )
+        # Update heartbeat
+        updated = await heartbeat_service.update_heartbeat(
+            heartbeat_id,
+            HeartbeatUpdate(is_active=True)
+        )
 
-    # Schedule the job
-    scheduler.schedule_heartbeat(heartbeat_id, updated.interval_seconds)
+        # Schedule job
+        scheduler.schedule_heartbeat(heartbeat_id, updated.interval_seconds)
 
-    return {
-        "success": True,
-        "message": "Heartbeat enabled successfully"
-    }
+        return {
+            "success": True,
+            "message": "Heartbeat enabled successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to enable heartbeat {heartbeat_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to enable heartbeat")
 
 
 @router.post("/{heartbeat_id}/disable")
 async def disable_heartbeat(heartbeat_id: str):
     """Disable a heartbeat"""
-    heartbeat = await heartbeat_service.get_heartbeat(heartbeat_id)
-    if not heartbeat:
-        raise HTTPException(status_code=404, detail="Heartbeat not found")
+    try:
+        heartbeat = await heartbeat_service.get_heartbeat(heartbeat_id)
+        if not heartbeat:
+            raise HTTPException(status_code=404, detail="Heartbeat not found")
 
-    # Update heartbeat
-    await heartbeat_service.update_heartbeat(
-        heartbeat_id,
-        HeartbeatUpdate(is_active=False)
-    )
+        # Update heartbeat
+        await heartbeat_service.update_heartbeat(
+            heartbeat_id,
+            HeartbeatUpdate(is_active=False)
+        )
 
-    # Unschedule the job
-    scheduler.unschedule_heartbeat(heartbeat_id)
+        # Unschedule job
+        scheduler.unschedule_heartbeat(heartbeat_id)
 
-    return {
-        "success": True,
-        "message": "Heartbeat disabled successfully"
-    }
+        return {
+            "success": True,
+            "message": "Heartbeat disabled successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to disable heartbeat {heartbeat_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to disable heartbeat")
 
 
 @router.post("/{heartbeat_id}/trigger")
 async def trigger_heartbeat(heartbeat_id: str, background_tasks: BackgroundTasks):
     """Manually trigger a heartbeat execution"""
-    heartbeat = await heartbeat_service.get_heartbeat(heartbeat_id)
-    if not heartbeat:
-        raise HTTPException(status_code=404, detail="Heartbeat not found")
+    try:
+        heartbeat = await heartbeat_service.get_heartbeat(heartbeat_id)
+        if not heartbeat:
+            raise HTTPException(status_code=404, detail="Heartbeat not found")
 
-    # Execute in background
-    background_tasks.add_task(scheduler.trigger_manually, heartbeat_id)
+        # Execute in background
+        background_tasks.add_task(scheduler.trigger_manually, heartbeat_id)
 
-    return {
-        "success": True,
-        "message": "Heartbeat triggered successfully"
-    }
+        return {
+            "success": True,
+            "message": "Heartbeat triggered successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to trigger heartbeat {heartbeat_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to trigger heartbeat")
 
 
 @router.get("/{heartbeat_id}/logs", response_model=HeartbeatLogListResponse)
 async def get_heartbeat_logs(heartbeat_id: str, limit: int = 50):
     """Get execution history for a heartbeat"""
-    logs = await heartbeat_service.get_logs_by_heartbeat(heartbeat_id, limit)
-    return HeartbeatLogListResponse(
-        success=True,
-        data=logs,
-        message="Logs retrieved successfully"
-    )
+    try:
+        logs = await heartbeat_service.get_logs_by_heartbeat(heartbeat_id, limit)
+        return HeartbeatLogListResponse(
+            success=True,
+            data=logs,
+            message="Logs retrieved successfully"
+        )
+    except Exception as e:
+        logger.error(f"Failed to get logs for heartbeat {heartbeat_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve logs")

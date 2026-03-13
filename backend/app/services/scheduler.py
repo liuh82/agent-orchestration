@@ -1,7 +1,8 @@
 import asyncio
 import logging
+import os
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -11,6 +12,9 @@ from .heartbeat import HeartbeatService
 from ..models.heartbeat_log import HeartbeatLogStatus, HeartbeatLogCreate
 
 logger = logging.getLogger(__name__)
+
+# 从环境变量读取时区，默认 Asia/Shanghai
+TIMEZONE = os.getenv("SCHEDULER_TIMEZONE", "Asia/Shanghai")
 
 
 class SchedulerService:
@@ -31,7 +35,7 @@ class SchedulerService:
 
         self.scheduler = AsyncIOScheduler(
             jobstore=MemoryJobStore(),
-            timezone="Asia/Shanghai"
+            timezone=TIMEZONE
         )
         self.heartbeat_service: Optional[HeartbeatService] = None
         self._is_running = False
@@ -41,14 +45,14 @@ class SchedulerService:
         self.heartbeat_service = service
 
     def start(self):
-        """Start the scheduler"""
+        """Start scheduler"""
         if not self._is_running:
             self.scheduler.start()
             self._is_running = True
-            logger.info("Heartbeat scheduler started")
+            logger.info(f"Heartbeat scheduler started (timezone: {TIMEZONE})")
 
     def shutdown(self, wait: bool = True):
-        """Shutdown the scheduler"""
+        """Shutdown scheduler"""
         if self._is_running:
             self.scheduler.shutdown(wait=wait)
             self._is_running = False
@@ -77,7 +81,7 @@ class SchedulerService:
 
         # Add new job
         self.scheduler.add_job(
-            self.execute_heartbeat,
+            self._execute_heartbeat_with_retry,
             trigger=IntervalTrigger(seconds=interval_seconds),
             args=[heartbeat_id],
             id=job_id,
@@ -105,6 +109,45 @@ class SchedulerService:
             "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
         }
 
+    def get_jobs_info_batch(self, heartbeat_ids: List[str]) -> dict[str, Optional[dict]]:
+        """Batch get job information for multiple heartbeats (solves N+1 query)"""
+        result = {}
+        for heartbeat_id in heartbeat_ids:
+            job_id = f"heartbeat_{heartbeat_id}"
+            job = self.scheduler.get_job(job_id)
+            if job:
+                result[heartbeat_id] = {
+                    "id": job.id,
+                    "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
+                }
+            else:
+                result[heartbeat_id] = None
+        return result
+
+    async def _execute_heartbeat_with_retry(self, heartbeat_id: str, max_retries: int = 3):
+        """Execute heartbeat with retry mechanism"""
+        retry_count = 0
+        last_error = None
+
+        while retry_count < max_retries:
+            try:
+                await self.execute_heartbeat(heartbeat_id)
+                # Success, exit retry loop
+                return
+            except Exception as e:
+                retry_count += 1
+                last_error = e
+                logger.warning(
+                    f"Heartbeat {heartbeat_id} execution failed (attempt {retry_count}/{max_retries}): {e}"
+                )
+                if retry_count < max_retries:
+                    # Exponential backoff: 1s, 2s, 4s
+                    backoff = 2 ** (retry_count - 1)
+                    await asyncio.sleep(backoff)
+
+        # All retries failed
+        logger.error(f"Heartbeat {heartbeat_id} failed after {max_retries} retries: {last_error}")
+
     async def execute_heartbeat(self, heartbeat_id: str):
         """Execute a heartbeat task"""
         if not self.heartbeat_service:
@@ -129,7 +172,7 @@ class SchedulerService:
         )
         log = await self.heartbeat_service.create_log(log_data)
 
-        # Execute the action
+        # Execute action
         result = None
         error_message = None
         status = HeartbeatLogStatus.SUCCESS
@@ -153,7 +196,7 @@ class SchedulerService:
         await self.heartbeat_service.update_run_times(heartbeat_id, completed_at, next_run)
 
     async def _execute_action(self, heartbeat) -> dict:
-        """Execute the heartbeat action based on type"""
+        """Execute heartbeat action based on type"""
         action_type = heartbeat.action_type
 
         if action_type == "check_agent_status":

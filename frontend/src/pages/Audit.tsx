@@ -6,7 +6,8 @@ import {
 } from 'antd';
 import {
   ExportOutlined, SearchOutlined, FilterOutlined,
-  EyeOutlined, FileTextOutlined, ClockCircleOutlined
+  EyeOutlined, FileTextOutlined, ClockCircleOutlined,
+  CheckCircleOutlined, CloseCircleOutlined
 } from '@ant-design/icons';
 import { useOrgStore } from '../stores/org';
 import { AuditLog } from '../types';
