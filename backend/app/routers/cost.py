@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi import Depends
+from sqlalchemy import select
 
 from ..models.budget import BudgetCreate, BudgetUpdate, Budget, CostAlert, AgentCostSummary
 from ..services.budget_service import BudgetService
@@ -122,8 +123,16 @@ async def create_cost_alert(agent_id: str, tokens_used: int, cost: float, db = D
         today = datetime.now().strftime('%Y-%m-%d')
         await budget_service.update_daily_cost(db, agent_id, today, tokens_used, cost)
 
-        # Then check for budget alerts
-        alerts = await budget_service.check_budget_threshold(db, agent_id)
+        # Then check for budget alerts - get budget for this agent
+        from app.models.orm_models import Budget as BudgetORM
+        result = db.execute(select(BudgetORM).where(BudgetORM.agent_id == agent_id))
+        budget_orm = result.scalar_one_or_none()
+
+        alerts = []
+        if budget_orm:
+            alert = await budget_service.check_budget_threshold(db, budget_orm.id)
+            if alert:
+                alerts.append(alert)
 
         return {
             "success": True,

@@ -10,9 +10,9 @@ from app.models.log import LogCreate
 
 
 class AgentService:
-    def __init__(self):
-        # No need for database connection - handled by dependency injection
-        pass
+    def __init__(self, db: Session = None):
+        # Database connection - handled by dependency injection or passed directly
+        self.db = db
 
     def _orm_to_model(self, agent_orm) -> Agent:
         """Convert ORM Agent to Pydantic Agent model"""

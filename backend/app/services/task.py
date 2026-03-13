@@ -6,7 +6,7 @@ from sqlalchemy import select, update, delete
 from sqlalchemy.orm import Session
 
 from ..models.task import TaskCreate, TaskUpdate, Task
-from ..models.orm_models import Task, TaskAssignment
+from ..models.orm_models import Task as TaskORM, TaskAssignment
 from ..services.agent_service import AgentService
 
 
@@ -18,7 +18,7 @@ class TaskService:
     def get_all_tasks(self) -> List[Task]:
         """获取所有任务"""
         result = self.db.execute(
-            select(Task).order_by(Task.created_at.desc())
+            select(TaskORM).order_by(TaskORM.created_at.desc())
         )
         task_orms = result.scalars().all()
 
@@ -47,7 +47,7 @@ class TaskService:
     def get_task(self, task_id: str) -> Optional[Task]:
         """获取单个任务"""
         result = self.db.execute(
-            select(Task).where(Task.id == task_id)
+            select(TaskORM).where(TaskORM.id == task_id)
         )
         task_orm = result.scalar_one_or_none()
 
@@ -76,7 +76,7 @@ class TaskService:
         created_at = datetime.now()
         updated_at = created_at
 
-        task_orm = Task(
+        task_orm = TaskORM(
             id=str(uuid4()),
             title=task.title,
             description=task.description,
@@ -96,7 +96,7 @@ class TaskService:
     def update_task(self, task_id: str, task: TaskUpdate) -> Optional[Task]:
         """更新任务"""
         result = self.db.execute(
-            select(Task).where(Task.id == task_id)
+            select(TaskORM).where(TaskORM.id == task_id)
         )
         task_orm = result.scalar_one_or_none()
 
@@ -133,7 +133,7 @@ class TaskService:
     def delete_task(self, task_id: str) -> bool:
         """删除任务"""
         result = self.db.execute(
-            select(Task).where(Task.id == task_id)
+            select(TaskORM).where(TaskORM.id == task_id)
         )
         task_orm = result.scalar_one_or_none()
 
@@ -144,10 +144,10 @@ class TaskService:
         self.db.commit()
         return True
 
-    def assign_task(self, task_id: str, agent_id: str) -> Optional[Task]:
+    async def assign_task(self, task_id: str, agent_id: str) -> Optional[Task]:
         """分配任务"""
         # Check if agent exists and is running
-        agent = self.agent_service.get_agent(agent_id)
+        agent = await self.agent_service.get_agent(self.db, agent_id)
         if not agent or agent.status != 'running':
             return None
 
@@ -156,6 +156,6 @@ class TaskService:
 
         if updated_task:
             # Create assignment record in agent service
-            self.agent_service.assign_task(task_id, agent_id)
+            await self.agent_service.assign_task(self.db, task_id, agent_id)
 
         return updated_task

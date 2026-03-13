@@ -100,7 +100,7 @@ def test_budget_endpoints():
         "name": "Test Budget",
         "amount": 1000.0,
         "period": "monthly",
-        "alert_threshold": 0.8
+        "threshold_percentage": 0.8
     }
 
     # Create budget

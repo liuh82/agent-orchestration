@@ -34,6 +34,3 @@ class Task(TaskBase):
     completed_at: Optional[datetime] = None
     output: Optional[Any] = None
     logs: List[dict] = Field(default_factory=list)
-
-    class Config:
-        from_attributes = True

@@ -107,7 +107,7 @@ async def cancel_task(task_id: str, db = Depends(get_db)):
 async def assign_task(task_id: str, agent_id: str, db = Depends(get_db)):
     """分配任务给 Agent"""
     task_service = TaskService(db)
-    updated_task = task_service.assign_task(task_id, agent_id)
+    updated_task = await task_service.assign_task(task_id, agent_id)
     if not updated_task:
         raise HTTPException(status_code=404, detail="Task not found")
 

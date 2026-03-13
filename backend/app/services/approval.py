@@ -2,14 +2,14 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
 
-from sqlalchemy import select, update, delete, and_, or_
+from sqlalchemy import select, update, delete, and_, or_, desc
 from sqlalchemy.orm import Session
 
 from ..models.approval import (
     ApprovalCreate, ApprovalUpdate, Approval, ApprovalHistory,
     ApprovalStatus, ApprovalType
 )
-from ..models.orm_models import Approval, ApprovalHistory
+from ..models.orm_models import Approval as ApprovalORM, ApprovalHistory as ApprovalHistoryORM
 
 
 def _escape_like(s: str) -> str:
@@ -23,12 +23,12 @@ class ApprovalService:
 
     def get_all_approvals(self, status: Optional[ApprovalStatus] = None) -> List[Approval]:
         """获取所有审批"""
-        query = select(Approval)
+        query = select(ApprovalORM)
 
         if status:
-            query = query.where(Approval.status == status.value)
+            query = query.where(ApprovalORM.status == status.value)
 
-        query = query.order_by(Approval.created_at.desc())
+        query = query.order_by(desc(ApprovalORM.created_at))
         result = self.db.execute(query)
         approval_orms = result.scalars().all()
 
@@ -43,7 +43,7 @@ class ApprovalService:
     def get_approval(self, approval_id: str) -> Optional[Approval]:
         """获取单个审批"""
         result = self.db.execute(
-            select(Approval).where(Approval.id == approval_id)
+            select(ApprovalORM).where(ApprovalORM.id == approval_id)
         )
         approval_orm = result.scalar_one_or_none()
 
@@ -60,7 +60,7 @@ class ApprovalService:
         created_at = datetime.now()
         updated_at = created_at
 
-        approval_orm = Approval(
+        approval_orm = ApprovalORM(
             id=approval_id,
             title=approval.title,
             type=approval.type,
@@ -70,7 +70,7 @@ class ApprovalService:
             status=approval.status.value,
             priority=approval.priority,
             due_date=approval.due_date.isoformat() if approval.due_date else None,
-            metadata=approval.metadata,
+            metadata_=approval.metadata,
             created_at=created_at.isoformat(),
             updated_at=updated_at.isoformat()
         )
@@ -94,7 +94,7 @@ class ApprovalService:
             return None
 
         result = self.db.execute(
-            select(Approval).where(Approval.id == approval_id)
+            select(ApprovalORM).where(ApprovalORM.id == approval_id)
         )
         approval_orm = result.scalar_one_or_none()
 
@@ -103,15 +103,24 @@ class ApprovalService:
 
         updated_at = datetime.now()
 
-        approval_orm.title = approval.title
-        approval_orm.type = approval.type
-        approval_orm.content = approval.content
-        approval_orm.requester_id = approval.requester_id
-        approval_orm.approver_ids = ','.join(approval.approver_ids)
-        approval_orm.status = approval.status.value
-        approval_orm.priority = approval.priority
-        approval_orm.due_date = approval.due_date.isoformat() if approval.due_date else None
-        approval_orm.metadata = approval.metadata
+        if approval.title:
+            approval_orm.title = approval.title
+        if approval.type:
+            approval_orm.type = approval.type
+        if approval.content:
+            approval_orm.content = approval.content
+        if approval.requester_id:
+            approval_orm.requester_id = approval.requester_id
+        if approval.approver_ids:
+            approval_orm.approver_ids = ','.join(approval.approver_ids)
+        if approval.status:
+            approval_orm.status = approval.status.value
+        if approval.priority:
+            approval_orm.priority = approval.priority
+        if approval.due_date is not None:
+            approval_orm.due_date = approval.due_date.isoformat() if approval.due_date else None
+        if approval.metadata is not None:
+            approval_orm.metadata_ = approval.metadata
         approval_orm.updated_at = updated_at.isoformat()
 
         self.db.commit()
@@ -130,13 +139,13 @@ class ApprovalService:
         # Update approval status
         updated_at = datetime.now()
         result = self.db.execute(
-            update(Approval)
-            .where(Approval.id == approval_id)
+            update(ApprovalORM)
+            .where(ApprovalORM.id == approval_id)
             .values(status=status.value, updated_at=updated_at.isoformat())
         )
         self.db.commit()
 
-        # Log the action
+        # Log action
         self._log_approval_action(
             approval_id, 'update', actor_id, actor_name,
             comment, status
@@ -147,7 +156,7 @@ class ApprovalService:
     def delete_approval(self, approval_id: str) -> bool:
         """删除审批"""
         result = self.db.execute(
-            select(Approval).where(Approval.id == approval_id)
+            select(ApprovalORM).where(ApprovalORM.id == approval_id)
         )
         approval_orm = result.scalar_one_or_none()
 
@@ -161,12 +170,12 @@ class ApprovalService:
 
     def get_approvals_by_requester(self, requester_id: str, status: Optional[ApprovalStatus] = None) -> List[Approval]:
         """获取指定申请人的审批"""
-        query = select(Approval).where(Approval.requester_id == requester_id)
+        query = select(ApprovalORM).where(ApprovalORM.requester_id == requester_id)
 
         if status:
-            query = query.where(Approval.status == status.value)
+            query = query.where(ApprovalORM.status == status.value)
 
-        query = query.order_by(Approval.created_at.desc())
+        query = query.order_by(desc(ApprovalORM.created_at))
         result = self.db.execute(query)
         approval_orms = result.scalars().all()
 
@@ -181,12 +190,12 @@ class ApprovalService:
     def get_approvals_by_approver(self, approver_id: str, status: Optional[ApprovalStatus] = None) -> List[Approval]:
         """获取指定审批人的审批"""
         escaped = _escape_like(approver_id)
-        query = select(Approval).where(Approval.approver_ids.like(f'%{escaped}%', escape='\\'))
+        query = select(ApprovalORM).where(ApprovalORM.approver_ids.like(f'%{escaped}%', escape='\\'))
 
         if status:
-            query = query.where(Approval.status == status.value)
+            query = query.where(ApprovalORM.status == status.value)
 
-        query = query.order_by(Approval.created_at.desc())
+        query = query.order_by(desc(ApprovalORM.created_at))
         result = self.db.execute(query)
         approval_orms = result.scalars().all()
 
@@ -205,9 +214,9 @@ class ApprovalService:
     def get_approval_history(self, approval_id: str) -> List[ApprovalHistory]:
         """获取审批历史"""
         result = self.db.execute(
-            select(ApprovalHistory)
-            .where(ApprovalHistory.approval_id == approval_id)
-            .order_by(ApprovalHistory.created_at.desc())
+            select(ApprovalHistoryORM)
+            .where(ApprovalHistoryORM.approval_id == approval_id)
+            .order_by(desc(ApprovalHistoryORM.created_at))
         )
         history_orms = result.scalars().all()
 
@@ -220,26 +229,26 @@ class ApprovalService:
                 actor_id=history_orm.actor_id,
                 actor_name=history_orm.actor_name,
                 comment=history_orm.comment,
-                status=history_orm.status,
+                status=ApprovalStatus(history_orm.status),
                 created_at=datetime.fromisoformat(history_orm.created_at)
             )
             histories.append(history)
 
         return histories
 
-    def _build_approval_from_orm(self, approval_orm) -> Approval:
+    def _build_approval_from_orm(self, approval_orm: ApprovalORM) -> Approval:
         """从ORM对象构建审批对象"""
         return Approval(
             id=approval_orm.id,
             title=approval_orm.title,
-            type=approval_orm.type,
-            content=approval_orm.content,
+            type=ApprovalType(approval_orm.type),
+            content=approval_orm.content or '',
             requester_id=approval_orm.requester_id,
             approver_ids=approval_orm.approver_ids.split(',') if approval_orm.approver_ids else [],
-            status=approval_orm.status,
+            status=ApprovalStatus(approval_orm.status),
             priority=approval_orm.priority,
             due_date=datetime.fromisoformat(approval_orm.due_date) if approval_orm.due_date else None,
-            metadata=approval_orm.metadata,
+            metadata=approval_orm.metadata_,
             created_at=datetime.fromisoformat(approval_orm.created_at),
             updated_at=datetime.fromisoformat(approval_orm.updated_at),
             approval_history=[]
@@ -251,7 +260,7 @@ class ApprovalService:
         history_id = str(uuid4())
         created_at = datetime.now()
 
-        history_orm = ApprovalHistory(
+        history_orm = ApprovalHistoryORM(
             id=history_id,
             approval_id=approval_id,
             action=action,

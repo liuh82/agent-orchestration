@@ -107,7 +107,7 @@ class Budget(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
     name: Mapped[str] = mapped_column(String(255))
-    agent_id: Mapped[str] = mapped_column(String, ForeignKey("agents.id"))
+    agent_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("agents.id"))
     amount: Mapped[float] = mapped_column(Float)
     currency: Mapped[str] = mapped_column(String(3), default="USD")
     period: Mapped[str] = mapped_column(String(20), default="monthly")
@@ -150,7 +150,7 @@ class DailyCost(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
     agent_id: Mapped[str] = mapped_column(String, ForeignKey("agents.id"))
-    budget_id: Mapped[str] = mapped_column(String, ForeignKey("budgets.id"))
+    budget_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("budgets.id"))
     date: Mapped[str] = mapped_column(String)  # YYYY-MM-DD format
     input_tokens: Mapped[int] = mapped_column(Integer, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, default=0)
@@ -173,28 +173,38 @@ class OrgChartNode(Base):
     title: Mapped[str] = mapped_column(String(255))
     parent_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("org_chart_nodes.id"))
     department_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("departments.id"))
+    department: Mapped[Optional[str]] = mapped_column(String(50))  # Department name
     position: Mapped[int] = mapped_column(Integer, default=0)
     level: Mapped[int] = mapped_column(Integer, default=0)
+    children_ids: Mapped[Optional[str]] = mapped_column(Text)  # CSV
+    email: Mapped[Optional[str]] = mapped_column(String(255))
+    phone: Mapped[Optional[str]] = mapped_column(String(50))
+    avatar: Mapped[Optional[str]] = mapped_column(String(500))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
+    updated_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
 
     # Relationships
     parent: Mapped["OrgChartNode"] = relationship("OrgChartNode", remote_side=[id])
     children: Mapped[List["OrgChartNode"]] = relationship("OrgChartNode", foreign_keys=[parent_id], overlaps="parent")
-    department: Mapped["Department"] = relationship("Department")
 
 class Department(Base):
     __tablename__ = "departments"
     __table_args__ = (
         Index('idx_departments_name', 'name'),
+        Index('idx_departments_parent_id', 'parent_id'),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
     name: Mapped[str] = mapped_column(String(255))
+    code: Mapped[Optional[str]] = mapped_column(String(50))
+    parent_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("departments.id"))
     description: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
 
     # Relationships
-    nodes: Mapped[List["OrgChartNode"]] = relationship("OrgChartNode", back_populates="department")
+    parent: Mapped["Department"] = relationship("Department", remote_side=[id])
+    children: Mapped[List["Department"]] = relationship("Department", foreign_keys=[parent_id])
 
 class Role(Base):
     __tablename__ = "roles"
@@ -207,7 +217,9 @@ class Role(Base):
     code: Mapped[str] = mapped_column(String(100))
     description: Mapped[Optional[str]] = mapped_column(Text)
     permissions: Mapped[Optional[str]] = mapped_column(Text)  # JSON
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
+    updated_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
 
     # Relationships
     members: Mapped[List["Member"]] = relationship("Member", back_populates="role")
@@ -244,12 +256,15 @@ class Goal(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[Optional[str]] = mapped_column(Text)
+    type: Mapped[str] = mapped_column(String(50), default="objective")
     owner_id: Mapped[str] = mapped_column(String, ForeignKey("members.id"))
-    department_id: Mapped[str] = mapped_column(String, ForeignKey("departments.id"))
+    department_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("departments.id"))
     status: Mapped[str] = mapped_column(String(50), default="active")
     priority: Mapped[str] = mapped_column(String(20), default="medium")
     target_date: Mapped[Optional[str]] = mapped_column(String)
     progress_percentage: Mapped[int] = mapped_column(Integer, default=0)
+    tags: Mapped[Optional[str]] = mapped_column(Text)  # CSV
+    metrics: Mapped[Optional[str]] = mapped_column(Text)  # CSV
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
     updated_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
 
@@ -267,8 +282,11 @@ class GoalAlignment(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
     parent_id: Mapped[str] = mapped_column(String, ForeignKey("goals.id"))
     child_id: Mapped[str] = mapped_column(String, ForeignKey("goals.id"))
+    weight: Mapped[float] = mapped_column(Float, default=1.0)
     alignment_type: Mapped[str] = mapped_column(String(50), default="supports")
+    description: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
+    updated_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
 
     # Relationships
     # parent and child relationships removed - not needed for Goal model
@@ -283,18 +301,18 @@ class Approval(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
     type: Mapped[str] = mapped_column(String(50))
     title: Mapped[str] = mapped_column(String(255))
-    description: Mapped[Optional[str]] = mapped_column(Text)
+    content: Mapped[Optional[str]] = mapped_column(Text)  # JSON string
     requester_id: Mapped[str] = mapped_column(String, ForeignKey("members.id"))
-    approver_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("members.id"))
+    approver_ids: Mapped[Optional[str]] = mapped_column(Text)  # CSV
     status: Mapped[str] = mapped_column(String(20), default="pending")
     priority: Mapped[str] = mapped_column(String(20), default="medium")
+    due_date: Mapped[Optional[str]] = mapped_column(String)
     metadata_: Mapped[Optional[str]] = mapped_column(Text)  # JSON
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
     updated_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
 
     # Relationships
     requester: Mapped["Member"] = relationship("Member", foreign_keys=[requester_id])
-    approver: Mapped["Member"] = relationship("Member", foreign_keys=[approver_id])
     history: Mapped[List["ApprovalHistory"]] = relationship("ApprovalHistory", back_populates="approval")
 
 class ApprovalHistory(Base):
@@ -308,6 +326,8 @@ class ApprovalHistory(Base):
     action: Mapped[str] = mapped_column(String(50))
     comment: Mapped[Optional[str]] = mapped_column(Text)
     actor_id: Mapped[str] = mapped_column(String, ForeignKey("members.id"))
+    actor_name: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(20))
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
 
     # Relationships

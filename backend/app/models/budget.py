@@ -6,8 +6,10 @@ from pydantic import BaseModel, Field
 class BudgetBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     amount: float = Field(..., gt=0)
+    currency: str = Field(default='USD')
     period: str = Field(default='monthly')  # daily, weekly, monthly, yearly
-    alert_threshold: float = Field(default=0.8, ge=0, le=1)  # percentage of budget to trigger alert
+    threshold_percentage: float = Field(default=80, ge=0, le=100)  # percentage of budget to trigger alert
+    status: str = Field(default='active')  # active, disabled
     enabled: bool = Field(default=True)
 
 
@@ -18,20 +20,20 @@ class BudgetCreate(BudgetBase):
 class BudgetUpdate(BaseModel):
     name: Optional[str] = None
     amount: Optional[float] = Field(None, gt=0)
+    currency: Optional[str] = None
     period: Optional[str] = None
-    alert_threshold: Optional[float] = Field(None, ge=0, le=1)
+    threshold_percentage: Optional[float] = Field(None, ge=0, le=100)
+    status: Optional[str] = None
     enabled: Optional[bool] = None
 
 
 class Budget(BudgetBase):
     id: str
-    created_at: datetime
-    updated_at: datetime
+    agent_id: Optional[str] = None
     current_cost: float = Field(default=0.0)
     is_triggered: bool = Field(default=False)
-
-    class Config:
-        from_attributes = True
+    created_at: datetime
+    updated_at: datetime
 
 
 class CostAlert(BaseModel):
@@ -43,9 +45,6 @@ class CostAlert(BaseModel):
     triggered_at: datetime
     acknowledged: bool = Field(default=False)
     acknowledged_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 
 class AgentCostSummary(BaseModel):

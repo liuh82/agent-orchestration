@@ -96,6 +96,7 @@ class GoalAlignmentCreate(BaseModel):
     parent_id: str
     child_id: str
     weight: float = Field(default=1.0, ge=0, le=1)
+    alignment_type: str = Field(default='supports')
     description: Optional[str] = None
 
 
