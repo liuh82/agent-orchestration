@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Card, Table, Button, Space, Tag, Modal, Form,
   Input, Select, InputNumber, message, Row, Col, Statistic,
@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons';
 import { useHeartbeatsStore } from '../stores/heartbeats';
 import { Heartbeat, HeartbeatLog, HeartbeatStats } from '../types';
+import { PAGE_CONFIG } from '../config/constants';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
@@ -29,16 +30,19 @@ export const HeartbeatsPage = () => {
   const [editingHeartbeat, setEditingHeartbeat] = useState<Heartbeat | null>(null);
   const [form] = Form.useForm();
 
-  useEffect(() => {
+  // 轮询刷新函数（使用 useCallback 确保引用稳定）
+  const refreshData = useCallback(() => {
     fetchHeartbeats();
     fetchHeartbeatStats();
-    // 设置轮询刷新（15秒）
-    const interval = setInterval(() => {
-      fetchHeartbeats();
-      fetchHeartbeatStats();
-    }, 15000);
+  }, [fetchHeartbeats, fetchHeartbeatStats]);
+
+  useEffect(() => {
+    refreshData();
+    // 设置轮询刷新（使用配置常量）
+    const interval = setInterval(refreshData, PAGE_CONFIG.HEARTBEATS.POLL_INTERVAL);
+    // cleanup 函数确保组件卸载时清除定时器
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshData]);
 
   const showModal = (heartbeat?: Heartbeat) => {
     setEditingHeartbeat(heartbeat || null);

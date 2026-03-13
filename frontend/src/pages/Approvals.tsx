@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Card, Table, Button, Space, Tag, Modal, Form, Input, Select, message,
   Tabs, Timeline, Badge, Drawer, Row, Col, Statistic, Empty
@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { useOrgStore } from '../stores/org';
 import { Approval, ApprovalHistory } from '../types';
+import { PAGE_CONFIG } from '../config/constants';
 
 const { TabPane } = Tabs;
 const { Option } = Select;
@@ -30,14 +31,18 @@ export const ApprovalsPage = () => {
   const [selectedHistory, setSelectedHistory] = useState<ApprovalHistory[]>([]);
   const [form] = Form.useForm();
 
-  useEffect(() => {
+  // 轮询刷新函数（使用 useCallback 确保引用稳定）
+  const refreshApprovals = useCallback(() => {
     fetchApprovals(activeTab === 'all' ? undefined : activeTab);
-    // 设置轮询刷新（30秒）
-    const interval = setInterval(() => {
-      fetchApprovals(activeTab === 'all' ? undefined : activeTab);
-    }, 30000);
+  }, [activeTab, fetchApprovals]);
+
+  useEffect(() => {
+    refreshApprovals();
+    // 设置轮询刷新（使用配置常量）
+    const interval = setInterval(refreshApprovals, PAGE_CONFIG.APPROVALS.POLL_INTERVAL);
+    // cleanup 函数确保组件卸载时清除定时器
     return () => clearInterval(interval);
-  }, [activeTab]);
+  }, [refreshApprovals]);
 
   const handleTabChange = (key: string) => {
     setActiveTab(key);
