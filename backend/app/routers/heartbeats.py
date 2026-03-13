@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 
 from ..models.heartbeat import (
     HeartbeatCreate, HeartbeatUpdate, Heartbeat,
@@ -11,10 +11,18 @@ from ..models.heartbeat_log import (
 )
 from ..services.heartbeat import HeartbeatService
 from ..services.scheduler import scheduler
+from ..auth import verify_api_key, is_auth_enabled
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# 认证依赖：根据环境变量决定是否启用
+def get_auth_dependency():
+    """Return auth dependency based on environment"""
+    if is_auth_enabled():
+        return Depends(verify_api_key)
+    return Depends(lambda: None)
 
 # Initialize services
 heartbeat_service = HeartbeatService()
@@ -22,7 +30,7 @@ scheduler.set_heartbeat_service(heartbeat_service)
 
 
 @router.get("", response_model=HeartbeatListResponse)
-async def get_heartbeats():
+async def get_heartbeats(_auth=Depends(get_auth_dependency)):
     """Get all heartbeat configurations"""
     heartbeats = await heartbeat_service.get_all_heartbeats()
     # Batch get next run times to avoid N+1 query
@@ -45,7 +53,7 @@ async def get_heartbeats():
 
 
 @router.get("/stats")
-async def get_heartbeat_stats():
+async def get_heartbeat_stats(_auth=Depends(get_auth_dependency)):
     """Get heartbeat statistics"""
     try:
         stats = await heartbeat_service.get_stats()
@@ -60,7 +68,7 @@ async def get_heartbeat_stats():
 
 
 @router.get("/{heartbeat_id}", response_model=HeartbeatResponse)
-async def get_heartbeat(heartbeat_id: str):
+async def get_heartbeat(heartbeat_id: str, _auth=Depends(get_auth_dependency)):
     """Get single heartbeat configuration"""
     try:
         heartbeat = await heartbeat_service.get_heartbeat(heartbeat_id)
@@ -86,7 +94,7 @@ async def get_heartbeat(heartbeat_id: str):
 
 
 @router.post("", response_model=HeartbeatResponse)
-async def create_heartbeat(data: HeartbeatCreate, background_tasks: BackgroundTasks):
+async def create_heartbeat(data: HeartbeatCreate, _auth=Depends(get_auth_dependency)):
     """Create new heartbeat configuration"""
     try:
         new_heartbeat = await heartbeat_service.create_heartbeat(data)
@@ -109,7 +117,7 @@ async def create_heartbeat(data: HeartbeatCreate, background_tasks: BackgroundTa
 
 
 @router.put("/{heartbeat_id}", response_model=HeartbeatResponse)
-async def update_heartbeat(heartbeat_id: str, data: HeartbeatUpdate):
+async def update_heartbeat(heartbeat_id: str, data: HeartbeatUpdate, _auth=Depends(get_auth_dependency)):
     """Update heartbeat configuration"""
     try:
         updated_heartbeat = await heartbeat_service.update_heartbeat(heartbeat_id, data)
@@ -136,7 +144,7 @@ async def update_heartbeat(heartbeat_id: str, data: HeartbeatUpdate):
 
 
 @router.delete("/{heartbeat_id}")
-async def delete_heartbeat(heartbeat_id: str):
+async def delete_heartbeat(heartbeat_id: str, _auth=Depends(get_auth_dependency)):
     """Delete heartbeat configuration"""
     try:
         deleted = await heartbeat_service.delete_heartbeat(heartbeat_id)
@@ -158,7 +166,7 @@ async def delete_heartbeat(heartbeat_id: str):
 
 
 @router.post("/{heartbeat_id}/enable")
-async def enable_heartbeat(heartbeat_id: str):
+async def enable_heartbeat(heartbeat_id: str, _auth=Depends(get_auth_dependency)):
     """Enable a heartbeat"""
     try:
         heartbeat = await heartbeat_service.get_heartbeat(heartbeat_id)
@@ -186,7 +194,7 @@ async def enable_heartbeat(heartbeat_id: str):
 
 
 @router.post("/{heartbeat_id}/disable")
-async def disable_heartbeat(heartbeat_id: str):
+async def disable_heartbeat(heartbeat_id: str, _auth=Depends(get_auth_dependency)):
     """Disable a heartbeat"""
     try:
         heartbeat = await heartbeat_service.get_heartbeat(heartbeat_id)
@@ -214,7 +222,11 @@ async def disable_heartbeat(heartbeat_id: str):
 
 
 @router.post("/{heartbeat_id}/trigger")
-async def trigger_heartbeat(heartbeat_id: str, background_tasks: BackgroundTasks):
+async def trigger_heartbeat(
+    heartbeat_id: str,
+    background_tasks: BackgroundTasks,
+    _auth=Depends(lambda: None)
+):
     """Manually trigger a heartbeat execution"""
     try:
         heartbeat = await heartbeat_service.get_heartbeat(heartbeat_id)
@@ -236,7 +248,7 @@ async def trigger_heartbeat(heartbeat_id: str, background_tasks: BackgroundTasks
 
 
 @router.get("/{heartbeat_id}/logs", response_model=HeartbeatLogListResponse)
-async def get_heartbeat_logs(heartbeat_id: str, limit: int = 50):
+async def get_heartbeat_logs(heartbeat_id: str, limit: int = 50, _auth=Depends(get_auth_dependency)):
     """Get execution history for a heartbeat"""
     try:
         logs = await heartbeat_service.get_logs_by_heartbeat(heartbeat_id, limit)
