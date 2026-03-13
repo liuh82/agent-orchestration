@@ -41,71 +41,94 @@ class HeartbeatService:
         self._init_db()
 
     def _init_db(self):
-        """Initialize database tables"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        """Initialize database tables with safe connection management"""
+        with self._get_connection_context() as conn:
+            cursor = conn.cursor()
 
-        # Enable WAL mode and foreign keys
-        cursor.execute("PRAGMA journal_mode=WAL;")
-        cursor.execute("PRAGMA foreign_keys=ON;")
+            # Heartbeats table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS heartbeats (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    action_type TEXT NOT NULL,
+                    action_params TEXT,
+                    interval_seconds INTEGER NOT NULL,
+                    is_active INTEGER DEFAULT 1,
+                    last_run_at TIMESTAMP,
+                    next_run_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
 
-        # Heartbeats table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS heartbeats (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT,
-                action_type TEXT NOT NULL,
-                action_params TEXT,
-                interval_seconds INTEGER NOT NULL,
-                is_active INTEGER DEFAULT 1,
-                last_run_at TIMESTAMP,
-                next_run_at TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+            # Heartbeat logs table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS heartbeat_logs (
+                    id TEXT PRIMARY KEY,
+                    heartbeat_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    result TEXT,
+                    error_message TEXT,
+                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    FOREIGN KEY (heartbeat_id) REFERENCES heartbeats(id) ON DELETE CASCADE
+                )
+            ''')
 
-        # Heartbeat logs table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS heartbeat_logs (
-                id TEXT PRIMARY KEY,
-                heartbeat_id TEXT NOT NULL,
-                status TEXT NOT NULL,
-                result TEXT,
-                error_message TEXT,
-                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                completed_at TIMESTAMP,
-                FOREIGN KEY (heartbeat_id) REFERENCES heartbeats(id) ON DELETE CASCADE
-            )
-        ''')
+            # Indexes
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_heartbeat_logs_heartbeat_id
+                ON heartbeat_logs(heartbeat_id)
+            ''')
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_heartbeat_logs_started_at
+                ON heartbeat_logs(started_at DESC)
+            ''')
 
-        # Indexes
-        cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_heartbeat_logs_heartbeat_id
-            ON heartbeat_logs(heartbeat_id)
-        ''')
-        cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_heartbeat_logs_started_at
-            ON heartbeat_logs(started_at DESC)
-        ''')
-
-        conn.commit()
-        conn.close()
+            conn.commit()
 
     def _get_connection(self):
-        """Get database connection with WAL mode"""
+        """Get database connection with WAL mode and context manager support"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
+        # Enable WAL mode on each connection
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA foreign_keys=ON;")
         return conn
+
+    def _get_connection_context(self):
+        """Context manager for database connection with automatic cleanup"""
+        class ConnectionContext:
+            def __init__(self, db_path: str):
+                self.db_path = db_path
+                self.conn = None
+
+            def __enter__(self):
+                self.conn = sqlite3.connect(self.db_path)
+                self.conn.row_factory = sqlite3.Row
+                self.conn.execute("PRAGMA journal_mode=WAL;")
+                self.conn.execute("PRAGMA foreign_keys=ON;")
+                return self.conn
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                if self.conn:
+                    if exc_type is None:
+                        self.conn.commit()
+                    else:
+                        self.conn.rollback()
+                    self.conn.close()
+                return False  # Don't suppress exceptions
+
+        return ConnectionContext(self.db_path)
 
     def _run_sync_query(self, query: str, params: tuple = ()):
         """Run synchronous query in thread pool"""
         return asyncio.to_thread(self._execute_sync, query, params)
 
     def _execute_sync(self, query: str, params: tuple = ()):
-        """Execute synchronous query"""
-        with self._get_connection() as conn:
+        """Execute synchronous query with safe connection management"""
+        with self._get_connection_context() as conn:
             cursor = conn.execute(query, params)
             conn.commit()
             return cursor
