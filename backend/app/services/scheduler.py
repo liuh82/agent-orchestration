@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import threading
 from datetime import datetime, timedelta
 from typing import Optional, List
 
@@ -18,14 +19,18 @@ TIMEZONE = os.getenv("SCHEDULER_TIMEZONE", "Asia/Shanghai")
 
 
 class SchedulerService:
-    """APScheduler wrapper for heartbeat execution"""
+    """APScheduler wrapper for heartbeat execution (thread-safe singleton)"""
 
     _instance: Optional["SchedulerService"] = None
+    _lock = threading.Lock()
 
     def __new__(cls):
+        # 双重检查锁定模式确保线程安全
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
         return cls._instance
 
     def __init__(self):
