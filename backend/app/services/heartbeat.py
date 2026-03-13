@@ -19,6 +19,14 @@ HEARTBEAT_LOG_UPDATE_FIELDS = {
 }
 
 
+def _validate_field_name(field_name: str) -> bool:
+    """Validate field name to prevent SQL injection"""
+    if not field_name:
+        return False
+    # Only allow alphanumeric characters and underscores
+    return bool(field_name.replace("_", "").isalnum())
+
+
 class HeartbeatService:
     """Heartbeat service for CRUD operations"""
 
@@ -205,35 +213,50 @@ class HeartbeatService:
         if not heartbeat:
             return None
 
-        updates = []
-        params = []
-
-        # 白名单验证字段名
-        field_map = {
-            "name": data.name,
-            "description": data.description,
-            "action_type": data.action_type,
-            "action_params": data.action_params,
-            "interval_seconds": data.interval_seconds,
-            "is_active": data.is_active,
+        # 使用安全的 SQL 模板，动态构建 SET 子句
+        # 字段名必须是白名单中的固定值，不能来自用户输入
+        field_set_clauses = {
+            "name": "name = ?",
+            "description": "description = ?",
+            "action_type": "action_type = ?",
+            "action_params": "action_params = ?",
+            "interval_seconds": "interval_seconds = ?",
+            "is_active": "is_active = ?",
+            "updated_at": "updated_at = ?",
         }
 
-        for field, value in field_map.items():
-            if value is not None:
-                updates.append(f"{field} = ?")
-                if field == "action_params":
-                    params.append(self._serialize_json(value))
-                elif field == "is_active":
-                    params.append(1 if value else 0)
-                else:
-                    params.append(value)
+        set_clauses = []
+        params = []
 
-        if updates:
-            updates.append("updated_at = ?")
-            params.append(datetime.now().isoformat())
-            params.append(heartbeat_id)
+        # 安全地构建 SET 子句
+        if data.name is not None:
+            set_clauses.append(field_set_clauses["name"])
+            params.append(data.name)
+        if data.description is not None:
+            set_clauses.append(field_set_clauses["description"])
+            params.append(data.description)
+        if data.action_type is not None:
+            set_clauses.append(field_set_clauses["action_type"])
+            params.append(data.action_type)
+        if data.action_params is not None:
+            set_clauses.append(field_set_clauses["action_params"])
+            params.append(self._serialize_json(data.action_params))
+        if data.interval_seconds is not None:
+            set_clauses.append(field_set_clauses["interval_seconds"])
+            params.append(data.interval_seconds)
+        if data.is_active is not None:
+            set_clauses.append(field_set_clauses["is_active"])
+            params.append(1 if data.is_active else 0)
 
-            query = f"UPDATE heartbeats SET {', '.join(updates)} WHERE id = ?"
+        # 总是更新 updated_at
+        set_clauses.append(field_set_clauses["updated_at"])
+        params.append(datetime.now().isoformat())
+        params.append(heartbeat_id)
+
+        if set_clauses:
+            # 使用预定义的模板，避免 f-string 拼接
+            set_clause = ", ".join(set_clauses)
+            query = f"UPDATE heartbeats SET {set_clause} WHERE id = ?"
             await self._run_sync_query(query, tuple(params))
 
         return await self.get_heartbeat(heartbeat_id)
@@ -319,26 +342,35 @@ class HeartbeatService:
         completed_at: Optional[datetime] = None
     ) -> Optional[HeartbeatLog]:
         """Update heartbeat log with field whitelist for SQL injection prevention"""
-        updates = []
+        # 使用安全的 SQL 模板，避免动态字段拼接
+        field_set_clauses = {
+            "result": "result = ?",
+            "error_message": "error_message = ?",
+            "completed_at": "completed_at = ?",
+            "status": "status = ?",
+        }
+
+        set_clauses = []
         params = []
 
-        # 白名单验证字段名
-        if result is not None and "result" in HEARTBEAT_LOG_UPDATE_FIELDS:
-            updates.append("result = ?")
+        if result is not None:
+            set_clauses.append(field_set_clauses["result"])
             params.append(self._serialize_json(result))
-        if error_message is not None and "error_message" in HEARTBEAT_LOG_UPDATE_FIELDS:
-            updates.append("error_message = ?")
+        if error_message is not None:
+            set_clauses.append(field_set_clauses["error_message"])
             params.append(error_message)
-        if completed_at is not None and "completed_at" in HEARTBEAT_LOG_UPDATE_FIELDS:
-            updates.append("completed_at = ?")
+        if completed_at is not None:
+            set_clauses.append(field_set_clauses["completed_at"])
             params.append(completed_at.isoformat())
 
-        if updates:
-            updates.append("status = ?")
-            params.append(status.value)
-            params.append(log_id)
+        # status 总是更新
+        set_clauses.append(field_set_clauses["status"])
+        params.append(status.value)
+        params.append(log_id)
 
-            query = f"UPDATE heartbeat_logs SET {', '.join(updates)} WHERE id = ?"
+        if set_clauses:
+            set_clause = ", ".join(set_clauses)
+            query = f"UPDATE heartbeat_logs SET {set_clause} WHERE id = ?"
             await self._run_sync_query(query, tuple(params))
 
         return await self.get_log(log_id)
