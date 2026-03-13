@@ -44,7 +44,7 @@
 |------|------|
 | 前端 | React 18 + TypeScript + Vite + Ant Design |
 | 后端 | Python FastAPI + Pydantic v2 |
-| 数据库 | SQLite (WAL模式) + **SQLAlchemy 2.0 ORM** (待迁移) |
+| 数据库 | SQLite (WAL模式) + **SQLAlchemy 2.0 ORM + Alembic** (待迁移) |
 | 状态管理 | Zustand + React Query |
 | 工作流引擎 | Lobster Engine (可插拔) |
 | 认证 | API Key (MVP) |
@@ -274,13 +274,38 @@
 
 ### Phase 5：数据库层 ORM 迁移 🔴 当前重点
 
-**背景**: 后端 12 个 service 文件共 **328 处原生 SQL**，全部使用 `cursor.execute` / `fetchall` / `sqlite3` 裸操作。`sqlalchemy==2.0.23` 已在 requirements.txt 中但从未使用。
+**背景**: 后端 12 个 service 文件共 **216 处原生 SQL**，全部使用 `cursor.execute` / `fetchall` / `sqlite3` 裸操作。`sqlalchemy==2.0.23` 已在 requirements.txt 中但从未使用。
 
-**目标**: 全面迁移到 SQLAlchemy 2.0 ORM，彻底消除原生 SQL。
+**目标**: 全面迁移到 SQLAlchemy 2.0 ORM + Alembic 迁移，彻底消除原生 SQL，支持多数据库（SQLite/PostgreSQL/MySQL）。
 
-#### 5.1 创建 ORM 模型
+**开发原则**: 不急于上线，追求架构完美。宁可影响进度，也要保证系统功能的质量和可扩展性。
 
-在 `app/models/` 下新建或改写 ORM 模型，对应现有数据库表：
+#### 5.0 数据库迁移策略：Alembic
+
+**决策：使用 Alembic 管理数据库版本**
+
+- `alembic init alembic` — 初始化迁移目录
+- `alembic revision --autogenerate -m "initial"` — 生成初始迁移脚本
+- `alembic upgrade head` — 执行迁移
+- 支持 `downgrade` 回滚
+- 数据库 URL 通过环境变量 `DATABASE_URL` 配置，支持切换后端
+
+**多数据库支持设计**：
+```python
+# .env 或环境变量
+DATABASE_URL=sqlite+aiosqlite:///./agent_orchestration.db  # 开发
+# DATABASE_URL=postgresql+asyncpg://user:pass@localhost/db  # 生产
+# DATABASE_URL=mysql+aiomysql://user:pass@localhost/db      # MySQL
+```
+
+**新增依赖**:
+- `alembic` — 数据库迁移
+- `aiosqlite` — SQLite async driver（与现有 async 路由兼容）
+- 未来可选：`asyncpg`（PostgreSQL）、`aiomysql`（MySQL）
+
+#### 5.1 创建 ORM 模型（18个表）
+
+在 `app/models/` 下新建 ORM 模型，对应现有数据库表：
 
 | ORM 模型 | 数据库表 |
 |----------|----------|
@@ -300,16 +325,20 @@
 | Heartbeat | heartbeats |
 | HeartbeatLog | heartbeat_logs |
 | CostRecord | cost_records |
+| Budget | budgets（如独立表）|
+| + 其他根据 CREATE TABLE 确认的表 |
 
 使用 SQLAlchemy 2.0 声明式映射（`DeclarativeBase` + `Mapped`），字段与现有表完全一致。
+**注意**: 不同数据库的方言差异在 ORM 层屏蔽，Service 层不需要关心。
 
 #### 5.2 创建数据库会话管理
 
 在 `app/database.py` 中：
-- `engine` — `create_engine`，SQLite + WAL 模式
+- `engine` — `create_engine(DATABASE_URL)`，根据 URL 自动选择方言
+- SQLite 启动时开启 WAL 模式（通过 event listener）
 - `SessionLocal` — sessionmaker
 - `get_db()` — FastAPI 依赖注入
-- `Base.metadata.create_all()` — 启动时自动建表
+- `Base` — 所有 ORM 模型的基类
 
 #### 5.3 重写 12 个 Service
 
@@ -358,6 +387,8 @@ def get_agents(db: Session = Depends(get_db)):
 3. **前端 tsc 0 error，build 成功**
 4. **启动无报错**
 5. **所有 API 端点返回正确**
+6. **Alembic 迁移正常** — `alembic upgrade head` / `alembic downgrade -1` 无报错
+7. **数据库可切换** — 修改 `DATABASE_URL` 后应用正常启动
 
 ### Phase 6：功能补齐（P2）
 
