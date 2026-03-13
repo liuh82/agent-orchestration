@@ -36,7 +36,15 @@
       "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/tasks.db \".schema approval_history\")",
       "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/tasks.db \".schema agent_logs\")",
       "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/tasks.db \".indexes\")",
-      "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/tasks.db \".schema\")"
+      "Bash(sqlite3 /Users/lh8/projects/agent-orchestration/tasks.db \".schema\")",
+      "Bash(npx tsc:*)",
+      "Read(//root/.openclaw/workspace/agent-orchestration/backend/app/services/**)",
+      "Read(//root/.openclaw/workspace/agent-orchestration/backend/app/routers/**)",
+      "Read(//root/.openclaw/workspace/agent-orchestration/backend/app/models/**)",
+      "Bash(git restore:*)",
+      "Bash(python3 -m pytest tests/ -v --tb=short)",
+      "Bash(curl -s http://localhost:8083/)",
+      "Bash(curl -s http://localhost:8083/health)"
     ],
     "additionalDirectories": [
       "/Users/lh8/projects/agent-orchestration/backend"

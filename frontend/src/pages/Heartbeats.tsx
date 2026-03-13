@@ -20,8 +20,7 @@ export const HeartbeatsPage = () => {
   const {
     heartbeats, heartbeatLogs, stats, loading,
     fetchHeartbeats, fetchHeartbeatStats, createHeartbeat,
-    updateHeartbeat, deleteHeartbeat, enableHeartbeat,
-    disableHeartbeat, triggerHeartbeat, fetchHeartbeatLogs
+    updateHeartbeat, deleteHeartbeat, triggerHeartbeat, fetchHeartbeatLogs
   } = useHeartbeatsStore();
 
   const [modalVisible, setModalVisible] = useState(false);
