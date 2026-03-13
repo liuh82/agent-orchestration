@@ -2,7 +2,7 @@
 from .agent import AgentCreate, AgentUpdate, Agent, AgentStats, AgentLogsRequest
 from .task import TaskCreate, TaskUpdate, Task
 from .workflow import WorkflowDefinition, WorkflowTemplate, ExecutionStatus
-from .cost import CostEntry, CostReport, BudgetConfig, CostAlert
+# Cost models are now part of budget module
 from .log import LogCreate, Log
 
 # Organization Models

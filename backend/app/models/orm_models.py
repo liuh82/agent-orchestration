@@ -183,7 +183,7 @@ class OrgChartNode(Base):
 
     # Relationships
     parent: Mapped["OrgChartNode"] = relationship("OrgChartNode", remote_side=[id])
-    children: Mapped[List["OrgChartNode"]] = relationship("OrgChartNode")
+    children: Mapped[List["OrgChartNode"]] = relationship("OrgChartNode", foreign_keys=[parent_id], overlaps="parent")
     department: Mapped["Department"] = relationship("Department")
 
 class Department(Base):
@@ -259,7 +259,7 @@ class Goal(Base):
 
     # Relationships
     owner: Mapped["Member"] = relationship("Member", back_populates="goals")
-    alignments: Mapped[List["GoalAlignment"]] = relationship("GoalAlignment", back_populates="parent")
+    alignments: Mapped[List["GoalAlignment"]] = relationship("GoalAlignment", foreign_keys="GoalAlignment.parent_id", viewonly=True)
 
 class GoalAlignment(Base):
     __tablename__ = "goal_alignments"
@@ -275,8 +275,7 @@ class GoalAlignment(Base):
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
 
     # Relationships
-    parent: Mapped["Goal"] = relationship("Goal", foreign_keys=[parent_id], back_populates="alignments")
-    child: Mapped["Goal"] = relationship("Goal", foreign_keys=[child_id])
+    # parent and child relationships removed - not needed for Goal model
 
 class Approval(Base):
     __tablename__ = "approvals"
@@ -321,16 +320,16 @@ class ApprovalHistory(Base):
 
 class AuditLog(Base):
     __table_args__ = (
-        Index('idx_audit_logs_user_id_created_at', 'user_id', 'created_at'),
+        Index('idx_audit_logs_member_id_created_at', 'member_id', 'created_at'),
         Index('idx_audit_logs_resource_type_created_at', 'resource_type', 'created_at'),
         Index('idx_audit_logs_resource', 'resource_type', 'resource_id'),
     )
     __tablename__ = "audit_logs"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
-    user_id: Mapped[str] = mapped_column(String)
-    action: Mapped[str] = mapped_column(String(100))
-    resource_type: Mapped[str] = mapped_column(String(100))
+    member_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("members.id"))
+    action: Mapped[str] = mapped_column(String(50))
+    resource_type: Mapped[str] = mapped_column(String(50))
     resource_id: Mapped[str] = mapped_column(String)
     details: Mapped[Optional[str]] = mapped_column(Text)  # JSON
     ip_address: Mapped[Optional[str]] = mapped_column(String(45))
@@ -338,49 +337,7 @@ class AuditLog(Base):
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
 
     # Relationships
-    user: Mapped[Optional["Member"]] = relationship("Member")
-
-class OrganizationChartNode(Base):
-    __tablename__ = "org_chart_nodes"
-    __table_args__ = (
-        Index('idx_org_chart_nodes_parent_id', 'parent_id'),
-        Index('idx_org_chart_nodes_level', 'level'),
-    )
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    department: Mapped[str] = mapped_column(String(255), nullable=False)
-    level: Mapped[int] = mapped_column(Integer, nullable=False)
-    parent_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("org_chart_nodes.id"))
-    children_ids: Mapped[Optional[str]] = mapped_column(Text)  # comma-separated list of child IDs
-    email: Mapped[Optional[str]] = mapped_column(String(255))
-    phone: Mapped[Optional[str]] = mapped_column(String(50))
-    avatar: Mapped[Optional[str]] = mapped_column(String(255))
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
-    updated_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
-
-    # Relationships
-    parent: Mapped[Optional["OrganizationChartNode"]] = relationship("OrganizationChartNode", remote_side=[id], back_populates="children")
-    children: Mapped[List["OrganizationChartNode"]] = relationship("OrganizationChartNode", back_populates="parent")
-
-
-class Department(Base):
-    __tablename__ = "departments"
-    __table_args__ = (
-        Index('idx_departments_parent_id', 'parent_id'),
-    )
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    code: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
-    parent_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("departments.id"))
-    created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
-
-    # Relationships
-    parent: Mapped[Optional["Department"]] = relationship("Department", remote_side=[id], back_populates="children")
-    children: Mapped[List["Department"]] = relationship("Department", back_populates="parent")
+    member: Mapped[Optional["Member"]] = relationship("Member")
 
 
 class Heartbeat(Base):
@@ -401,6 +358,12 @@ class Heartbeat(Base):
     updated_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
     last_run_at: Mapped[Optional[str]] = mapped_column(String)
     next_run_at: Mapped[Optional[str]] = mapped_column(String)
+
+    # For the HeartbeatService (task scheduler heartbeat)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    action_type: Mapped[Optional[str]] = mapped_column(String(50))
+    action_params: Mapped[Optional[str]] = mapped_column(Text)  # JSON
+    interval_seconds: Mapped[Optional[int]] = mapped_column(Integer)
 
     # Relationships
     agent: Mapped["Agent"] = relationship("Agent")

@@ -9,7 +9,7 @@ from ..models.org_chart import (
     OrganizationChartCreate, OrganizationChartUpdate, OrganizationChartNode,
     OrgChartDataResponse
 )
-from ..models.complete_orm import OrganizationChartNode as OrganizationChartNodeORM, Department as DepartmentORM
+from ..models.orm_models import OrgChartNode as OrganizationChartNodeORM, Department as DepartmentORM
 from ..models.member import MemberCreate
 # Member model will be migrated later
 

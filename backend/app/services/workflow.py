@@ -6,7 +6,7 @@ from sqlalchemy import select, update, delete
 from sqlalchemy.orm import Session
 
 from ..models.workflow import WorkflowDefinition, WorkflowTemplate
-from ..models.complete_orm import Workflow as WorkflowDefinitionORM, WorkflowTemplate as WorkflowTemplateORM
+from ..models.orm_models import Workflow as WorkflowDefinitionORM, WorkflowTemplate as WorkflowTemplateORM
 
 
 class WorkflowService:

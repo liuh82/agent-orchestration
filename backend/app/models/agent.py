@@ -34,8 +34,7 @@ class Agent(AgentBase):
     avg_response_time: float = Field(0.0)
     avg_task_duration: float = Field(0.0)
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class AgentStats(BaseModel):

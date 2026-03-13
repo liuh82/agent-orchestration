@@ -6,7 +6,7 @@ from sqlalchemy import select, update, delete, and_
 from sqlalchemy.orm import Session
 
 from ..models.role import RoleCreate, RoleUpdate, Role
-from ..models.complete_orm import Role as RoleORM
+from ..models.orm_models import Role as RoleORM
 
 
 class RoleService:

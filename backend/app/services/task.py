@@ -6,8 +6,8 @@ from sqlalchemy import select, update, delete
 from sqlalchemy.orm import Session
 
 from ..models.task import TaskCreate, TaskUpdate, Task
-from ..models.complete_orm import Task as TaskORM, TaskAssignment
-from ..services.agent import AgentService
+from ..models.orm_models import Task, TaskAssignment
+from ..services.agent_service import AgentService
 
 
 class TaskService:
@@ -18,7 +18,7 @@ class TaskService:
     def get_all_tasks(self) -> List[Task]:
         """获取所有任务"""
         result = self.db.execute(
-            select(TaskORM).order_by(TaskORM.created_at.desc())
+            select(Task).order_by(Task.created_at.desc())
         )
         task_orms = result.scalars().all()
 
@@ -47,7 +47,7 @@ class TaskService:
     def get_task(self, task_id: str) -> Optional[Task]:
         """获取单个任务"""
         result = self.db.execute(
-            select(TaskORM).where(TaskORM.id == task_id)
+            select(Task).where(Task.id == task_id)
         )
         task_orm = result.scalar_one_or_none()
 
@@ -76,7 +76,7 @@ class TaskService:
         created_at = datetime.now()
         updated_at = created_at
 
-        task_orm = TaskORM(
+        task_orm = Task(
             id=str(uuid4()),
             title=task.title,
             description=task.description,
@@ -96,7 +96,7 @@ class TaskService:
     def update_task(self, task_id: str, task: TaskUpdate) -> Optional[Task]:
         """更新任务"""
         result = self.db.execute(
-            select(TaskORM).where(TaskORM.id == task_id)
+            select(Task).where(Task.id == task_id)
         )
         task_orm = result.scalar_one_or_none()
 
@@ -133,7 +133,7 @@ class TaskService:
     def delete_task(self, task_id: str) -> bool:
         """删除任务"""
         result = self.db.execute(
-            select(TaskORM).where(TaskORM.id == task_id)
+            select(Task).where(Task.id == task_id)
         )
         task_orm = result.scalar_one_or_none()
 

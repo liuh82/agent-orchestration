@@ -6,6 +6,8 @@
 import pytest
 import os
 import sqlite3
+from sqlalchemy.orm import Session
+from app.database import SessionLocal
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -35,3 +37,14 @@ def clean_tables_on_start():
 
     # 所有测试结束后可以选择清理
     pass
+
+
+@pytest.fixture(scope='function')
+def db():
+    """为每个测试提供数据库会话"""
+    db_session = SessionLocal()
+    try:
+        yield db_session
+        db_session.rollback()
+    finally:
+        db_session.close()

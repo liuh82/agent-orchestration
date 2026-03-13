@@ -1,15 +1,16 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import uuid4
+import json
 
-from sqlalchemy import select, update, delete, func, and_, or_
+from sqlalchemy import select, update, delete, func, and_
 from sqlalchemy.orm import Session
 
 from ..models.audit_log import (
     AuditLogCreate, AuditLog, AuditLogType, AuditLogAction,
     AuditLogListResponse
 )
-from ..models.complete_orm import AuditLog as AuditLogORM
+from ..models.orm_models import AuditLog as AuditLogORM
 
 
 class AuditService:
@@ -21,23 +22,28 @@ class AuditService:
         audit_id = str(uuid4())
         created_at = datetime.now()
 
+        # Store all fields as JSON in details column
+        details_dict = {
+            "type": audit_log.type.value,
+            "user_name": audit_log.user_name,
+            "department_id": audit_log.department_id,
+            "request_data": audit_log.request_data,
+            "response_data": audit_log.response_data,
+            "status_code": audit_log.status_code,
+            "error_message": audit_log.error_message,
+            "duration_ms": audit_log.duration_ms,
+            "metadata": audit_log.metadata,
+        }
+
         audit_log_orm = AuditLogORM(
             id=audit_id,
-            type=audit_log.type,
-            action=audit_log.action,
+            member_id=audit_log.user_id,
+            action=audit_log.action.value,
             resource_type=audit_log.resource_type,
             resource_id=audit_log.resource_id,
-            user_id=audit_log.user_id,
-            user_name=audit_log.user_name,
-            department_id=audit_log.department_id,
+            details=json.dumps(details_dict),
             ip_address=audit_log.ip_address,
             user_agent=audit_log.user_agent,
-            request_data=audit_log.request_data,
-            response_data=audit_log.response_data,
-            status_code=audit_log.status_code,
-            error_message=audit_log.error_message,
-            duration_ms=audit_log.duration_ms,
-            metadata=audit_log.metadata,
             created_at=created_at.isoformat()
         )
 
@@ -57,23 +63,34 @@ class AuditService:
         if not audit_log_orm:
             return None
 
+        return self._orm_to_model(audit_log_orm)
+
+    def _orm_to_model(self, audit_log_orm: AuditLogORM) -> AuditLog:
+        """Convert ORM to Pydantic model"""
+        details_dict = {}
+        if audit_log_orm.details:
+            try:
+                details_dict = json.loads(audit_log_orm.details)
+            except (json.JSONDecodeError, TypeError):
+                details_dict = {}
+
         return AuditLog(
             id=audit_log_orm.id,
-            type=audit_log_orm.type,
-            action=audit_log_orm.action,
+            type=AuditLogType(details_dict.get("type", "read")),
+            action=AuditLogAction(audit_log_orm.action),
             resource_type=audit_log_orm.resource_type,
             resource_id=audit_log_orm.resource_id,
-            user_id=audit_log_orm.user_id,
-            user_name=audit_log_orm.user_name,
-            department_id=audit_log_orm.department_id,
+            user_id=audit_log_orm.member_id or "",
+            user_name=details_dict.get("user_name", ""),
+            department_id=details_dict.get("department_id"),
             ip_address=audit_log_orm.ip_address,
             user_agent=audit_log_orm.user_agent,
-            request_data=audit_log_orm.request_data,
-            response_data=audit_log_orm.response_data,
-            status_code=audit_log_orm.status_code,
-            error_message=audit_log_orm.error_message,
-            duration_ms=audit_log_orm.duration_ms,
-            metadata=audit_log_orm.metadata,
+            request_data=details_dict.get("request_data"),
+            response_data=details_dict.get("response_data"),
+            status_code=details_dict.get("status_code", 200),
+            error_message=details_dict.get("error_message"),
+            duration_ms=details_dict.get("duration_ms"),
+            metadata=details_dict.get("metadata"),
             created_at=datetime.fromisoformat(audit_log_orm.created_at)
         )
 
@@ -93,13 +110,11 @@ class AuditService:
         if end_time:
             conditions.append(AuditLogORM.created_at <= end_time.isoformat())
         if user_id:
-            conditions.append(AuditLogORM.user_id == user_id)
+            conditions.append(AuditLogORM.member_id == user_id)
         if resource_type:
             conditions.append(AuditLogORM.resource_type == resource_type)
         if action:
             conditions.append(AuditLogORM.action == action.value)
-        if status_code:
-            conditions.append(AuditLogORM.status_code == status_code)
 
         # Count total
         count_query = select(func.count(AuditLogORM.id))
@@ -118,28 +133,7 @@ class AuditService:
         result = self.db.execute(query)
         audit_log_orms = result.scalars().all()
 
-        logs = []
-        for audit_log_orm in audit_log_orms:
-            log = AuditLog(
-                id=audit_log_orm.id,
-                type=audit_log_orm.type,
-                action=audit_log_orm.action,
-                resource_type=audit_log_orm.resource_type,
-                resource_id=audit_log_orm.resource_id,
-                user_id=audit_log_orm.user_id,
-                user_name=audit_log_orm.user_name,
-                department_id=audit_log_orm.department_id,
-                ip_address=audit_log_orm.ip_address,
-                user_agent=audit_log_orm.user_agent,
-                request_data=audit_log_orm.request_data,
-                response_data=audit_log_orm.response_data,
-                status_code=audit_log_orm.status_code,
-                error_message=audit_log_orm.error_message,
-                duration_ms=audit_log_orm.duration_ms,
-                metadata=audit_log_orm.metadata,
-                created_at=datetime.fromisoformat(audit_log_orm.created_at)
-            )
-            logs.append(log)
+        logs = [self._orm_to_model(audit_log_orm) for audit_log_orm in audit_log_orms]
 
         return AuditLogListResponse(
             success=True,
@@ -162,11 +156,29 @@ class AuditService:
 
     def get_audit_logs_by_resource(self, resource_type: str, resource_id: str, page: int = 1, page_size: int = 50) -> AuditLogListResponse:
         """获取指定资源的审计日志"""
-        return self.get_audit_logs(
-            page=page,
-            page_size=page_size,
-            resource_type=resource_type,
-            resource_id=resource_id
+        conditions = [AuditLogORM.resource_type == resource_type, AuditLogORM.resource_id == resource_id]
+
+        # Count total
+        count_query = select(func.count(AuditLogORM.id)).where(and_(*conditions))
+        total = self.db.execute(count_query).scalar()
+
+        # Get logs
+        query = select(AuditLogORM).where(and_(*conditions)).order_by(AuditLogORM.created_at.desc())
+        query = query.offset((page - 1) * page_size).limit(page_size)
+        result = self.db.execute(query)
+        audit_log_orms = result.scalars().all()
+
+        logs = [self._orm_to_model(audit_log_orm) for audit_log_orm in audit_log_orms]
+
+        return AuditLogListResponse(
+            success=True,
+            data=logs,
+            pagination={
+                'page': page,
+                'page_size': page_size,
+                'total': total
+            },
+            message="Audit logs retrieved successfully"
         )
 
     def get_audit_logs_by_action(self, action: AuditLogAction, page: int = 1, page_size: int = 50) -> AuditLogListResponse:
@@ -193,7 +205,7 @@ class AuditService:
         total_logs = self.db.execute(count_query).scalar()
 
         # Get user activity count
-        unique_users_query = select(func.count(func.distinct(AuditLogORM.user_id)))
+        unique_users_query = select(func.count(func.distinct(AuditLogORM.member_id)))
         if conditions:
             unique_users_query = unique_users_query.where(and_(*conditions))
         unique_users = self.db.execute(unique_users_query).scalar()
@@ -209,22 +221,10 @@ class AuditService:
             top_actions_query = top_actions_query.where(and_(*conditions))
         top_actions_result = self.db.execute(top_actions_query).all()
 
-        # Get error count
-        error_count_query = select(func.count(AuditLogORM.id))
-        if conditions:
-            error_count_query = error_count_query.where(and_(*conditions))
-        error_count_query = error_count_query.where(AuditLogORM.status_code >= 400)
-        error_count = self.db.execute(error_count_query).scalar()
-
-        # Get success rate
-        success_rate = ((total_logs - error_count) / total_logs * 100) if total_logs > 0 else 0
-
         return {
             'total_logs': total_logs,
             'unique_users': unique_users,
-            'top_actions': [{'action': action, 'count': count} for action, count in top_actions_result],
-            'error_count': error_count,
-            'success_rate': round(success_rate, 2)
+            'top_actions': [{'action': action, 'count': count} for action, count in top_actions_result]
         }
 
     def clean_old_logs(self, days_to_keep: int = 365) -> int:

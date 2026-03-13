@@ -1,349 +1,302 @@
-import sqlite3
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from uuid import uuid4
-
-from ..models.budget import BudgetCreate, BudgetUpdate, Budget, CostAlert, AgentCostSummary
+from sqlalchemy import select, update, delete, func, and_, or_
+from sqlalchemy.orm import Session, joinedload
+from app.models.orm_models import Budget, CostAlert, DailyCost, Agent, CostEntry
+from app.models.budget import BudgetCreate, BudgetUpdate, Budget, CostAlert, AgentCostSummary
 
 
 class BudgetService:
     def __init__(self):
-        self.conn = sqlite3.connect('tasks.db', check_same_thread=False)
-        self._init_db()
+        # No need for database connection - handled by dependency injection
+        pass
 
-    def _init_db(self):
-        """初始化数据库"""
-        cursor = self.conn.cursor()
-
-        # Budgets table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS budgets (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                amount REAL NOT NULL,
-                period TEXT DEFAULT 'monthly',
-                alert_threshold REAL DEFAULT 0.8,
-                enabled BOOLEAN DEFAULT TRUE,
-                created_at TEXT,
-                updated_at TEXT,
-                current_cost REAL DEFAULT 0.0,
-                is_triggered BOOLEAN DEFAULT FALSE
-            )
-        ''')
-
-        # Cost alerts table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS cost_alerts (
-                id TEXT PRIMARY KEY,
-                budget_id TEXT NOT NULL,
-                amount REAL NOT NULL,
-                percentage REAL NOT NULL,
-                message TEXT NOT NULL,
-                triggered_at TEXT NOT NULL,
-                acknowledged BOOLEAN DEFAULT FALSE,
-                acknowledged_at TEXT,
-                FOREIGN KEY (budget_id) REFERENCES budgets (id)
-            )
-        ''')
-
-        # Daily cost tracking table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS daily_costs (
-                id TEXT PRIMARY KEY,
-                date TEXT NOT NULL,
-                agent_id TEXT NOT NULL,
-                total_tokens INTEGER DEFAULT 0,
-                total_cost REAL DEFAULT 0.0,
-                task_count INTEGER DEFAULT 0,
-                created_at TEXT,
-                FOREIGN KEY (agent_id) REFERENCES agents (id)
-            )
-        ''')
-
-        self.conn.commit()
-
-    async def get_all_budgets(self) -> List[Budget]:
+    async def get_all_budgets(self, db: Session) -> List[Budget]:
         """获取所有预算"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM budgets ORDER BY created_at DESC')
-        rows = cursor.fetchall()
+        result = db.execute(select(Budget).order_by(Budget.created_at.desc()))
+        return result.scalars().all()
 
-        budgets = []
-        for row in rows:
-            budget = Budget(
-                id=row[0],
-                name=row[1],
-                amount=row[2],
-                period=row[3],
-                alert_threshold=row[4],
-                enabled=bool(row[5]),
-                created_at=datetime.fromisoformat(row[6]),
-                updated_at=datetime.fromisoformat(row[7]),
-                current_cost=row[8] if len(row) > 8 else 0.0,
-                is_triggered=bool(row[9]) if len(row) > 9 else False
-            )
-            budgets.append(budget)
-
-        return budgets
-
-    async def get_budget(self, budget_id: str) -> Optional[Budget]:
+    async def get_budget(self, db: Session, budget_id: str) -> Optional[Budget]:
         """获取单个预算"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM budgets WHERE id = ?', (budget_id,))
-        row = cursor.fetchone()
+        result = db.execute(select(Budget).where(Budget.id == budget_id))
+        return result.scalar_one_or_none()
 
-        if not row:
-            return None
-
-        return Budget(
-            id=row[0],
-            name=row[1],
-            amount=row[2],
-            period=row[3],
-            alert_threshold=row[4],
-            enabled=bool(row[5]),
-            created_at=datetime.fromisoformat(row[6]),
-            updated_at=datetime.fromisoformat(row[7]),
-            current_cost=row[8] if len(row) > 8 else 0.0,
-            is_triggered=bool(row[9]) if len(row) > 9 else False
-        )
-
-    async def create_budget(self, budget: BudgetCreate) -> Budget:
+    async def create_budget(self, db: Session, budget: BudgetCreate, agent_id: str = None) -> Budget:
         """创建新预算"""
         budget_id = str(uuid4())
         created_at = datetime.now()
         updated_at = created_at
 
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            INSERT INTO budgets (id, name, amount, period, alert_threshold, enabled, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            budget_id,
-            budget.name,
-            budget.amount,
-            budget.period,
-            budget.alert_threshold,
-            budget.enabled,
-            created_at.isoformat(),
-            updated_at.isoformat()
-        ))
-        self.conn.commit()
+        db_budget = Budget(
+            id=budget_id,
+            name=budget.name,
+            amount=budget.amount,
+            currency=budget.currency,
+            period=budget.period,
+            current_cost=0.0,
+            is_triggered=False,
+            threshold_percentage=budget.threshold_percentage,
+            status='active',
+            created_at=created_at.isoformat(),
+            updated_at=updated_at.isoformat(),
+            agent_id=agent_id
+        )
 
-        return await self.get_budget(budget_id)
+        db.add(db_budget)
+        db.commit()
+        db.refresh(db_budget)
 
-    async def update_budget(self, budget_id: str, budget: BudgetUpdate) -> Optional[Budget]:
+        return db_budget
+
+    async def update_budget(self, db: Session, budget_id: str, budget: BudgetUpdate) -> Optional[Budget]:
         """更新预算"""
-        existing_budget = await self.get_budget(budget_id)
+        existing_budget = await self.get_budget(db, budget_id)
         if not existing_budget:
             return None
 
         updated_at = datetime.now()
 
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            UPDATE budgets
-            SET name = COALESCE(?, name),
-                amount = COALESCE(?, amount),
-                period = COALESCE(?, period),
-                alert_threshold = COALESCE(?, alert_threshold),
-                enabled = COALESCE(?, enabled),
-                updated_at = ?
-            WHERE id = ?
-        ''', (
-            budget.name,
-            budget.amount,
-            budget.period,
-            budget.alert_threshold,
-            budget.enabled,
-            updated_at.isoformat(),
-            budget_id
-        ))
-        self.conn.commit()
-
-        return await self.get_budget(budget_id)
-
-    async def check_budget_alerts(self) -> List[CostAlert]:
-        """检查预算告警"""
-        alerts = []
-        budgets = await self.get_all_budgets()
-
-        for budget in budgets:
-            if not budget.enabled:
-                continue
-
-            threshold_amount = budget.amount * budget.alert_threshold
-
-            if budget.current_cost >= threshold_amount:
-                # Create alert if not already triggered
-                if not budget.is_triggered:
-                    alert = await self._create_alert(budget, budget.current_cost)
-                    alerts.append(alert)
-
-        return alerts
-
-    async def _create_alert(self, budget: Budget, current_cost: float) -> CostAlert:
-        """创建预算告警"""
-        alert_id = str(uuid4())
-        percentage = (current_cost / budget.amount) * 100
-        message = f"Budget {budget.name} has reached {percentage:.1f}% of its limit (${current_cost:.2f}/${budget.amount:.2f})"
-        triggered_at = datetime.now()
-
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            INSERT INTO cost_alerts (id, budget_id, amount, percentage, message, triggered_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (
-            alert_id,
-            budget.id,
-            current_cost,
-            percentage,
-            message,
-            triggered_at.isoformat()
-        ))
-
-        # Mark budget as triggered
-        cursor.execute('''
-            UPDATE budgets
-            SET is_triggered = TRUE, current_cost = ?
-            WHERE id = ?
-        ''', (current_cost, budget.id))
-
-        self.conn.commit()
-
-        return CostAlert(
-            id=alert_id,
-            budget_id=budget.id,
-            amount=current_cost,
-            percentage=percentage,
-            message=message,
-            triggered_at=triggered_at
+        db.execute(
+            update(Budget)
+            .where(Budget.id == budget_id)
+            .values(
+                name=budget.name,
+                amount=budget.amount,
+                currency=budget.currency,
+                period=budget.period,
+                threshold_percentage=budget.threshold_percentage,
+                status=budget.status,
+                updated_at=updated_at.isoformat()
+            )
         )
+        db.commit()
 
-    async def acknowledge_alert(self, alert_id: str) -> bool:
-        """确认告警"""
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            UPDATE cost_alerts
-            SET acknowledged = TRUE, acknowledged_at = ?
-            WHERE id = ?
-        ''', (datetime.now().isoformat(), alert_id))
-        self.conn.commit()
+        return await self.get_budget(db, budget_id)
 
-        return cursor.rowcount > 0
+    async def delete_budget(self, db: Session, budget_id: str) -> bool:
+        """删除预算"""
+        result = db.execute(delete(Budget).where(Budget.id == budget_id))
+        db.commit()
+        return result.rowcount > 0
 
-    async def get_agent_cost_summary(self, agent_id: str, start_date: Optional[datetime] = None,
-                                   end_date: Optional[datetime] = None) -> Optional[AgentCostSummary]:
-        """获取 Agent 成本汇总"""
-        cursor = self.conn.cursor()
-
-        query = '''
-            SELECT total_tokens, total_cost, task_count
-            FROM daily_costs
-            WHERE agent_id = ?
-        '''
-        params = [agent_id]
+    async def get_cost_summary(self, db: Session, start_date: Optional[str] = None,
+                             end_date: Optional[str] = None) -> Dict[str, Any]:
+        """获取成本汇总"""
+        query = select(
+            func.sum(CostEntry.total_cost).label('total_cost'),
+            func.sum(CostEntry.input_tokens).label('total_input_tokens'),
+            func.sum(CostEntry.output_tokens).label('total_output_tokens'),
+            func.count(CostEntry.id).label('total_calls')
+        )
 
         if start_date:
-            query += ' AND date >= ?'
-            params.append(start_date.date().isoformat())
-
+            query = query.where(CostEntry.timestamp >= start_date)
         if end_date:
-            query += ' AND date <= ?'
-            params.append(end_date.date().isoformat())
+            query = query.where(CostEntry.timestamp <= end_date)
 
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
+        result = db.execute(query).scalar_one_or_none()
 
-        if not rows:
+        return {
+            'total_cost': result[0] or 0.0,
+            'total_input_tokens': result[1] or 0,
+            'total_output_tokens': result[2] or 0,
+            'total_calls': result[3] or 0
+        }
+
+    async def get_costs_by_agent(self, db: Session, agent_id: str, start_date: Optional[str] = None,
+                               end_date: Optional[str] = None, page: int = 1, page_size: int = 50) -> List[Dict[str, Any]]:
+        """获取指定 Agent 的成本记录"""
+        query = select(CostEntry).where(CostEntry.agent_id == agent_id)
+
+        if start_date:
+            query = query.where(CostEntry.timestamp >= start_date)
+        if end_date:
+            query = query.where(CostEntry.timestamp <= end_date)
+
+        query = query.order_by(CostEntry.timestamp.desc())
+
+        # Apply pagination
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
+
+        result = db.execute(query)
+        costs = result.scalars().all()
+
+        return [
+            {
+                'id': cost.id,
+                'agent_id': cost.agent_id,
+                'task_id': cost.task_id,
+                'model': cost.model,
+                'input_tokens': cost.input_tokens,
+                'output_tokens': cost.output_tokens,
+                'total_cost': cost.total_cost,
+                'currency': cost.currency,
+                'timestamp': cost.timestamp,
+                'metadata': cost.metadata_ if cost.metadata_ else {}
+            }
+            for cost in costs
+        ]
+
+    async def get_agent_cost_summary(self, db: Session, agent_id: str, period: str = "monthly") -> List[AgentCostSummary]:
+        """获取 Agent 成本汇总"""
+        if period == "daily":
+            # Daily cost aggregation
+            query = select(
+                DailyCost.date,
+                func.sum(DailyCost.total_cost).label('daily_cost'),
+                func.sum(DailyCost.input_tokens).label('daily_input_tokens'),
+                func.sum(DailyCost.output_tokens).label('daily_output_tokens')
+            ).where(DailyCost.agent_id == agent_id).group_by(DailyCost.date).order_by(DailyCost.date.desc())
+        else:
+            # Monthly cost aggregation (would need to extract month from timestamp)
+            query = select(
+                func.strftime('%Y-%m', CostEntry.timestamp).label('month'),
+                func.sum(CostEntry.total_cost).label('monthly_cost'),
+                func.sum(CostEntry.input_tokens).label('monthly_input_tokens'),
+                func.sum(CostEntry.output_tokens).label('monthly_output_tokens')
+            ).where(CostEntry.agent_id == agent_id).group_by(func.strftime('%Y-%m', CostEntry.timestamp))
+
+        result = db.execute(query)
+        return [
+            AgentCostSummary(
+                period=row[0],
+                total_cost=row[1] or 0.0,
+                total_input_tokens=row[2] or 0,
+                total_output_tokens=row[3] or 0
+            )
+            for row in result.fetchall()
+        ]
+
+    async def check_budget_threshold(self, db: Session, budget_id: str) -> Optional[CostAlert]:
+        """检查预算阈值并创建告警"""
+        budget = await self.get_budget(db, budget_id)
+        if not budget or budget.status != 'active':
             return None
 
-        # Sum up all records
-        total_tokens = sum(row[0] for row in rows)
-        total_cost = sum(row[1] for row in rows)
-        task_count = sum(row[2] for row in rows)
+        # Calculate current percentage
+        if budget.amount > 0:
+            percentage = (budget.current_cost / budget.amount) * 100
+        else:
+            percentage = 0
 
-        # Get agent name - handle case where agent doesn't exist
-        cursor.execute('SELECT name FROM agents WHERE id = ?', (agent_id,))
-        agent_row = cursor.fetchone()
-        agent_name = agent_row[0] if agent_row else f"Agent {agent_id}"
+        # Check if threshold is exceeded
+        if percentage >= budget.threshold_percentage and not budget.is_triggered:
+            # Create alert
+            alert_id = str(uuid4())
+            alert = CostAlert(
+                id=alert_id,
+                budget_id=budget_id,
+                current_cost=budget.current_cost,
+                threshold_percentage=budget.threshold_percentage,
+                message=f'Budget {budget.name} has reached {percentage:.1f}% of its limit',
+                is_triggered=True
+            )
 
-        return AgentCostSummary(
-            agent_id=agent_id,
-            agent_name=agent_name,
-            total_tokens=total_tokens,
-            total_cost=total_cost,
-            task_count=task_count,
-            avg_task_cost=total_cost / task_count if task_count > 0 else 0.0
+            db.add(alert)
+            db.commit()
+
+            # Update budget triggered status
+            db.execute(
+                update(Budget)
+                .where(Budget.id == budget_id)
+                .values(is_triggered=True)
+            )
+            db.commit()
+
+            return alert
+
+        return None
+
+    async def get_budget_alerts(self, db: Session, budget_id: Optional[str] = None) -> List[CostAlert]:
+        """获取预算告警"""
+        query = select(CostAlert)
+        if budget_id:
+            query = query.where(CostAlert.budget_id == budget_id)
+
+        result = db.execute(query.order_by(CostAlert.created_at.desc()))
+        return result.scalars().all()
+
+    async def acknowledge_alert(self, db: Session, alert_id: str) -> bool:
+        """确认告警"""
+        result = db.execute(
+            update(CostAlert)
+            .where(CostAlert.id == alert_id)
+            .values(
+                is_resolved=True,
+                resolved_at=datetime.now().isoformat()
+            )
         )
+        db.commit()
+        return result.rowcount > 0
 
-    async def update_daily_costs(self, agent_id: str, tokens_used: int, cost: float):
-        """更新每日成本"""
-        today = datetime.now().date().isoformat()
+    async def get_daily_costs(self, db: Session, agent_id: Optional[str] = None,
+                            date: Optional[str] = None, page: int = 1, page_size: int = 50) -> List[Dict[str, Any]]:
+        """获取每日成本记录"""
+        query = select(DailyCost)
 
-        cursor = self.conn.cursor()
+        if agent_id:
+            query = query.where(DailyCost.agent_id == agent_id)
+        if date:
+            query = query.where(DailyCost.date == date)
 
-        # Check if record exists for today
-        cursor.execute('''
-            SELECT id FROM daily_costs
-            WHERE date = ? AND agent_id = ?
-        ''', (today, agent_id))
+        query = query.order_by(DailyCost.date.desc())
 
-        existing = cursor.fetchone()
+        # Apply pagination
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
 
-        if existing:
+        result = db.execute(query)
+        daily_costs = result.scalars().all()
+
+        return [
+            {
+                'id': cost.id,
+                'agent_id': cost.agent_id,
+                'budget_id': cost.budget_id,
+                'date': cost.date,
+                'input_tokens': cost.input_tokens,
+                'output_tokens': cost.output_tokens,
+                'total_cost': cost.total_cost,
+                'currency': cost.currency
+            }
+            for cost in daily_costs
+        ]
+
+    async def update_daily_cost(self, db: Session, agent_id: str, date: str,
+                             tokens_used: int, cost: float, currency: str = "USD"):
+        """更新每日成本记录"""
+        # Try to get existing record
+        result = db.execute(
+            select(DailyCost).where(
+                and_(DailyCost.agent_id == agent_id, DailyCost.date == date)
+            )
+        )
+        existing_cost = result.scalar_one_or_none()
+
+        if existing_cost:
             # Update existing record
-            cursor.execute('''
-                UPDATE daily_costs
-                SET total_tokens = total_tokens + ?,
-                    total_cost = total_cost + ?,
-                    task_count = task_count + 1
-                WHERE id = ?
-            ''', (tokens_used, cost, existing[0]))
+            db.execute(
+                update(DailyCost)
+                .where(DailyCost.id == existing_cost.id)
+                .values(
+                    input_tokens=DailyCost.input_tokens + tokens_used,
+                    output_tokens=DailyCost.output_tokens + tokens_used,
+                    total_cost=DailyCost.total_cost + cost
+                )
+            )
         else:
             # Create new record
-            daily_id = str(uuid4())
-            created_at = datetime.now()
-            cursor.execute('''
-                INSERT INTO daily_costs (id, date, agent_id, total_tokens, total_cost, task_count, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (daily_id, today, agent_id, tokens_used, cost, 1, created_at.isoformat()))
+            new_cost = DailyCost(
+                id=str(uuid4()),
+                agent_id=agent_id,
+                date=date,
+                input_tokens=tokens_used,
+                output_tokens=tokens_used,
+                total_cost=cost,
+                currency=currency
+            )
+            db.add(new_cost)
 
-        self.conn.commit()
-
-        # Update budget costs
-        await self._update_budget_costs()
-
-    async def _update_budget_costs(self):
-        """更新预算的当前成本"""
-        cursor = self.conn.cursor()
-
-        # Get all budgets
-        budgets = await self.get_all_budgets()
-
-        for budget in budgets:
-            # Calculate total cost for this budget's period
-            if budget.period == 'monthly':
-                # Get costs for current month
-                current_month = datetime.now().strftime('%Y-%m')
-            elif budget.period == 'yearly':
-                # Get costs for current year
-                current_month = datetime.now().strftime('%Y')
-            else:
-                # Default to month
-                current_month = datetime.now().strftime('%Y-%m')
-
-            cursor.execute('''
-                SELECT SUM(total_cost) FROM daily_costs
-                WHERE date LIKE ?
-            ''', (f'{current_month}%',))
-            total_cost = cursor.fetchone()[0] or 0.0
-
-            # Update budget
-            cursor.execute('''
-                UPDATE budgets
-                SET current_cost = ?
-                WHERE id = ?
-            ''', (total_cost, budget.id))
-
-        self.conn.commit()
+        db.commit()

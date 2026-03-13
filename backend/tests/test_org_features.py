@@ -7,6 +7,7 @@ import pytest
 import asyncio
 from datetime import datetime
 from uuid import uuid4
+from sqlalchemy.orm import Session
 from app.services.org_chart import OrgChartService
 from app.services.role import RoleService
 from app.services.member import MemberService
@@ -24,10 +25,9 @@ from app.models.audit_log import AuditLogCreate, AuditLogType, AuditLogAction
 class TestOrgChart:
     """组织架构测试"""
 
-    @pytest.mark.asyncio
-    async def test_create_org_node(self):
+    def test_create_org_node(self, db: Session):
         """测试创建组织架构节点"""
-        service = OrgChartService()
+        service = OrgChartService(db)
 
         # 创建根节点
         node_data = OrganizationChartCreate(
@@ -45,10 +45,9 @@ class TestOrgChart:
 
         return node.id
 
-    @pytest.mark.asyncio
-    async def test_create_child_node(self):
+    def test_create_child_node(self, db: Session):
         """测试创建子节点"""
-        service = OrgChartService()
+        service = OrgChartService(db)
 
         # 先创建父节点
         parent_data = OrganizationChartCreate(
@@ -57,7 +56,7 @@ class TestOrgChart:
             department="EXEC",
             parent_id=None
         )
-        parent = await service.create_node(parent_data)
+        parent = service.create_node(parent_data)
 
         # 创建子节点
         node_data = OrganizationChartCreate(
@@ -67,7 +66,7 @@ class TestOrgChart:
             parent_id=parent.id
         )
 
-        node = await service.create_node(node_data)
+        node = service.create_node(node_data)
         assert node.name == "技术部"
         assert node.department == "TECH"
         assert node.level == 2
@@ -75,12 +74,11 @@ class TestOrgChart:
 
         return node.id
 
-    @pytest.mark.asyncio
-    async def test_get_org_chart(self):
+    def test_get_org_chart(self, db: Session):
         """测试获取组织架构图"""
-        service = OrgChartService()
+        service = OrgChartService(db)
 
-        chart_data = await service.get_org_chart_data()
+        chart_data = service.get_org_chart_data()
         assert chart_data.success is True
         assert "root_nodes" in chart_data.data
         assert "tree" in chart_data.data
@@ -89,10 +87,9 @@ class TestOrgChart:
 class TestRole:
     """角色管理测试"""
 
-    @pytest.mark.asyncio
-    async def test_create_role(self):
+    def test_create_role(self, db: Session):
         """测试创建角色"""
-        service = RoleService()
+        service = RoleService(db)
 
         role_data = RoleCreate(
             name="测试角色",
@@ -101,16 +98,15 @@ class TestRole:
             permissions=["view_test"]
         )
 
-        role = await service.create_role(role_data)
+        role = service.create_role(role_data)
         assert role.name == "测试角色"
         assert role.permissions == ["view_test"]
 
         return role.id
 
-    @pytest.mark.asyncio
-    async def test_update_role(self):
+    def test_update_role(self, db: Session):
         """测试更新角色"""
-        service = RoleService()
+        service = RoleService(db)
 
         # 先创建角色
         role_data = RoleCreate(
@@ -119,7 +115,7 @@ class TestRole:
             description="测试角色描述",
             permissions=["view_test"]
         )
-        role = await service.create_role(role_data)
+        role = service.create_role(role_data)
 
         # 更新角色
         update_data = RoleUpdate(
@@ -130,16 +126,15 @@ class TestRole:
             is_active=True
         )
 
-        updated_role = await service.update_role(role.id, update_data)
+        updated_role = service.update_role(role.id, update_data)
         assert updated_role.name == "更新后的测试角色"
         assert "edit_test" in updated_role.permissions
 
         return role.id
 
-    @pytest.mark.asyncio
-    async def test_delete_role(self):
+    def test_delete_role(self, db: Session):
         """测试删除角色"""
-        service = RoleService()
+        service = RoleService(db)
 
         # 先创建角色
         role_data = RoleCreate(
@@ -148,14 +143,14 @@ class TestRole:
             description="待删除",
             permissions=["view_test"]
         )
-        role = await service.create_role(role_data)
+        role = service.create_role(role_data)
 
         # 删除角色
-        result = await service.delete_role(role.id)
+        result = service.delete_role(role.id)
         assert result is True
 
         # 验证角色已被软删除
-        deleted_role = await service.get_role(role.id)
+        deleted_role = service.get_role(role.id)
         assert deleted_role is None
 
 
@@ -163,9 +158,9 @@ class TestGoal:
     """目标管理测试"""
 
     @pytest.mark.asyncio
-    async def test_create_goal(self):
+    async def test_create_goal(self, db: Session):
         """测试创建目标"""
-        service = GoalService()
+        service = GoalService(db)
 
         goal_data = GoalCreate(
             title="完成产品开发",
@@ -185,9 +180,9 @@ class TestGoal:
         return goal.id
 
     @pytest.mark.asyncio
-    async def test_create_goal_alignment(self):
+    async def test_create_goal_alignment(self, db: Session):
         """测试创建目标对齐"""
-        service = GoalService()
+        service = GoalService(db)
 
         # 先创建两个目标
         goal1_data = GoalCreate(
@@ -230,9 +225,9 @@ class TestApproval:
     """审批管理测试"""
 
     @pytest.mark.asyncio
-    async def test_create_approval(self):
+    async def test_create_approval(self, db: Session):
         """测试创建审批"""
-        service = ApprovalService()
+        service = ApprovalService(db)
 
         approval_data = ApprovalCreate(
             title="创建新Agent",
@@ -251,9 +246,9 @@ class TestApproval:
         return approval.id
 
     @pytest.mark.asyncio
-    async def test_update_approval_status(self):
+    async def test_update_approval_status(self, db: Session):
         """测试更新审批状态"""
-        service = ApprovalService()
+        service = ApprovalService(db)
 
         # 先创建审批
         approval_data = ApprovalCreate(
@@ -284,9 +279,9 @@ class TestAudit:
     """审计日志测试"""
 
     @pytest.mark.asyncio
-    async def test_create_audit_log(self):
+    async def test_create_audit_log(self, db: Session):
         """测试创建审计日志"""
-        service = AuditService()
+        service = AuditService(db)
 
         audit_data = AuditLogCreate(
             type=AuditLogType.CREATE,
@@ -307,9 +302,9 @@ class TestAudit:
         return audit_log.id
 
     @pytest.mark.asyncio
-    async def test_get_audit_logs(self):
+    async def test_get_audit_logs(self, db: Session):
         """测试获取审计日志"""
-        service = AuditService()
+        service = AuditService(db)
 
         logs = await service.get_audit_logs(page=1, page_size=10)
         assert logs.success is True
