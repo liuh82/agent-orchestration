@@ -1,9 +1,9 @@
-# AI Agent Orchestration 开发方案 (v3.0)
+# AI Agent Orchestration 开发方案 (v4.0)
 
-> 基于 agent-orchestration 项目现状 + Paperclip 功能对比
-> 更新日期：2026-03-13
-> 当前版本：v2.3.5 (commit: c48bc60)
-> 项目状态：**稳定，可进入 Phase 5 ORM 迁移开发**
+> 基于 agent-orchestration 项目现状 + Paperclip 功能对比 + Remote Agent Bridge 架构
+> 更新日期：2026-03-14
+> 当前版本：v2.4.0 (commit: a7a2078)
+> 项目状态：**ORM 迁移已完成并验证通过，进入 Phase 6 Remote Agent Bridge 开发**
 
 ---
 
@@ -13,13 +13,14 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         前端层 (React + TypeScript)                     │
+│                         前端层 (React + TypeScript + Ant Design 5)           │
 │   Dashboard │ Agents │ Tasks │ Workflows │ Org │ Approvals │ Audit │ HB   │
+│   【设计规范: frontend/DESIGN_SPEC.md】                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       API Gateway (FastAPI)                            │
+│                       API Gateway (FastAPI)                                  │
 │   API Key 认证 │ 限流 │ 日志 │ 路由                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
@@ -27,14 +28,28 @@
         ▼                           ▼                           ▼
 ┌──────────────┐          ┌──────────────┐          ┌──────────────┐
 │  Agent      │          │  Task       │          │  Workflow   │
-│  Service    │          │  Service    │          │  Service    │
-└──────────────┘          └──────────────┘          └──────────────┘
-        │                           │                           │
-        └───────────────────────────┼───────────────────────────┘
+│  Service    │          │  Service    │          │  + Remote   │
+│             │          │             │          │  AgentEngine│
+└──────────────┘          └──────────────┘          └──────┬───────┘
+                                                          │
+                                    ┌─────────────────────┘
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         数据层 (SQLite → SQLAlchemy 2.0 ORM)          │
-│   agents │ tasks │ workflows │ costs │ logs │ org │ goals │ approvals │ hb  │
+│                  OpenClaw Gateway (Bridge Manager)                          │
+│   多 Bridge 管理 │ 任务路由 │ 心跳检测 │ 故障转移                                │
+└────────────┬──────────────────────────────────────────┬─────────────────────┘
+             │ WebSocket (双向, TLS 1.2+)                │
+             ▼                                          ▼
+┌─────────────────────┐              ┌─────────────────────┐
+│  Bridge (Mac)       │              │  Bridge (Win/Linux) │
+│  CLI Adapter        │              │  CLI Adapter        │
+│  (codex/pi/acp)     │              │  (codex/pi/acp)     │
+│  HTTP API :18790    │              │  HTTP API :18790    │
+└─────────────────────┘              └─────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         数据层 (SQLite + SQLAlchemy 2.0 ORM)                 │
+│   21 表: agents │ tasks │ workflows │ costs │ logs │ org │ goals │ etc.     │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -42,381 +57,311 @@
 
 | 层级 | 技术 |
 |------|------|
-| 前端 | React 18 + TypeScript + Vite + Ant Design |
-| 后端 | Python FastAPI + Pydantic v2 |
-| 数据库 | SQLite (WAL模式) + **SQLAlchemy 2.0 ORM + Alembic** (待迁移) |
+| 前端 | React 18 + TypeScript + Vite 4 + Ant Design 5 + styled-components |
+| 后端 | Python FastAPI + Pydantic v2 + **SQLAlchemy 2.0 ORM** ✅ |
+| 数据库 | SQLite (WAL模式) + SQLAlchemy 2.0（已迁移完成） |
+| Bridge | **Node.js 18+ / TypeScript 5.x** + better-sqlite3 + ws |
 | 状态管理 | Zustand + React Query |
-| 工作流引擎 | Lobster Engine (可插拔) |
-| 认证 | API Key (MVP) |
+| 工作流引擎 | Lobster Engine (可插拔) + **RemoteAgentEngine**（新增） |
+| 认证 | API Key (MVP) + Bridge Token |
+
+### 1.3 关键文档索引
+
+| 文档 | 说明 |
+|------|------|
+| `docs/remote-agent-bridge-architecture.md` | Bridge 架构设计 v2.0（95KB，13章+3附录） |
+| `frontend/DESIGN_SPEC.md` | 前端设计规范 v1.0（Design Token + Ant Design 主题） |
+| `docs/orm-migration-design.md` | ORM 迁移设计文档 |
+| `backend/CODE_REVIEW_FIX_REPORT.md` | ORM 迁移代码审查修复报告 |
+| `backend/TEST_VERIFICATION_REPORT.md` | ORM 迁移验证报告（用户本地通过） |
+| `docs/acp-bridge-plan.md` | ACP Bridge 方案（参考，已决定不依赖 ACP） |
+| `frontend/DESIGN_SPEC.md` | 前端设计规范 |
+| `agent-orchestration-architecture.md` | 系统架构文档 |
+| `agent-orchestration-requirements.md` | 需求文档 |
 
 ---
 
 ## 二、功能实现进度
 
-### 2.1 Agent 管理模块
+### 2.1 Agent 管理模块 — ✅ 完成
 
 | 接口 | 方法 | 功能 | 状态 |
 |------|------|------|------|
-| /api/agents | GET | Agent列表 | ✅ 已实现 |
-| /api/agents | POST | 创建Agent | ✅ 已实现 |
-| /api/agents/{id} | GET | Agent详情 | ✅ 已实现 |
-| /api/agents/{id} | PUT | 更新Agent | ✅ 已实现 |
-| /api/agents/{id} | DELETE | 删除Agent | ✅ 已实现 |
-| /api/agents/{id}/start | POST | 启动Agent | ✅ Phase1 |
-| /api/agents/{id}/stop | POST | 停止Agent | ✅ Phase1 |
-| /api/agents/{id}/logs | GET | 运行日志 | ✅ Phase1 |
-| /api/agents/{id}/stats | GET | 性能统计 | ✅ Phase1 |
-| /api/agents/{id}/heartbeat | POST | Agent心跳 | 🔲 未实现 |
+| /api/agents | GET | Agent列表 | ✅ |
+| /api/agents | POST | 创建Agent | ✅ |
+| /api/agents/{id} | GET/PUT/DELETE | CRUD | ✅ |
+| /api/agents/{id}/start | POST | 启动Agent | ✅ |
+| /api/agents/{id}/stop | POST | 停止Agent | ✅ |
+| /api/agents/{id}/logs | GET | 运行日志 | ✅ |
+| /api/agents/{id}/stats | GET | 性能统计 | ✅ |
+| /api/agents/{id}/heartbeat | POST | Agent心跳 | 🔲 未实现（低优先级） |
 
-### 2.2 Task 管理模块
+### 2.2 Task 管理模块 — ✅ 完成
 
 | 接口 | 方法 | 功能 | 状态 |
 |------|------|------|------|
-| /api/tasks | GET | 任务列表(分页) | ✅ |
-| /api/tasks | POST | 创建任务 | ✅ |
-| /api/tasks/{id} | GET | 任务详情 | ✅ |
-| /api/tasks/{id} | PUT | 更新任务 | ✅ |
-| /api/tasks/{id} | DELETE | 删除任务 | ✅ |
-| /api/tasks/{id}/execute | POST | 执行任务 | ✅ |
-| /api/tasks/{id}/pause | POST | 暂停任务 | ✅ |
-| /api/tasks/{id}/resume | POST | 恢复任务 | ✅ |
-| /api/tasks/{id}/assign | POST | 分配Agent | ✅ Phase1 |
-| /api/tasks/{id}/logs | GET | 任务日志 | 🔲 未实现 |
+| /api/tasks | GET/POST | 列表/创建 | ✅ |
+| /api/tasks/{id} | GET/PUT/DELETE | CRUD | ✅ |
+| /api/tasks/{id}/execute | POST | 执行 | ✅ |
+| /api/tasks/{id}/pause/resume | POST | 暂停/恢复 | ✅ |
+| /api/tasks/{id}/assign | POST | 分配Agent | ✅ |
+| /api/tasks/{id}/logs | GET | 任务日志 | 🔲 未实现（低优先级） |
 
-### 2.3 Workflow 管理模块
+### 2.3 Workflow 管理模块 — ✅ 完成（RemoteAgentEngine 待开发）
 
 | 接口 | 方法 | 功能 | 状态 |
 |------|------|------|------|
-| /api/workflows | GET | 工作流列表 | ✅ |
-| /api/workflows | POST | 创建工作流 | ✅ |
-| /api/workflows/{id} | GET | 工作流详情 | ✅ |
-| /api/workflows/{id} | PUT | 更新工作流 | ✅ |
-| /api/workflows/{id} | DELETE | 删除工作流 | ✅ |
-| /api/workflows/{id}/execute | POST | 执行工作流 | ✅ |
+| /api/workflows | GET/POST | 列表/创建 | ✅ |
+| /api/workflows/{id} | GET/PUT/DELETE | CRUD | ✅ |
+| /api/workflows/{id}/execute | POST | 执行 | ✅ |
 | /api/workflows/{id}/status/{exec_id} | GET | 执行状态 | ✅ |
 | /api/workflows/{id}/logs/{exec_id} | GET | 执行日志 | ✅ |
-| /api/workflows/templates | GET | 工作流模板 | ✅ |
-| /api/workflows/visual-editor | GET | 可视化编辑器 | 🔲 未实现 |
+| /api/workflows/templates | GET | 模板 | ✅ |
+| /api/workflows/visual-editor | GET | 可视化编辑器 | 🔲 Phase 9 |
 
-### 2.4 Cost 成本控制模块
-
-| 接口 | 方法 | 功能 | 状态 |
-|------|------|------|------|
-| /api/costs | GET | 成本列表 | ✅ |
-| /api/costs/summary | GET | 成本汇总 | ✅ |
-| /api/costs/by-agent | GET | 按Agent统计 | ✅ Phase1 |
-| /api/costs/by-period | GET | 按时间段统计 | 🔲 未实现 |
-| /api/costs/budget | GET/POST | 预算设置 | ✅ Phase1 |
-| /api/costs/alert | POST | 超预算告警 | ✅ Phase1 |
-
-### 2.5 Org 组织架构模块
+### 2.4 Cost 成本控制模块 — ✅ 完成
 
 | 接口 | 方法 | 功能 | 状态 |
 |------|------|------|------|
-| /api/org/chart | GET | 组织架构图 | ✅ 后端+前端 |
-| /api/org/roles | GET/POST | 角色管理 | ✅ 后端+前端 |
-| /api/org/members | GET/POST | 成员管理 | ✅ 后端+前端 |
-| /api/goals | GET/POST | 目标管理 | ✅ 后端+前端 |
-| /api/goals/align | POST | 目标对齐 | ✅ 后端+前端 |
+| /api/costs | GET | 列表 | ✅ |
+| /api/costs/summary | GET | 汇总 | ✅ |
+| /api/costs/by-agent | GET | 按Agent统计 | ✅ |
+| /api/costs/by-period | GET | 按时间段统计 | 🔲 Phase 9 |
+| /api/costs/budget | GET/POST | 预算 | ✅ |
+| /api/costs/alert | POST | 告警 | ✅ |
 
-### 2.6 Governance 治理模块
+### 2.5 Org 组织架构模块 — ✅ 完成
 
-| 接口 | 方法 | 功能 | 状态 |
-|------|------|------|------|
-| /api/approvals | GET | 待审批列表 | ✅ 后端+前端 |
-| /api/approvals/{id} | POST | 审批操作 | ✅ 后端+前端 |
-| /api/approvals/history | GET | 审批历史 | ✅ 后端+前端 |
-| /api/audit/logs | GET | 审计日志 | ✅ 后端+前端 |
+所有端点已实现（org/chart, org/roles, org/members, goals, goals/align）。
 
-### 2.7 Heartbeat 心跳模块
+### 2.6 Governance 治理模块 — ✅ 完成
 
-| 接口 | 方法 | 功能 | 状态 |
-|------|------|------|------|
-| /api/heartbeats | GET | 心跳配置列表 | ✅ 后端+前端 |
-| /api/heartbeats | POST | 创建心跳任务 | ✅ 后端+前端 |
-| /api/heartbeats/{id} | PUT | 更新心跳配置 | ✅ 后端+前端 |
-| /api/heartbeats/{id}/trigger | POST | 手动触发 | ✅ 后端+前端 |
-| /api/heartbeats/{id}/disable | POST | 禁用心跳 | ✅ 后端+前端 |
-| /api/heartbeats/{id}/enable | POST | 启用心跳 | ✅ 后端+前端 |
-| /api/heartbeats/{id}/logs | GET | 执行日志 | ✅ 后端+前端 |
-| /api/heartbeats/stats | GET | 统计信息 | ✅ 后端+前端 |
+所有端点已实现（approvals, audit/logs）。
+
+### 2.7 Heartbeat 心跳模块 — ✅ 完成
+
+所有端点已实现（CRUD + trigger + enable/disable + logs + stats）。
+
+### 2.8 Remote Agent Bridge — 🔲 Phase 6 开发中
+
+| 组件 | 说明 | 状态 |
+|------|------|------|
+| Bridge 服务 (Node.js) | 跨平台常驻服务 | 🔲 待开发 |
+| WebSocket 双向通信 | Bridge ↔ Gateway | 🔲 待开发 |
+| CLI Adapter | codex / pi / openclaw acp | 🔲 待开发 |
+| Gateway BridgeManager | 多 Bridge 管理 + 路由 | 🔲 待开发 |
+| RemoteAgentEngine | 编排系统远端执行引擎 | 🔲 待开发 |
+| Bridge HTTP API | 本地 RESTful API | 🔲 待开发 |
+| 安全沙箱 | 命令白名单 + prompt 检测 | 🔲 待开发 |
+| 审计日志 | 操作记录 | 🔲 待开发 |
+| IDE Adapter | VS Code / Cursor（文件队列） | 🔲 Phase 7 |
+
+详细架构设计：`docs/remote-agent-bridge-architecture.md`（v2.0，95KB）
 
 ---
 
 ## 三、版本发布记录
 
 ### v2.0 — Phase 1 核心功能 ✅ (2026-03-09)
-
 - Agent CRUD + 启停 + 日志 + 统计
-- Task CRUD + 分配
+- Task CRUD + 分配 + 执行
 - Workflow CRUD + 执行
 - Cost 按Agent统计 + 预算 + 告警
 - 前端基础页面
 
 ### v2.1 — Phase 2 后端扩展 ✅ (2026-03-12)
-
-- Org Chart 组织架构后端
-- Goal Alignment 目标对齐后端
-- Governance 审批流程 + 审计日志后端
-- 后端 pytest 23/23 通过
+- Org Chart / Goal Alignment / Governance（审批+审计）后端
+- pytest 23/23 通过
 
 ### v2.2 — Phase 2.5 + Phase 3 ✅ (2026-03-12)
-
 - 前端 Org / Goals / Approvals / Audit 页面
 - 后端 Heartbeats 心跳模块
-- 后端 pytest 23/23 通过
 
-### v2.3 — 审查修复第一轮 ✅ (2026-03-13)
+### v2.3 — 安全审查修复 ✅ (2026-03-13)
+- SQL 注入修复、单例线程安全、API Key 认证中间件
+- 前端防抖、轮询清理、错误处理统一
+- 前端清理（未使用 import/变量）
 
-**修复内容（8 commits: c1cc91e → 9f685ef）：**
-- 🔴 SQL 注入修复 — 字段白名单 + 参数化查询
-- 🔴 单例线程安全 — 双重检查锁定 + threading.Lock()
-- 🔴 API Key 认证中间件 — MVP 版本 (auth.py)
-- 🔴 前端轮询清理 — 配置常量化（30s）
-- 🟡 数据库连接管理 — 上下文管理器
-- 🟡 前端防抖 — asyncDebounce
-- 🟡 未使用参数清理
-- 🟡 前端错误处理统一
-
-### v2.3.4 — 前端清理 ✅ (2026-03-13)
-
-- 清理未使用的 import 和变量（Audit/Heartbeats/Org/org.ts）
-- types/index.ts 类型扩展
-- 前端 TypeScript 0 error，build 成功
-
-### v2.3.5 — 审查修复验证通过 ✅ (2026-03-13)
-
-- TEST_REPORT_LOCAL.md 确认：后端 23/23 pytest 通过（本地 Python 3.9.10 交叉验证）
-- 前端 0 error，build 成功（1.7MB JS, gzip 544KB）
-- API 功能测试全部通过
+### v2.3.5 — 审查验证通过 ✅ (2026-03-13)
+- 本地验证（Python 3.9.10 + macOS）：pytest 23/23, tsc 0 error, build 成功
 - **版本状态: 稳定**
+
+### v2.4.0 — ORM 迁移完成 + 架构设计 ✅ (2026-03-14)
+
+**ORM 迁移（Phase 5）**：
+- 12 个 service 文件全部迁移到 SQLAlchemy 2.0 ORM
+- 4 库合并 → 单库 tasks.db（21 表）
+- 147 处原生 SQL → ORM（零残留）
+- 连接池配置（pool_size=5, max_overflow=10）
+- 代码审查 P0/P1/P2 修复全部完成
+- 本地测试验证通过（23/23 pytest）
+- **Commits**: `305a3ec` → `87f6c40` → `bfed631` → `457e8b7` → `f1fe25e`
+
+**架构设计文档**：
+- Remote Agent Bridge 架构 v2.0（95KB，commit `a5e56cb`）
+- 前端设计规范 v1.0（19KB）
+- **版本状态: 稳定，可进入 Phase 6 开发**
 
 ---
 
 ## 四、测试报告汇总
 
-### 4.1 测试报告 1（2026-03-12，本地测试）
+### 4.1 服务器测试（Python 3.11, Linux）
+- pytest **23/23 通过**
 
-- 后端 3/3 通过（仅 Agent 测试）
-- 前端构建成功
-- **报告文件**: `TEST_REPORT.md`
+### 4.2 本地测试（Python 3.9.10, macOS）— Phase 5 ORM 迁移验证 ✅
+- pytest **23/23 通过**（0.53s）
+- 零原生 SQL 残留
+- 21 个 ORM 表定义正确
+- 4 个 API 端点功能验证通过
+- 64 个路由注册成功
+- 修复了 4 个本地环境特有问题：
+  1. task.py 导入冲突（Task 别名）
+  2. cost.py 缺失 import
+  3. task.py assign_task 异步调用
+  4. tasks.py 路由异步调用
+- **报告文件**: `backend/TEST_VERIFICATION_REPORT.md`
 
-### 4.2 测试报告 2（2026-03-12，首次完整测试）
-
-- 后端 9/23 通过，10 失败，4 错误
-- 代码覆盖率 57%
-- 主要问题：数据模型属性映射、fixture 缺失、Pydantic V2 兼容
-- **报告文件**: `test-report.md`
-
-### 4.3 测试报告 3（2026-03-12，修复后）
-
-- 后端 **23/23 通过**，0 失败，0 错误 ✅
-- 代码覆盖率 57%
-- 修复内容：Pydantic V2 迁移、fixture 补充、数据模型修复、API 路由修复
-- **报告文件**: `backend/test-report.md`
-
-### 4.4 服务器端验证（2026-03-13）
-
-- 后端 pytest 23/23 通过（Python 3.11）
-- 前端 tsc --noEmit 0 error
-- 前端 npm run build 成功
-
-### 4.5 审查修复后本地验证（2026-03-13）✅
-
-- 测试环境：Python 3.9.10, pytest 8.4.2, macOS
-- 后端 pytest **23/23 通过**（0.52s）
-- 前端 TypeScript **0 error**
-- 前端 build **成功**（输出 1.7MB JS, gzip 544KB）
-- API 功能测试：httpx.ASGITransport 全端点通过
-- **结论**: **PASS** — 审查修复正确实现
-- **报告文件**: `TEST_REPORT_LOCAL.md`
-
-**已确认修复的问题：**
-1. ✅ 后端数据库表结构优化
-2. ✅ 前端 TypeScript 类型错误
-3. ✅ 认证中间件实现
-4. ✅ 未使用的导入和变量清理
-
-**建议事项：**
-- 生产环境应更换 API Key（当前使用开发默认值）
-- 前端代码分割优化（当前 1.7MB）
-- 考虑添加集成测试用例
+### 4.3 前端
+- TypeScript: 0 error
+- Build: 成功（1.7MB JS, gzip 544KB）
+- 代码分割优化待 Phase 9
 
 ---
 
 ## 五、代码审查记录
 
-### 5.1 审查 1（2026-03-12 初审）
-
-- 结构清晰，技术栈正确
-- 无认证授权（中等风险）
-- SQLite 无连接池（低风险）
-- **结论**: 通过，可合并
-
-### 5.2 审查 2（2026-03-13 Phase 2.5 + Phase 3）
-
-**审查范围**: 24 个文件，新增 3829 行
-
-| 严重程度 | 数量 | 主要问题 |
-|----------|------|----------|
-| 🔴 严重 | 4 | SQL注入、单例不安全、无认证、轮询泄漏 |
-| 🟡 质量 | 8 | 类型验证缺失、防抖、连接管理、错误处理 |
-| 🔵 API | 4 | 无分页、同步触发、无版本控制 |
-| 🟢 建议 | 6 | JWT、rate limiting、虚拟滚动 |
-
-**评分**: 代码质量⭐⭐⭐ / API设计⭐⭐⭐ / 安全性⭐⭐ → ⭐⭐⭐⭐ / 可维护性⭐⭐⭐⭐
-
-**修复状态**: 🔴 4/4 全部修复，🟡 3/5 已修复 → **可合并**
+### 5.1 审查 1（2026-03-12 初审）— 通过
+### 5.2 审查 2（2026-03-13 安全审查）— 4🔴 全修复，通过
+### 5.3 审查 3（2026-03-13 ORM 迁移）— 7.5/10，P0/P1/P2 修复完成
 
 ---
 
-## 六、下一步开发计划
+## 六、开发路线图
 
-### Phase 5：数据库层 ORM 迁移 🔴 当前重点
+### ✅ Phase 1-4：核心功能（v2.0-v2.2）
+### ✅ Phase 5：ORM 迁移（v2.4.0）
 
-<<<<<<< HEAD
-**背景**: 后端 12 个 service 文件共 **216 处原生 SQL**，全部使用 `cursor.execute` / `fetchall` / `sqlite3` 裸操作。`sqlalchemy==2.0.23` 已在 requirements.txt 中但从未使用。
+---
 
-**目标**: 全面迁移到 SQLAlchemy 2.0 ORM + Alembic 迁移，彻底消除原生 SQL，支持多数据库（SQLite/PostgreSQL/MySQL）。
+### 🔴 Phase 6：Remote Agent Bridge MVP（当前重点）
 
-**开发原则**: 不急于上线，追求架构完美。宁可影响进度，也要保证系统功能的质量和可扩展性。
+**目标**：Gateway 能调度任意平台（macOS / Windows / Linux）上的 CLI Agent
 
-=======
-**背景**: 后端 4 个 SQLite 数据库（tasks.db/costs.db/workflows.db/agents.db），12 个 service 文件共 **147 处原生 SQL**，全部使用 `cursor.execute` / `fetchall` / `sqlite3` 裸操作。`sqlalchemy==2.0.23` 已在 requirements.txt 中但从未使用。
+**架构文档**：`docs/remote-agent-bridge-architecture.md`（v2.0，95KB）
+**开发参考**：`CLAUDE.md` 中 Bridge 开发规范章节
 
-**目标**: 合并 4 个数据库到单一 tasks.db（21 表），全面迁移到 SQLAlchemy 2.0 ORM + Alembic 迁移，彻底消除原生 SQL。
+#### 6.1 Bridge 核心服务（Node.js + TypeScript）
+- [ ] 项目初始化（package.json, tsconfig, eslint, jest）
+- [ ] 入口文件 `src/index.ts`（commander.js CLI）
+- [ ] `src/bridge.ts` — Bridge 主类（生命周期管理、状态机）
+- [ ] `src/ws-client.ts` — WebSocket 客户端（连接、认证、心跳、ACK、断线重连）
+- [ ] `src/task-queue.ts` — 任务队列（优先级、并发控制）
+- [ ] `src/task-runner.ts` — 任务执行调度器
+- [ ] `src/checkpoint.ts` — Checkpoint Manager（崩溃恢复）
+- [ ] `src/database.ts` — SQLite 管理（better-sqlite3, WAL 模式）
 
-**开发原则**: 不急于上线，追求架构完美。宁可影响进度，也要保证系统功能的质量和可扩展性。
+#### 6.2 协议与消息
+- [ ] `src/protocol/types.ts` — 消息类型定义
+- [ ] `src/protocol/schemas.ts` — Zod 验证 schemas
+- [ ] `src/protocol/encoder.ts` — 消息编码器
+- [ ] `src/protocol/decoder.ts` — 消息解码器 + 验证
 
-**详细设计文档**: `docs/orm-migration-design.md`（含数据合并策略、ORM 模型、迁移脚本、验收标准）
+#### 6.3 Adapter 系统
+- [ ] `src/adapters/types.ts` — Adapter 接口
+- [ ] `src/adapters/registry.ts` — Adapter 注册表
+- [ ] `src/adapters/base.ts` — Adapter 基类
+- [ ] `src/adapters/cli-adapter.ts` — CLI Adapter（codex / pi / acp）
+- [ ] `src/platform/paths.ts` — 跨平台路径
+- [ ] `src/platform/editors.ts` — Agent 可执行文件检测
 
->>>>>>> 7117a1164eaa3014ab8e6302f4c66eb3ad97e9e8
-#### 5.0 数据库迁移策略：Alembic
+#### 6.4 HTTP API
+- [ ] `src/http-server.ts` — HTTP 服务（Express/Koa）
+  - POST `/api/v1/tasks` — 提交任务
+  - GET `/api/v1/tasks/{id}` — 查询状态
+  - DELETE `/api/v1/tasks/{id}` — 取消任务
+  - GET `/api/v1/tasks` — 列出任务
+  - GET `/api/v1/agents` — 列出可用 Agent
+  - GET `/api/v1/health` — 健康检查
+  - GET `/api/v1/status` — Bridge 状态
 
-**决策：使用 Alembic 管理数据库版本**
+#### 6.5 配置与安全
+- [ ] `src/config/types.ts` — 配置类型（50+ 配置项）
+- [ ] `src/config/loader.ts` — 配置加载器（文件 + 环境变量）
+- [ ] `src/config/validator.ts` — Zod 验证
+- [ ] `src/security/token.ts` — Token 管理
+- [ ] `src/security/sandbox.ts` — 任务沙箱（命令白名单 + prompt 检测）
+- [ ] `src/audit/logger.ts` — 审计日志
 
-- `alembic init alembic` — 初始化迁移目录
-- `alembic revision --autogenerate -m "initial"` — 生成初始迁移脚本
-- `alembic upgrade head` — 执行迁移
-- 支持 `downgrade` 回滚
-- 数据库 URL 通过环境变量 `DATABASE_URL` 配置，支持切换后端
+#### 6.6 工具与基础设施
+- [ ] `src/utils/logger.ts` — Winston 日志
+- [ ] `src/utils/retry.ts` — 重试逻辑
+- [ ] `src/utils/pid-monitor.ts` — 子进程监控
+- [ ] `src/utils/graceful-shutdown.ts` — 优雅退出
 
-**多数据库支持设计**：
-```python
-# .env 或环境变量
-DATABASE_URL=sqlite+aiosqlite:///./agent_orchestration.db  # 开发
-# DATABASE_URL=postgresql+asyncpg://user:pass@localhost/db  # 生产
-# DATABASE_URL=mysql+aiomysql://user:pass@localhost/db      # MySQL
-```
+#### 6.7 测试
+- [ ] 单元测试（task-queue, task-runner, checkpoint, ws-client, adapters）
+- [ ] 集成测试（bridge-lifecycle, task-e2e, reconnection）
+- [ ] Mock Gateway 测试工具
 
-**新增依赖**:
-- `alembic` — 数据库迁移
-- `aiosqlite` — SQLite async driver（与现有 async 路由兼容）
-- 未来可选：`asyncpg`（PostgreSQL）、`aiomysql`（MySQL）
+#### 6.8 Gateway 侧集成
+- [ ] BridgeManager 模块（多 Bridge 管理 + 路由 + 心跳超时）
+- [ ] WS Server 扩展（处理 Bridge 消息）
 
-#### 5.1 创建 ORM 模型（18个表）
+#### 6.9 编排系统集成
+- [ ] `backend/app/services/remote_agent_engine.py` — RemoteAgentEngine
+- [ ] `lobster_engine.py` 添加 `remote-agent` 执行模式
+- [ ] Workflow 支持 `mode: "remote-agent"` 节点
 
-在 `app/models/` 下新建 ORM 模型，对应现有数据库表：
+#### 6.10 部署
+- [ ] `scripts/install.sh` — Mac/Linux 安装脚本
+- [ ] `scripts/install.ps1` — Windows 安装脚本
+- [ ] `scripts/setup.ts` — 交互式配置向导
+- [ ] `scripts/db-migrate.ts` — 数据库迁移
 
-| ORM 模型 | 数据库表 |
-|----------|----------|
-| Agent | agents |
-| AgentLog | agent_logs |
-| Task | tasks |
-| TaskAssignment | task_assignments |
-| Workflow | workflows |
-| OrgNode | org_nodes |
-| Role | roles |
-| Member | members |
-| Goal | goals |
-| GoalAlignment | goal_alignments |
-| Approval | approvals |
-| ApprovalHistory | approval_history |
-| AuditLog | audit_logs |
-| Heartbeat | heartbeats |
-| HeartbeatLog | heartbeat_logs |
-| CostRecord | cost_records |
-| Budget | budgets（如独立表）|
-| + 其他根据 CREATE TABLE 确认的表 |
+**验收标准**：
+1. Mac/Windows/Linux 三平台 npm install + start 成功
+2. Bridge 连接 Gateway → 注册 → 心跳 → 收到任务 → 执行 → 回传结果 < 5 分钟
+3. 断线重连 < 30 秒，任务恢复正确
+4. 单元测试覆盖率 > 60%
+5. CLI Adapter codex 执行成功
 
-使用 SQLAlchemy 2.0 声明式映射（`DeclarativeBase` + `Mapped`），字段与现有表完全一致。
-**注意**: 不同数据库的方言差异在 ORM 层屏蔽，Service 层不需要关心。
+**预计工期**：1-1.5 周
 
-#### 5.2 创建数据库会话管理
+---
 
-在 `app/database.py` 中：
-- `engine` — `create_engine(DATABASE_URL)`，根据 URL 自动选择方言
-- SQLite 启动时开启 WAL 模式（通过 event listener）
-- `SessionLocal` — sessionmaker
-- `get_db()` — FastAPI 依赖注入
-- `Base` — 所有 ORM 模型的基类
+### Phase 7：IDE 集成（VS Code / Cursor）
+- [ ] 文件队列机制（incoming / outgoing + FileSystemWatcher）
+- [ ] VS Code 扩展（监听任务 + 终端执行 + 结果捕获）
+- [ ] Cursor 扩展（复用 VS Code 方案）
+- [ ] 扩展发布到 marketplace
+- **预计工期**：1 周
 
-#### 5.3 重写 12 个 Service
+### Phase 8：JetBrains + 编排增强
+- [ ] IntelliJ IDEA 集成（HTTP API）
+- [ ] WebStorm / PyCharm 支持
+- [ ] 编排系统 RemoteAgentEngine 完善
+- [ ] 前端看板显示远端任务状态
+- [ ] 飞书通知集成
+- [ ] Git 自动 commit/push
+- **预计工期**：1.5 周
 
-| 文件 | 原生 SQL 处数 |
-|------|-------------|
-| heartbeat.py | 42 |
-| budget_service.py | 39 |
-| agent.py | 38 |
-| goal.py | 38 |
-| approval.py | 36 |
-| member.py | 33 |
-| org_chart.py | 27 |
-| audit.py | 31 |
-| workflow.py | 31 |
-| role.py | 26 |
-| cost.py | 24 |
-| task.py | 18 |
+### Phase 9：功能补齐
+- [ ] Multi-Company 多公司数据隔离
+- [ ] Mobile 响应式适配
+- [ ] Workflow 可视化编辑器（React Flow 增强版）
+- [ ] 按时间段成本统计
+- [ ] Agent 独立心跳接口
+- [ ] 前端代码分割（1.7MB → < 500KB per chunk）
 
-**重写规则**:
-- `SELECT` → `session.query()` 或 `session.execute(select(...))`
-- `INSERT` → `session.add()`
-- `UPDATE` → 修改 ORM 对象属性
-- `DELETE` → `session.delete()`
-- `cursor.fetchone()` → `.scalar()` / `.first()`
-- `cursor.fetchall()` → `.scalars().all()`
-- 条件过滤 → `.where()` / `.filter()`
-- 分页 → `.offset().limit()`
-- 事务 → Session 自动管理，异常时 `session.rollback()`
-- 完全删除 `_get_connection()` 和手动 `sqlite3.connect()`
-
-#### 5.4 更新 Router 层
-
-所有 router 改为依赖注入：
-```python
-from app.database import get_db
-
-@router.get("/agents")
-def get_agents(db: Session = Depends(get_db)):
-    return agent_service.get_agents(db)
-```
-
-#### 5.5 验收标准
-
-1. **零原生 SQL** — `grep -rn "cursor.execute\|cursor.fetchall\|cursor.fetchone\|sqlite3.connect\|_get_connection" app/services/` 返回空
-2. **pytest 23/23 通过**
-3. **前端 tsc 0 error，build 成功**
-4. **启动无报错**
-5. **所有 API 端点返回正确**
-6. **Alembic 迁移正常** — `alembic upgrade head` / `alembic downgrade -1` 无报错
-7. **数据库可切换** — 修改 `DATABASE_URL` 后应用正常启动
-
-### Phase 6：功能补齐（P2）
-
-8. **Multi-Company** — 多公司数据隔离
-9. **Mobile 适配** — 响应式 UI
-10. **Workflow 可视化编辑器**
-11. **按时间段成本统计**
-12. **Agent 心跳独立接口**
-
-### Phase 7：优化改进
-
-13. **JWT 认证** — 替换 API Key MVP
-14. **Rate Limiting** — 100 req/min
-15. **前端代码分割** — 当前 JS 1.17MB，需 dynamic import
-16. **CI/CD 集成** — 自动化测试 + 构建
-17. **Pydantic ConfigDict 迁移** — 消除 V2 弃用警告
-18. **测试覆盖率提升** — 目标 70%+
+### Phase 10：生产加固
+- [ ] JWT 认证（替换 API Key MVP）
+- [ ] Rate Limiting（100 req/min）
+- [ ] CI/CD 集成（GitHub Actions + 自动化测试）
+- [ ] Token 轮换
+- [ ] Let's Encrypt 证书（替换自签名）
+- [ ] 测试覆盖率提升 → 70%+
+- [ ] 前端设计规范落地（DESIGN_SPEC.md）
 
 ---
 
@@ -431,8 +376,10 @@ def get_agents(db: Session = Depends(get_db)):
 | Governance | ✅ 后端+前端 | P1 ✅ |
 | Org Chart | ✅ 后端+前端 | P1 ✅ |
 | Ticket System | ⚠️ 基础实现 | P0 |
-| Multi-Company | 🔲 未实现 | P2 |
-| Mobile Ready | 🔲 未实现 | P2 |
+| **Remote Agent Bridge** | 🔲 Phase 6 | **P0 🔴** |
+| **跨平台开发** | 🔲 Phase 6 | **P0 🔴** |
+| Multi-Company | 🔲 Phase 9 | P2 |
+| Mobile Ready | 🔲 Phase 9 | P2 |
 
 ---
 
@@ -474,47 +421,71 @@ def get_agents(db: Session = Depends(get_db)):
 }
 ```
 
+### 8.4 Bridge API 错误码
+
+| 错误码 | HTTP | 含义 |
+|--------|------|------|
+| `AUTH_REQUIRED` | 401 | 缺少 token |
+| `TASK_NOT_FOUND` | 404 | 任务不存在 |
+| `TASK_REJECTED` | 422 | Agent 不可用 |
+| `TASK_TIMEOUT` | 504 | 执行超时 |
+| `QUEUE_FULL` | 429 | 队列已满 |
+| `AGENT_UNAVAILABLE` | 503 | Agent 不可用 |
+| `BRIDGE_OFFLINE` | 503 | Bridge 离线 |
+| `INTERNAL_ERROR` | 500 | 内部错误 |
+
+完整错误码列表见 `docs/remote-agent-bridge-architecture.md` 附录 A。
+
 ---
 
 ## 九、非功能性需求
 
 ### 9.1 安全要求
-
 - ✅ API Key 认证（MVP 已实现）
-- 🔲 JWT/Session 认证（待 Phase 7）
-- 🔲 Rate Limiting（待 Phase 7）
-- 🔲 CSRF 保护
-- ✅ SQL 注入防御（参数化查询）
+- ✅ SQL 注入防御（ORM 自动保证）
+- ✅ Bridge Token 认证
+- 🔲 JWT 认证（Phase 10）
+- 🔲 Rate Limiting（Phase 10）
 
 ### 9.2 代码规范
-
-- ❌ 禁止硬编码 SQL — 必须使用 SQLAlchemy ORM（Phase 5 完成后强制）
-- ❌ 禁止硬编码密钥 — 从环境变量读取
-- ❌ 禁止明文存储密码
-- ✅ API 文档注释（FastAPI 自动生成）
+- ✅ ORM 优先 — 所有数据库操作使用 SQLAlchemy 2.0
+- ✅ 禁止硬编码密钥
+- ✅ Bridge 使用 Design Token（前端）/ TypeScript strict mode（Bridge）
+- ✅ 前端遵循 `DESIGN_SPEC.md` 设计规范
 
 ---
 
-## 十、Git 提交历史
+## 十、Git 提交历史（最近 20 条）
 
 | Commit | 日期 | 说明 |
 |--------|------|------|
-| c48bc60 | 2026-03-13 | docs: 添加TEST_REPORT_LOCAL测试报告 |
-| 2717ee9 | 2026-03-13 | docs: 更新开发计划至v3.0 |
-| cb6979f | 2026-03-13 | docs: 更新开发计划 - 补充版本记录和ORM迁移计划 |
-| 0fe326a | 2026-03-13 | fix: 修复前端TypeScript类型错误和未使用变量 |
-| f3f4d8e | 2026-03-13 | Merge remote-tracking branch |
-| 264be35 | 2026-03-13 | chore: 更新配置和任务数据 |
-| 2b8241e | 2026-03-13 | fix: 清理前端未使用的 import 和变量 |
-| 9f685ef | 2026-03-13 | fix: 修复TypeScript编译错误 |
-| f48b762 | 2026-03-13 | fix: 前端防抖 |
-| c4dfcdd | 2026-03-13 | fix: 数据库连接管理 |
-| 3abb74b | 2026-03-13 | fix: 前端轮询清理 |
-| de42d74 | 2026-03-13 | feat: 添加API Key认证中间件 |
-| 83661ab | 2026-03-13 | fix: 单例线程安全修复 |
-| 5af7ff5 | 2026-03-13 | fix: SQL注入修复 |
-| c1cc91e | 2026-03-13 | fix: 修复安全和性能问题 |
-| d05b77b | 2026-03-13 | chore: 添加依赖 |
-| 14a8695 | 2026-03-12 | feat: Phase 2.5 前端 + Phase 3 Heartbeats |
-| efca492 | 2026-03-12 | fix: lifespan handler, WAL mode |
-| 52312b8 | 2026-03-11 | feat: Phase 2 组织架构 |
+| a7a2078 | 2026-03-14 | docs: 更新 CLAUDE.md v2.4.0 |
+| a5e56cb | 2026-03-14 | docs: Remote Agent Bridge 架构设计 v2.0 (95KB) + 前端设计规范 |
+| f1fe25e | 2026-03-14 | fix: 修复 Phase 5 ORM 迁移代码审查问题 |
+| 2867d3c | 2026-03-14 | docs: Remote Agent Bridge 架构 v1.1 |
+| 61affbc | 2026-03-13 | docs: 更新 ACP Bridge 方案 |
+| 457e8b7 | 2026-03-13 | fix: 修复 Phase 5 ORM 迁移代码审查问题 |
+| bfed631 | 2026-03-13 | feat: 完成 Phase 5 ORM 迁移 - 全部 12 个 Service |
+| 305a3ec | 2026-03-13 | feat: 完成 Phase 5 ORM 迁移 - 迁移 9 个 Service |
+| 87f6c40 | 2026-03-13 | feat: 完成第5阶段ORM迁移 |
+| 7117a11 | 2026-03-13 | docs: 确认 ORM 迁移设计文档 |
+| c48bc60 | 2026-03-13 | docs: 添加 TEST_REPORT_LOCAL 测试报告 |
+| ... | ... | 完整历史见 `git log` |
+
+---
+
+## 十一、开发工作流
+
+所有开发类需求遵循严格流程：
+
+```
+需求确认 → 架构评审 → 开发实现 → 安全审计 → 测试验证 → 代码审查 → 验收确认 → 部署上线
+```
+
+**关键规则**：
+1. 执行者严格禁止自行开发，遇到问题必须报告
+2. 所有子节点决策通过飞书向用户询问
+3. 不要改现有 API 接口（URL、请求/响应格式不变）
+4. 使用 SQLAlchemy 2.0 风格（`select()` / `insert()` / `update()`）
+5. 前端遵循 `DESIGN_SPEC.md` 设计规范
+6. Bridge 开发遵循 `docs/remote-agent-bridge-architecture.md` 架构设计
