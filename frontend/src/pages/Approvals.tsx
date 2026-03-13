@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Card, Table, Button, Space, Tag, Modal, Form, Input, Select, message,
   Tabs, Timeline, Badge, Drawer, Row, Col, Statistic, Empty
@@ -10,9 +10,13 @@ import {
 import { useOrgStore } from '../stores/org';
 import { Approval, ApprovalHistory } from '../types';
 import { PAGE_CONFIG } from '../config/constants';
+import { asyncDebounce } from '../utils/debounce';
 
 const { TabPane } = Tabs;
 const { Option } = Select;
+
+// 防抖延迟（毫秒）
+const DEBOUNCE_DELAY = 1000;
 
 export const ApprovalsPage = () => {
   const {
@@ -30,6 +34,10 @@ export const ApprovalsPage = () => {
   const [selectedApproval, setSelectedApproval] = useState<Approval | null>(null);
   const [selectedHistory, setSelectedHistory] = useState<ApprovalHistory[]>([]);
   const [form] = Form.useForm();
+
+  // 使用防抖包装批准和拒绝操作
+  const debouncedApprove = useRef(asyncDebounce(approveApproval, DEBOUNCE_DELAY)).current;
+  const debouncedReject = useRef(asyncDebounce(rejectApproval, DEBOUNCE_DELAY)).current;
 
   // 轮询刷新函数（使用 useCallback 确保引用稳定）
   const refreshApprovals = useCallback(() => {
@@ -67,15 +75,23 @@ export const ApprovalsPage = () => {
   };
 
   const handleApprove = async (id: string, comment?: string) => {
-    await approveApproval(id, comment);
-    message.success('已批准');
-    fetchApprovals(activeTab === 'all' ? undefined : activeTab);
+    try {
+      await debouncedApprove(id, comment);
+      message.success('已批准');
+      refreshApprovals();
+    } catch (error) {
+      message.error('批准失败，请重试');
+    }
   };
 
   const handleReject = async (id: string, comment?: string) => {
-    await rejectApproval(id, comment);
-    message.success('已拒绝');
-    fetchApprovals(activeTab === 'all' ? undefined : activeTab);
+    try {
+      await debouncedReject(id, comment);
+      message.success('已拒绝');
+      refreshApprovals();
+    } catch (error) {
+      message.error('拒绝失败，请重试');
+    }
   };
 
   const showHistory = async (approval: Approval) => {
