@@ -13,11 +13,8 @@ export function debounce<T extends (...args: any[]) => any>(
   delay: number = 1000
 ): DebouncedFn<T> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  let lastArgs: Parameters<T> | null = null;
 
   const debounced = (...args: Parameters<T>) => {
-    lastArgs = args;
-
     if (timeoutId) {
       return; // 正在防抖中，忽略
     }
@@ -50,7 +47,7 @@ export function asyncDebounce<T extends (...args: any[]) => Promise<any>>(
   delay: number = 1000
 ): (...args: Parameters<T>) => Promise<ReturnType<T> | undefined> {
   let pending = false;
-  let lastCall: Promise<ReturnType<T>> | null = null;
+  let lastCall: Promise<ReturnType<T>> | undefined = undefined;
 
   return async (...args: Parameters<T>): Promise<ReturnType<T> | undefined> => {
     if (pending) {

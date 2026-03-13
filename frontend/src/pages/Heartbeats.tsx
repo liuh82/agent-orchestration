@@ -10,7 +10,7 @@ import {
   CheckCircleOutlined, CloseCircleOutlined, ApiOutlined
 } from '@ant-design/icons';
 import { useHeartbeatsStore } from '../stores/heartbeats';
-import { Heartbeat, HeartbeatLog, HeartbeatStats } from '../types';
+import { Heartbeat } from '../types';
 import { PAGE_CONFIG } from '../config/constants';
 import dayjs from 'dayjs';
 
@@ -18,7 +18,7 @@ const { Option } = Select;
 
 export const HeartbeatsPage = () => {
   const {
-    heartbeats, heartbeatLogs, stats, loading, error,
+    heartbeats, heartbeatLogs, stats, loading,
     fetchHeartbeats, fetchHeartbeatStats, createHeartbeat,
     updateHeartbeat, deleteHeartbeat, enableHeartbeat,
     disableHeartbeat, triggerHeartbeat, fetchHeartbeatLogs
@@ -83,16 +83,6 @@ export const HeartbeatsPage = () => {
         message.success('心跳删除成功');
       },
     });
-  };
-
-  const handleToggle = async (heartbeat: Heartbeat) => {
-    if (heartbeat.isActive) {
-      await disableHeartbeat(heartbeat.id);
-      message.success('心跳已禁用');
-    } else {
-      await enableHeartbeat(heartbeat.id);
-      message.success('心跳已启用');
-    }
   };
 
   const handleTrigger = async (heartbeat: Heartbeat) => {
