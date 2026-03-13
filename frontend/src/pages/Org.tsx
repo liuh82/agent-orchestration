@@ -1,21 +1,21 @@
 import { useEffect, useState } from 'react';
 import {
   Card, Tabs, Table, Button, Space, Tag, Modal, Form,
-  Input, Select, Tree, message, Drawer, Row, Col, Statistic
+  Input, Select, message, Drawer, Row, Col, Statistic
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined,
   ApartmentOutlined, UserOutlined, TeamOutlined, ProjectOutlined
 } from '@ant-design/icons';
 import { useOrgStore } from '../stores/org';
-import { OrgNode, Role, Member, Goal } from '../types';
+import { OrgNode, Role, Member } from '../types';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
 
 export const OrgPage = () => {
   const {
-    orgNodes, orgChart, roles, members,
+    orgNodes, roles, members,
     fetchOrgNodes, fetchRoles, fetchMembers,
     createOrgNode, updateOrgNode, deleteOrgNode,
     createRole, updateRole, deleteRole,
@@ -36,7 +36,7 @@ export const OrgPage = () => {
     fetchMembers();
   }, []);
 
-  const showModal = (item?: any, type: 'node' | 'role' | 'member' = 'node') => {
+  const showModal = (item?: any) => {
     setEditingItem(item || null);
     if (item) {
       form.setFieldsValue(item);
@@ -132,7 +132,7 @@ export const OrgPage = () => {
       key: 'action',
       render: (_: unknown, record: Role) => (
         <Space size="small">
-          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => showModal(record, 'role')}>
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => showModal(record)}>
             编辑
           </Button>
           <Button
@@ -166,7 +166,7 @@ export const OrgPage = () => {
       key: 'action',
       render: (_: unknown, record: Member) => (
         <Space size="small">
-          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => showModal(record, 'member')}>
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => showModal(record)}>
             编辑
           </Button>
           <Button

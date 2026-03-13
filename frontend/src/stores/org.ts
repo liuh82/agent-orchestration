@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import {
   OrgNode, Role, Member, Goal, Approval,
-  ApprovalHistory, AuditLog
+  AuditLog
 } from '../types';
 import { orgApi } from '../api/org';
 
@@ -391,7 +391,7 @@ export const useOrgStore = create<OrgState>((set) => ({
     try {
       const response = await orgApi.getAuditLogs(params);
       set({
-        auditLogs: response.data.data || response.data.pagination?.data || [],
+        auditLogs: response.data.data || [],
         loading: false
       });
     } catch (error) {

@@ -9,6 +9,17 @@ export interface ApiResponse<T = any> {
   };
 }
 
+// 分页数据格式
+export interface PaginatedData<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 // Agent 相关类型
 export interface Agent {
   id: string;

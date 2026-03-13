@@ -13,7 +13,6 @@ import { useOrgStore } from '../stores/org';
 import { AuditLog } from '../types';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
@@ -22,9 +21,7 @@ const { Panel } = Collapse;
 export const AuditPage = () => {
   const {
     auditLogs,
-    auditSummary,
     fetchAuditLogs,
-    fetchAuditSummary,
     loading
   } = useOrgStore();
 
@@ -34,7 +31,6 @@ export const AuditPage = () => {
 
   useEffect(() => {
     fetchAuditLogs({ page: 1, pageSize: 50 });
-    fetchAuditSummary();
   }, []);
 
   const handleSearch = () => {
