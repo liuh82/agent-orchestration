@@ -274,12 +274,23 @@
 
 ### Phase 5：数据库层 ORM 迁移 🔴 当前重点
 
+<<<<<<< HEAD
 **背景**: 后端 12 个 service 文件共 **216 处原生 SQL**，全部使用 `cursor.execute` / `fetchall` / `sqlite3` 裸操作。`sqlalchemy==2.0.23` 已在 requirements.txt 中但从未使用。
 
 **目标**: 全面迁移到 SQLAlchemy 2.0 ORM + Alembic 迁移，彻底消除原生 SQL，支持多数据库（SQLite/PostgreSQL/MySQL）。
 
 **开发原则**: 不急于上线，追求架构完美。宁可影响进度，也要保证系统功能的质量和可扩展性。
 
+=======
+**背景**: 后端 4 个 SQLite 数据库（tasks.db/costs.db/workflows.db/agents.db），12 个 service 文件共 **147 处原生 SQL**，全部使用 `cursor.execute` / `fetchall` / `sqlite3` 裸操作。`sqlalchemy==2.0.23` 已在 requirements.txt 中但从未使用。
+
+**目标**: 合并 4 个数据库到单一 tasks.db（21 表），全面迁移到 SQLAlchemy 2.0 ORM + Alembic 迁移，彻底消除原生 SQL。
+
+**开发原则**: 不急于上线，追求架构完美。宁可影响进度，也要保证系统功能的质量和可扩展性。
+
+**详细设计文档**: `docs/orm-migration-design.md`（含数据合并策略、ORM 模型、迁移脚本、验收标准）
+
+>>>>>>> 7117a1164eaa3014ab8e6302f4c66eb3ad97e9e8
 #### 5.0 数据库迁移策略：Alembic
 
 **决策：使用 Alembic 管理数据库版本**

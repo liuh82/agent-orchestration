@@ -266,10 +266,14 @@ class OrgChartService:
         )
         parent_orm = result.scalar_one_or_none()
 
-        if parent_orm and child_id not in parent_orm.children_ids.split(',') if parent_orm.children_ids else []:
-            children_ids = (parent_orm.children_ids.split(',') if parent_orm.children_ids else []) + [child_id]
-            parent_orm.children_ids = ','.join(children_ids)
-            self.db.commit()
+        if parent_orm:
+            children_ids = []
+            if parent_orm.children_ids:
+                children_ids = parent_orm.children_ids.split(',')
+            if child_id not in children_ids:
+                children_ids.append(child_id)
+                parent_orm.children_ids = ','.join(children_ids)
+                self.db.commit()
 
     def _remove_child_from_parent(self, parent_id: str, child_id: str):
         """从父节点的children_ids中移除子节点"""
@@ -278,17 +282,11 @@ class OrgChartService:
         )
         parent_orm = result.scalar_one_or_none()
 
-        if parent_orm and child_id in parent_orm.children_ids.split(',') if parent_orm.children_ids else []:
-            children_ids = parent_orm.children_ids.split(',') if parent_orm.children_ids else []
+        if parent_orm:
+            children_ids = []
+            if parent_orm.children_ids:
+                children_ids = parent_orm.children_ids.split(',')
             if child_id in children_ids:
                 children_ids.remove(child_id)
                 parent_orm.children_ids = ','.join(children_ids)
                 self.db.commit()
-
-    async def _add_child_to_parent(self, parent_id: str, child_id: str):
-        """异步版本，保持API兼容性"""
-        self._add_child_to_parent(parent_id, child_id)
-
-    async def _remove_child_from_parent(self, parent_id: str, child_id: str):
-        """异步版本，保持API兼容性"""
-        self._remove_child_from_parent(parent_id, child_id)

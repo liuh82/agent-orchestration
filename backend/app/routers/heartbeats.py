@@ -24,8 +24,7 @@ def get_auth_dependency():
         return Depends(verify_api_key)
     return Depends(lambda: None)
 
-# Initialize services
-scheduler.set_heartbeat_service(heartbeat_service)
+# Initialize services will be done in main.py
 
 
 @router.get("", response_model=HeartbeatListResponse)

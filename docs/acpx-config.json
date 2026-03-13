@@ -1,0 +1,20 @@
+# acpx 配置文件
+#
+# 使用说明：
+# 1. npm install -g acpx
+# 2. 将此文件复制到 ~/.acpx/config.json
+# 3. 运行 acpx openclaw exec "你的任务"
+
+{
+  "agents": {
+    "openclaw": {
+      "command": "env OPENCLAW_HIDE_BANNER=1 OPENCLAW_SUPPRESS_NOTES=1 openclaw acp --url wss://81.70.98.45:9443/acp-ws --token-file ~/.openclaw/gateway.token --session agent:main:main --no-prefix-cwd"
+    },
+    "openclaw-codex": {
+      "command": "env OPENCLAW_HIDE_BANNER=1 OPENCLAW_SUPPRESS_NOTES=1 openclaw acp --url wss://81.70.98.45:9443/acp-ws --token-file ~/.openclaw/gateway.token --session agent:codex:main --no-prefix-cwd"
+    },
+    "openclaw-dev": {
+      "command": "env OPENCLAW_HIDE_BANNER=1 OPENCLAW_SUPPRESS_NOTES=1 openclaw acp --url wss://81.70.98.45:9443/acp-ws --token-file ~/.openclaw/gateway.token --session acp:dev-session --no-prefix-cwd"
+    }
+  }
+}

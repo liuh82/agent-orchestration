@@ -12,6 +12,12 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events"""
     # Startup
     print("Starting heartbeat scheduler...")
+    # Initialize heartbeat service
+    from app.database import get_db
+    db = next(get_db())
+    heartbeat_service = HeartbeatService(db)
+    scheduler.set_heartbeat_service(heartbeat_service)
+
     scheduler.start()
     # Load and schedule all active heartbeats from database
     await scheduler.load_and_schedule_heartbeats()

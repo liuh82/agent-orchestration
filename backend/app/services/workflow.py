@@ -1,217 +1,205 @@
-import sqlite3
 from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
 
+from sqlalchemy import select, update, delete
+from sqlalchemy.orm import Session
+
 from ..models.workflow import WorkflowDefinition, WorkflowTemplate
+from ..models.complete_orm import Workflow as WorkflowDefinitionORM, WorkflowTemplate as WorkflowTemplateORM
 
 
 class WorkflowService:
-    def __init__(self):
-        self.conn = sqlite3.connect('workflows.db', check_same_thread=False)
-        self._init_db()
+    def __init__(self, db: Session):
+        self.db = db
 
-    def _init_db(self):
-        """初始化数据库"""
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS workflows (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL,
-                engine TEXT NOT NULL,
-                definition TEXT,
-                config TEXT,
-                created_by TEXT,
-                created_at TEXT,
-                updated_at TEXT
-            )
-        ''')
-
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS workflow_templates (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL,
-                engine TEXT NOT NULL,
-                category TEXT,
-                definition TEXT,
-                created_at TEXT,
-                updated_at TEXT
-            )
-        ''')
-        self.conn.commit()
-
-    async def get_all_workflows(self) -> List[WorkflowDefinition]:
+    def get_all_workflows(self) -> List[WorkflowDefinition]:
         """获取所有工作流"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM workflows ORDER BY created_at DESC')
-        rows = cursor.fetchall()
+        result = self.db.execute(
+            select(WorkflowDefinitionORM).order_by(WorkflowDefinitionORM.created_at.desc())
+        )
+        workflow_orms = result.scalars().all()
 
         workflows = []
-        for row in rows:
+        for workflow_orm in workflow_orms:
             workflow = WorkflowDefinition(
-                id=row[0],
-                name=row[1],
-                description=row[2],
-                engine=row[3],
-                definition=row[4],
-                config=row[5],
-                created_by=row[6],
-                created_at=datetime.fromisoformat(row[7]),
-                updated_at=datetime.fromisoformat(row[8])
+                id=workflow_orm.id,
+                name=workflow_orm.name,
+                description=workflow_orm.description,
+                engine=workflow_orm.engine,
+                definition=workflow_orm.definition,
+                config=workflow_orm.config,
+                created_by=workflow_orm.created_by,
+                created_at=datetime.fromisoformat(workflow_orm.created_at),
+                updated_at=datetime.fromisoformat(workflow_orm.updated_at)
             )
             workflows.append(workflow)
 
         return workflows
 
-    async def get_workflow(self, workflow_id: str) -> Optional[WorkflowDefinition]:
+    def get_workflow(self, workflow_id: str) -> Optional[WorkflowDefinition]:
         """获取单个工作流"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM workflows WHERE id = ?', (workflow_id,))
-        row = cursor.fetchone()
+        result = self.db.execute(
+            select(WorkflowDefinitionORM).where(WorkflowDefinitionORM.id == workflow_id)
+        )
+        workflow_orm = result.scalar_one_or_none()
 
-        if not row:
+        if not workflow_orm:
             return None
 
         return WorkflowDefinition(
-            id=row[0],
-            name=row[1],
-            description=row[2],
-            engine=row[3],
-            definition=row[4],
-            config=row[5],
-            created_by=row[6],
-            created_at=datetime.fromisoformat(row[7]),
-            updated_at=datetime.fromisoformat(row[8])
+            id=workflow_orm.id,
+            name=workflow_orm.name,
+            description=workflow_orm.description,
+            engine=workflow_orm.engine,
+            definition=workflow_orm.definition,
+            config=workflow_orm.config,
+            created_by=workflow_orm.created_by,
+            created_at=datetime.fromisoformat(workflow_orm.created_at),
+            updated_at=datetime.fromisoformat(workflow_orm.updated_at)
         )
 
-    async def create_workflow(self, workflow: WorkflowDefinition) -> WorkflowDefinition:
+    def create_workflow(self, workflow: WorkflowDefinition) -> WorkflowDefinition:
         """创建新工作流"""
         workflow_id = str(uuid4())
         created_at = datetime.now()
         updated_at = created_at
 
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            INSERT INTO workflows (id, name, description, engine,
-                                 definition, config, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            workflow_id,
-            workflow.name,
-            workflow.description,
-            workflow.engine,
-            str(workflow.definition),
-            str(workflow.config),
-            'system',
-            created_at.isoformat(),
-            updated_at.isoformat()
-        ))
-        self.conn.commit()
+        workflow_orm = WorkflowDefinitionORM(
+            id=workflow_id,
+            name=workflow.name,
+            description=workflow.description,
+            engine=workflow.engine,
+            definition=str(workflow.definition),
+            config=str(workflow.config),
+            created_by='system',
+            created_at=created_at.isoformat(),
+            updated_at=updated_at.isoformat()
+        )
 
-        return await self.get_workflow(workflow_id)
+        self.db.add(workflow_orm)
+        self.db.commit()
+        self.db.refresh(workflow_orm)
 
-    async def update_workflow(self, workflow_id: str, workflow: WorkflowDefinition) -> Optional[WorkflowDefinition]:
+        return self.get_workflow(workflow_id)
+
+    def update_workflow(self, workflow_id: str, workflow: WorkflowDefinition) -> Optional[WorkflowDefinition]:
         """更新工作流"""
+        result = self.db.execute(
+            select(WorkflowDefinitionORM).where(WorkflowDefinitionORM.id == workflow_id)
+        )
+        workflow_orm = result.scalar_one_or_none()
+
+        if not workflow_orm:
+            return None
+
         updated_at = datetime.now()
 
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            UPDATE workflows
-            SET name = ?, description = ?, engine = ?,
-                definition = ?, config = ?, updated_at = ?
-            WHERE id = ?
-        ''', (
-            workflow.name,
-            workflow.description,
-            workflow.engine,
-            str(workflow.definition),
-            str(workflow.config),
-            updated_at.isoformat(),
-            workflow_id
-        ))
-        self.conn.commit()
+        workflow_orm.name = workflow.name
+        workflow_orm.description = workflow.description
+        workflow_orm.engine = workflow.engine
+        workflow_orm.definition = str(workflow.definition)
+        workflow_orm.config = str(workflow.config)
+        workflow_orm.updated_at = updated_at.isoformat()
 
-        return await self.get_workflow(workflow_id)
+        self.db.commit()
+        self.db.refresh(workflow_orm)
 
-    async def delete_workflow(self, workflow_id: str) -> bool:
+        return self.get_workflow(workflow_id)
+
+    def delete_workflow(self, workflow_id: str) -> bool:
         """删除工作流"""
-        cursor = self.conn.cursor()
-        cursor.execute('DELETE FROM workflows WHERE id = ?', (workflow_id,))
-        self.conn.commit()
-        return cursor.rowcount > 0
+        result = self.db.execute(
+            select(WorkflowDefinitionORM).where(WorkflowDefinitionORM.id == workflow_id)
+        )
+        workflow_orm = result.scalar_one_or_none()
 
-    async def get_templates(self) -> List[WorkflowTemplate]:
+        if not workflow_orm:
+            return False
+
+        self.db.delete(workflow_orm)
+        self.db.commit()
+
+        return True
+
+    def get_templates(self) -> List[WorkflowTemplate]:
         """获取所有模板"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM workflow_templates ORDER BY created_at DESC')
-        rows = cursor.fetchall()
+        result = self.db.execute(
+            select(WorkflowTemplateORM).order_by(WorkflowTemplateORM.created_at.desc())
+        )
+        template_orms = result.scalars().all()
 
         templates = []
-        for row in rows:
+        for template_orm in template_orms:
             template = WorkflowTemplate(
-                id=row[0],
-                name=row[1],
-                description=row[2],
-                engine=row[3],
-                category=row[4],
-                definition=row[5],
-                created_at=datetime.fromisoformat(row[6]),
-                updated_at=datetime.fromisoformat(row[7])
+                id=template_orm.id,
+                name=template_orm.name,
+                description=template_orm.description,
+                engine=template_orm.engine,
+                category=template_orm.category,
+                definition=template_orm.definition,
+                created_at=datetime.fromisoformat(template_orm.created_at),
+                updated_at=datetime.fromisoformat(template_orm.updated_at)
             )
             templates.append(template)
 
         return templates
 
-    async def get_template(self, template_id: str) -> Optional[WorkflowTemplate]:
+    def get_template(self, template_id: str) -> Optional[WorkflowTemplate]:
         """获取单个模板"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM workflow_templates WHERE id = ?', (template_id,))
-        row = cursor.fetchone()
+        result = self.db.execute(
+            select(WorkflowTemplateORM).where(WorkflowTemplateORM.id == template_id)
+        )
+        template_orm = result.scalar_one_or_none()
 
-        if not row:
+        if not template_orm:
             return None
 
         return WorkflowTemplate(
-            id=row[0],
-            name=row[1],
-            description=row[2],
-            engine=row[3],
-            category=row[4],
-            definition=row[5],
-            created_at=datetime.fromisoformat(row[6]),
-            updated_at=datetime.fromisoformat(row[7])
+            id=template_orm.id,
+            name=template_orm.name,
+            description=template_orm.description,
+            engine=template_orm.engine,
+            category=template_orm.category,
+            definition=template_orm.definition,
+            created_at=datetime.fromisoformat(template_orm.created_at),
+            updated_at=datetime.fromisoformat(template_orm.updated_at)
         )
 
-    async def create_template(self, template: WorkflowTemplate) -> WorkflowTemplate:
+    def create_template(self, template: WorkflowTemplate) -> WorkflowTemplate:
         """创建模板"""
         template_id = str(uuid4())
         created_at = datetime.now()
         updated_at = created_at
 
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            INSERT INTO workflow_templates (id, name, description, engine,
-                                         category, definition, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            template_id,
-            template.name,
-            template.description,
-            template.engine,
-            template.category,
-            str(template.definition),
-            created_at.isoformat(),
-            updated_at.isoformat()
-        ))
-        self.conn.commit()
+        template_orm = WorkflowTemplateORM(
+            id=template_id,
+            name=template.name,
+            description=template.description,
+            engine=template.engine,
+            category=template.category,
+            definition=str(template.definition),
+            created_at=created_at.isoformat(),
+            updated_at=updated_at.isoformat()
+        )
 
-        return await self.get_template(template_id)
+        self.db.add(template_orm)
+        self.db.commit()
+        self.db.refresh(template_orm)
 
-    async def delete_template(self, template_id: str) -> bool:
+        return self.get_template(template_id)
+
+    def delete_template(self, template_id: str) -> bool:
         """删除模板"""
-        cursor = self.conn.cursor()
-        cursor.execute('DELETE FROM workflow_templates WHERE id = ?', (template_id,))
-        self.conn.commit()
-        return cursor.rowcount > 0
+        result = self.db.execute(
+            select(WorkflowTemplateORM).where(WorkflowTemplateORM.id == template_id)
+        )
+        template_orm = result.scalar_one_or_none()
+
+        if not template_orm:
+            return False
+
+        self.db.delete(template_orm)
+        self.db.commit()
+
+        return True

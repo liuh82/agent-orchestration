@@ -368,3 +368,20 @@ class Heartbeat(Base):
 
     # Relationships
     agent: Mapped["Agent"] = relationship("Agent")
+
+
+class WorkflowTemplate(Base):
+    """工作流模板 ORM 模型"""
+    __tablename__ = "workflow_templates"
+    __table_args__ = (
+        Index('idx_workflow_templates_category_created_at', 'category', 'created_at'),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid4()))
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    engine: Mapped[str] = mapped_column(String(100), nullable=False)
+    category: Mapped[str] = mapped_column(String(100), default='development')
+    definition: Mapped[str] = mapped_column(Text)  # JSON string
+    created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
+    updated_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
