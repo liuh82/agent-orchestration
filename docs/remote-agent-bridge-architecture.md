@@ -3,7 +3,8 @@
 > 日期：2026-03-13
 > 架构师：小白
 > 状态：待评审
-> 版本：v1.0
+> 版本：v1.1
+> 更新：v1.1 考虑多平台（Mac/Windows/Linux）和多 IDE（VS Code/Cursor/IntelliJ IDEA 等）兼容性
 
 ---
 
@@ -19,208 +20,424 @@
 │  │ :18789        │     │ :8083        │     │                    │  │
 │  └──────┬───────┘     └──────┬───────┘     └────────┬───────────┘  │
 │         │                     │                       │              │
-│         │    ┌────────────────┘                       │              │
-│         │    │                                        │              │
-│         ▼    ▼                                        ▼              │
+│         ▼                     ▼                       ▼              │
 │  ┌─────────────────────────────────────────────────────────┐       │
 │  │            Gateway WebSocket Server                      │       │
 │  │  ├─ OpenClaw Agent（小白）调用 dev_task 工具              │       │
 │  │  ├─ 编排系统 Workflow 节点通过 HTTP API 调用              │       │
+│  │  ├─ 多 Bridge 注册管理（bridgeId + 平台 + IDE 标识）       │       │
 │  │  └─ 统一管理：任务队列、状态跟踪、结果回传                  │       │
 │  └─────────────────────────┬───────────────────────────────┘       │
 │                            │                                       │
-│                            │ WSS (双向)                             │
-│                            │                                       │
-└────────────────────────────┼───────────────────────────────────────┘
-                             │
-                             │
-┌────────────────────────────┼───────────────────────────────────────┐
-│                            │   开发机 (Mac)                          │
-│                            ▼                                       │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │           Remote Agent Bridge Service                      │       │
-│  │           (Node.js, 常驻进程)                               │       │
-│  │                                                              │       │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐   │       │
-│  │  │ WS Client    │  │ Task Queue   │  │ Agent Runner   │   │       │
-│  │  │ (连接Gateway)│  │ (内存队列)    │  │ (执行Agent)    │   │       │
-│  │  └──────────────┘  └──────────────┘  └───────┬────────┘   │       │
-│  │                                               │            │       │
-│  │  ┌────────────────────────────────────────────┼────────┐   │       │
-│  │  │           Agent Adapter Layer               │        │   │       │
-│  │  │  ├─ VS Code Adapter (文件队列 + watch)       │        │   │       │
-│  │  │  ├─ CLI Adapter (subprocess: codex/pi)       │        │   │       │
-│  │  │  └─ ACP Adapter (openclaw acp)               │        │   │       │
-│  │  └─────────────────────────────────────────────────────┘   │       │
-│  └──────────────────────────────────────────────────────────┘       │
-│                                                                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐    │
-│  │ VS Code +    │  │ codex CLI    │  │ pi / openclaw acp   │    │
-│  │ Claude Code  │  │ (终端)        │  │ (终端)              │    │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘    │
+│                     WSS (双向)                                      │
+┌───────────────────────────┼───────────────────────────────────────┐
+│                           │                                        │
+│    ┌──────────────────────┼──────────────────────────────┐         │
+│    │       Remote Agent Bridge Service (Node.js)          │         │
+│    │       支持平台: Mac / Windows / Linux                │         │
+│    │                                                      │         │
+│    │  ┌──────────┐  ┌──────────┐  ┌────────────────────┐│         │
+│    │  │ WS       │  │ Task     │  │ Agent Runner       ││         │
+│    │  │ Client   │  │ Queue    │  │                    ││         │
+│    │  └──────────┘  └──────────┘  └────────┬───────────┘│         │
+│    │                                     │              │         │
+│    │  ┌──────────────────────────────────┼──────────────┐│         │
+│    │  │       Agent Adapter Layer        │              ││         │
+│    │  │  ├─ CLI Adapter    (codex/pi)    │              ││         │
+│    │  │  ├─ IDE Adapter    (见 §5)       │              ││         │
+│    │  │  └─ ACP Adapter    (openclaw acp)│              ││         │
+│    │  └─────────────────────────────────────────────────┘│         │
+│    └─────────────────────────────────────────────────────┘         │
+│                                                                      │
+│    ┌─────────────┐  ┌─────────────┐  ┌──────────────────────────┐ │
+│    │ VS Code      │  │ Cursor      │  │ IntelliJ IDEA            │ │
+│    │ + CC 插件    │  │ + AI Chat   │  │ + AI Assistant          │ │
+│    └─────────────┘  └─────────────┘  └──────────────────────────┘ │
+│                                                                      │
+│    ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│    │ codex CLI   │  │ pi CLI      │  │ 其他 CLI    │             │
+│    └─────────────┘  └─────────────┘  └─────────────┘             │
+│                                                                      │
+│    ◀── Mac ─── Windows ─── Linux ──（任意组合）───────────────▶    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-## 2. 模块划分
+## 2. 多平台与多 IDE 兼容性设计
 
-### 2.1 文件结构
+### 2.1 设计原则
+
+| 原则 | 说明 |
+|------|------|
+| **平台无关** | Bridge 核心用 Node.js/TypeScript，跨平台零修改 |
+| **IDE 无关** | 通过 Adapter 模式隔离 IDE 差异，新增 IDE 只需加 Adapter |
+| **渐进支持** | MVP 先支持 CLI Agent，后续逐步加 IDE Adapter |
+| **统一协议** | 所有平台/IDE 共用同一套 WebSocket 协议 |
+| **能力声明** | Bridge 注册时上报平台、IDE、可用 Agent，Gateway 自动路由 |
+
+### 2.2 平台差异处理
+
+| 维度 | Mac | Windows | Linux |
+|------|-----|---------|-------|
+| **安装方式** | npm/brew | npm/下载exe | npm/apt |
+| **配置路径** | `~/.oc-bridge/` | `%APPDATA%\oc-bridge\` | `~/.oc-bridge/` |
+| **临时目录** | `/tmp/oc-tasks/` | `%TEMP%\oc-tasks\` | `/tmp/oc-tasks/` |
+| **终端** | Terminal/iTerm2 | PowerShell/CMD/WSL | bash/zsh |
+| **文件监听** | `fs.watch` (FSEvents) | `fs.watch` (ReadDirectoryChangesW) | `fs.watch` (inotify) |
+| **进程管理** | `child_process.spawn` | 同左 | 同左 |
+| **代码编辑器路径** | `/usr/local/bin/code` | `C:\Users\xxx\AppData\Local\Programs\code.exe` | `/usr/bin/code` |
+
+**关键**：Node.js 的 `child_process`、`fs.watch`、`path` 等核心 API 在三大平台行为一致，Bridge 核心逻辑无需分支。只有路径和编辑器路径需要平台适配，封装在 `utils/platform.ts` 中。
+
+### 2.3 IDE 支持矩阵
+
+| IDE | 集成方式 | 支持阶段 | 说明 |
+|-----|---------|---------|------|
+| **VS Code** | 文件队列 / CLI | Phase 1 (CLI) → Phase 2 (文件队列) | 官方扩展 API 最成熟 |
+| **Cursor** | 文件队列 / CLI | Phase 1 (CLI) → Phase 2 (文件队列) | 基于 VS Code，方案通用 |
+| **IntelliJ IDEA** | CLI / 文件队列 | Phase 3 | JetBrains 扩展 API 独立 |
+| **WebStorm** | CLI / 文件队列 | Phase 3 | 同 IntelliJ |
+| **PyCharm** | CLI / 文件队列 | Phase 3 | 同 IntelliJ |
+| **Zed** | ACP 原生 | 未来 | 已内置 ACP 支持 |
+| **Neovim** | CLI | Phase 1 | 终端原生支持 |
+| **Windsurf** | CLI / 文件队列 | Phase 2+ | 新兴 AI IDE |
+
+**核心策略**：**CLI Adapter 是通用基线**，所有 IDE 都能用。IDE-specific Adapter 是增强体验。
+
+### 2.4 IDE Adapter 抽象设计
+
+```typescript
+// adapters/base.ts — 适配器基类
+
+interface AgentAdapter {
+  /** 适配器类型标识 */
+  readonly type: string;
+  /** 当前是否可用 */
+  isAvailable(): Promise<boolean>;
+  /** 执行任务 */
+  execute(task: ExecuteRequest): Promise<ExecuteResult>;
+  /** 取消任务 */
+  cancel(taskId: string): Promise<void>;
+}
+
+interface ExecuteRequest {
+  prompt: string;
+  cwd: string;
+  signal: AbortSignal;
+  onOutput?: (line: string) => void;
+  onProgress?: (percent: number) => void;
+}
+
+interface ExecuteResult {
+  exitCode: number;
+  output: string;
+  changedFiles: string[];
+  duration: number;
+}
+```
+
+```typescript
+// adapters/registry.ts — 适配器注册表
+
+class AdapterRegistry {
+  private adapters: Map<string, AgentAdapter> = new Map();
+  
+  register(adapter: AgentAdapter) {
+    this.adapters.set(adapter.type, adapter);
+  }
+  
+  get(type: string): AgentAdapter | undefined {
+    return this.adapters.get(type);
+  }
+  
+  async getAvailable(): Promise<AgentAdapter[]> {
+    const results = await Promise.all(
+      Array.from(this.adapters.values()).map(async (a) => ({
+        adapter: a,
+        available: await a.isAvailable()
+      }))
+    );
+    return results.filter(r => r.available).map(r => r.adapter);
+  }
+}
+
+// 自动注册
+const registry = new AdapterRegistry();
+registry.register(new CLIAdapter());          // Phase 1: 通用
+registry.register(new VSCodeAdapter());       // Phase 2: VS Code
+registry.register(new CursorAdapter());       // Phase 2: Cursor
+registry.register(new IntelliJAdapter());     // Phase 3: JetBrains
+```
+
+## 3. 模块划分
+
+### 3.1 文件结构（跨平台）
 
 ```
 remote-agent-bridge/
 ├── package.json
 ├── tsconfig.json
 ├── src/
-│   ├── index.ts                    # 入口：启动 Bridge Service
-│   ├── ws-client.ts                # WebSocket 客户端（连接 Gateway）
-│   ├── task-queue.ts               # 任务队列管理
-│   ├── task-runner.ts              # 任务执行调度器
+│   ├── index.ts                        # 入口
+│   ├── ws-client.ts                    # WebSocket 客户端
+│   ├── task-queue.ts                   # 任务队列
+│   ├── task-runner.ts                  # 任务调度器
 │   ├── adapters/
-│   │   ├── base.ts                 # Adapter 基类
-│   │   ├── vscode-adapter.ts       # VS Code + 文件队列集成
-│   │   ├── cli-adapter.ts          # CLI Agent (codex/pi)
-│   │   └── acp-adapter.ts          # ACP Bridge (openclaw acp)
+│   │   ├── base.ts                     # Adapter 接口定义
+│   │   ├── registry.ts                 # Adapter 注册表
+│   │   ├── cli-adapter.ts             # CLI Agent (codex/pi) — 通用
+│   │   ├── vscode-adapter.ts          # VS Code 文件队列
+│   │   ├── cursor-adapter.ts          # Cursor 文件队列
+│   │   ├── intellij-adapter.ts        # IntelliJ CLI + 文件队列
+│   │   └── acp-adapter.ts             # ACP Bridge
 │   ├── protocol/
-│   │   ├── messages.ts             # 消息类型定义
-│   │   └── schema.ts               # JSON Schema 验证
-│   ├── config.ts                   # 配置管理
+│   │   ├── messages.ts                 # 消息类型
+│   │   └── schema.ts                   # JSON Schema 验证
+│   ├── config.ts                       # 配置管理
+│   ├── bridge-info.ts                  # Bridge 注册信息
 │   └── utils/
-│       ├── logger.ts               # 日志
-│       └── retry.ts                # 重试逻辑
-├── vscode-extension/               # 可选：VS Code 扩展
-│   ├── package.json
-│   └── src/
-│       └── extension.ts            # 监听任务文件
-└── scripts/
-    ├── dev.ts                      # 开发启动脚本
-    └── install.sh                  # 安装脚本
+│       ├── logger.ts
+│       ├── retry.ts
+│       ├── platform.ts                 # 平台适配（路径、编辑器路径等）
+│       └── file-watcher.ts             # 跨平台文件监听封装
+├── ide-extensions/
+│   ├── vscode/                         # VS Code 扩展（Phase 2）
+│   │   ├── package.json
+│   │   └── src/extension.ts
+│   ├── cursor/                         # Cursor 扩展（Phase 2）
+│   │   ├── package.json
+│   │   └── src/extension.ts
+│   └── jetbrains/                      # JetBrains 插件（Phase 3）
+│       └── ... (Kotlin/Java)
+├── scripts/
+│   ├── install.sh                      # Mac/Linux 安装
+│   ├── install.ps1                     # Windows 安装
+│   ├── dev.ts
+│   └── setup.ts                        # 交互式配置向导
+├── .github/
+│   └── workflows/
+│       ├── release-mac.yml
+│       ├── release-win.yml
+│       └── release-linux.yml
+└── README.md
 ```
 
-### 2.2 模块职责
-
-| 模块 | 职责 |
-|------|------|
-| `ws-client.ts` | 管理 WebSocket 连接、认证、心跳、消息收发 |
-| `task-queue.ts` | 内存任务队列，支持优先级、并发控制 |
-| `task-runner.ts` | 从队列取任务，分发给对应 Adapter，跟踪状态 |
-| `vscode-adapter.ts` | 通过文件队列将任务注入 VS Code |
-| `cli-adapter.ts` | 启动 codex/pi CLI 子进程执行任务 |
-| `acp-adapter.ts` | 通过 `openclaw acp` 执行任务 |
-| `protocol/` | 定义所有消息格式、验证、编解码 |
-
-## 3. 通信协议设计
-
-### 3.1 消息格式
+### 3.2 平台适配层
 
 ```typescript
-// === Gateway → Mac (下行) ===
+// utils/platform.ts
 
-// 提交任务
-interface TaskSubmit {
-  type: "task.submit";
-  taskId: string;           // UUID
-  prompt: string;           // 开发任务描述
-  projectPath: string;      // 项目路径（Mac 上）
-  agentType: "vscode-cc" | "codex" | "pi" | "acp";
-  timeout: number;          // 秒，默认 300
-  priority: "high" | "normal" | "low";
-  callbackId?: string;      // 编排系统回调 ID
+import { homedir, tmpdir } from 'os';
+import { join, resolve } from 'path';
+import { existsSync } from 'fs';
+
+type OS = 'darwin' | 'win32' | 'linux';
+
+const os = process.platform as OS;
+
+const platformConfig = {
+  darwin: {
+    configDir: () => join(homedir(), '.oc-bridge'),
+    taskDir: () => '/tmp/oc-tasks',
+    // 常见编辑器路径
+    editors: {
+      vscode: [
+        '/usr/local/bin/code',
+        '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code',
+      ],
+      cursor: [
+        '/usr/local/bin/cursor',
+        '/Applications/Cursor.app/Contents/Resources/app/bin/cursor',
+      ],
+      idea: [
+        '/usr/local/bin/idea',
+      ],
+    },
+  },
+  win32: {
+    configDir: () => join(process.env.APPDATA || homedir(), 'oc-bridge'),
+    taskDir: () => join(process.env.TEMP || homedir(), 'oc-tasks'),
+    editors: {
+      vscode: [
+        'C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Programs\\Microsoft VS Code\\bin\\code.cmd',
+      ],
+      cursor: [
+        'C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Programs\\cursor\\bin\\cursor.cmd',
+      ],
+      idea: [
+        resolve('C:\\Program Files\\JetBrains\\IntelliJ IDEA', 'bin', 'idea.bat'),
+      ],
+    },
+  },
+  linux: {
+    configDir: () => join(homedir(), '.oc-bridge'),
+    taskDir: () => '/tmp/oc-tasks',
+    editors: {
+      vscode: ['/usr/bin/code', '/snap/bin/code', '/usr/local/bin/code'],
+      cursor: ['/usr/local/bin/cursor'],
+      idea: ['/usr/local/bin/idea'],
+    },
+  },
+};
+
+export function findEditor(name: string): string | null {
+  const paths = platformConfig[os]?.editors[name] || [];
+  for (const p of paths) {
+    if (existsSync(p)) return p;
+  }
+  return null;
 }
 
-// 取消任务
+export function getConfigDir(): string {
+  return platformConfig[os]?.configDir() || join(homedir(), '.oc-bridge');
+}
+
+export function getTaskDir(): string {
+  return platformConfig[os]?.taskDir() || join(tmpdir(), 'oc-tasks');
+}
+```
+
+## 4. 通信协议设计
+
+### 4.1 消息格式
+
+```typescript
+// === Gateway → Bridge (下行) ===
+
+interface TaskSubmit {
+  type: "task.submit";
+  taskId: string;
+  prompt: string;
+  projectPath: string;       // Bridge 所在平台的本地路径
+  agentType: "vscode-cc" | "cursor-cc" | "intellij-ai" 
+            | "codex" | "pi" | "acp" | "cli";
+  timeout: number;
+  priority: "high" | "normal" | "low";
+  callbackId?: string;
+  preferredIde?: string;     // 可选：指定用哪个 IDE
+}
+
 interface TaskCancel {
   type: "task.cancel";
   taskId: string;
   reason: string;
 }
 
-// 心跳请求
-interface HeartbeatRequest {
-  type: "ping";
-  ts: number;
-}
+// === Bridge → Gateway (上行) ===
 
-// === Mac → Gateway (上行) ===
-
-// 任务状态更新
 interface TaskProgress {
   type: "task.progress";
   taskId: string;
   status: "queued" | "running" | "completed" | "failed" | "cancelled";
-  output?: string;          // 实时输出（最近 N 行）
-  progress?: number;        // 0-100
+  output?: string;
+  progress?: number;
 }
 
-// 任务完成
 interface TaskComplete {
   type: "task.complete";
   taskId: string;
   result: {
     exitCode: number;
     output: string;
-    changedFiles: string[];  // 变更的文件列表
-    duration: number;        // 毫秒
+    changedFiles: string[];
+    duration: number;
   };
 }
 
-// 心跳响应
-interface HeartbeatResponse {
-  type: "pong";
-  ts: number;
-  activeTasks: number;
-  availableAgents: string[];
-}
+// === Bridge 注册（上行） ===
 
-// Bridge 注册
 interface BridgeRegister {
   type: "bridge.register";
   bridgeId: string;
-  agents: {
-    type: string;
+  platform: "darwin" | "win32" | "linux";
+  hostname: string;
+  osVersion: string;
+  nodeVersion: string;
+  bridgeVersion: string;
+  availableAdapters: {
+    type: string;              // "cli" | "vscode" | "cursor" | "intellij" | "acp"
+    agentName: string;         // "codex" | "pi" | "claude-code" | "idea-ai"
+    version?: string;
+    executablePath?: string;
+  }[];
+  activeIDEs: {
+    name: string;              // "vscode" | "cursor" | "intellij"
     version: string;
-    projectPath: string;
+    workspace?: string;        // 当前打开的项目路径
   }[];
 }
 ```
 
-### 3.2 连接与握手流程
+### 4.2 Gateway 多 Bridge 路由
 
-```
-Mac Bridge                    Gateway
-    │                            │
-    │── bridge.register ────────►│  (1) Bridge 上线，报告能力
-    │                            │
-    │◄── bridge.ack ────────────│  (2) 确认注册，分配 bridgeId
-    │                            │
-    │── ping ───────────────────►│  (3) 心跳 (每30秒)
-    │◄── pong ───────────────────│
-    │                            │
-    │◄── task.submit ────────────│  (4) 服务器推任务
-    │                            │
-    │── task.progress(running)──►│  (5) 状态更新
-    │── task.progress(50%) ─────►│
-    │                            │
-    │── task.complete ───────────►│  (6) 任务完成
-    │                            │
+```typescript
+// Gateway 侧的 Bridge 管理
+
+interface ManagedBridge {
+  bridgeId: string;
+  platform: string;
+  hostname: string;
+  status: "online" | "offline";
+  lastSeen: number;
+  adapters: BridgeAdapter[];
+  activeTasks: number;
+  maxConcurrent: number;
+}
+
+class BridgeManager {
+  private bridges: Map<string, ManagedBridge> = new Map();
+  
+  /** 选择最佳 Bridge 执行任务 */
+  selectBridge(task: TaskSubmit): ManagedBridge | null {
+    const candidates = Array.from(this.bridges.values())
+      .filter(b => 
+        b.status === 'online' && 
+        b.activeTasks < b.maxConcurrent &&
+        b.adapters.some(a => a.type === task.agentType)
+      );
+    
+    if (candidates.length === 0) return null;
+    
+    // 优先级：负载最低 > 平台匹配 > 先注册
+    return candidates.sort((a, b) => {
+      if (a.activeTasks !== b.activeTasks) return a.activeTasks - b.activeTasks;
+      return 0;
+    })[0];
+  }
+  
+  /** 按 IDE 偏好路由 */
+  selectBridgeForIDE(task: TaskSubmit): ManagedBridge | null {
+    if (!task.preferredIde) return this.selectBridge(task);
+    
+    // 找有指定 IDE 且空闲的 Bridge
+    return Array.from(this.bridges.values())
+      .filter(b => 
+        b.status === 'online' &&
+        b.activeTasks < b.maxConcurrent &&
+        b.adapters.some(a => a.type === task.agentType) &&
+        b.activeIDEs?.some(ide => ide.name === task.preferredIde)
+      )[0] || this.selectBridge(task); // fallback
+  }
+}
 ```
 
-### 3.3 任务状态机
+### 4.3 任务状态机
 
 ```
                     ┌──────────┐
-                    │ pending  │ (Gateway 创建)
+                    │ pending  │ (Gateway 创建，分配给 Bridge)
                     └────┬─────┘
                          │ Bridge 接收
                          ▼
                     ┌──────────┐
-                    │  queued  │ (Bridge 队列中)
+                    │  queued  │ (Bridge 队列中，等待执行)
                     └────┬─────┘
-                         │ Runner 取出
+                         │ Runner 取出，选择 Adapter
                          ▼
                     ┌──────────┐
               ┌────►│ running  │
               │     └──┬───┬───┘
               │        │   │
-              │        │   │ cancel
+              │        │   │ cancel / timeout
               │        │   ▼
               │        │ ┌───────────┐
               │        │ │ cancelled │
@@ -233,272 +450,140 @@ Mac Bridge                    Gateway
                  └───────────┘
                   /         \
             ┌──────────┐ ┌──────────┐
-            │completed │ │ failed  │
+            │completed │ │ failed  │──► retry (最多 N 次)
             └──────────┘ └──────────┘
-                            │
-                       retry (最多3次)
-                            │
-                            ▼
-                       back to running
 ```
 
-## 4. Remote Bridge 服务设计
+## 5. IDE 集成方案
 
-### 4.1 配置文件 `~/.oc-bridge/config.json`
+### 5.1 通用方案：CLI Agent Adapter（Phase 1，跨平台跨 IDE）
 
-```json
-{
-  "gateway": {
-    "url": "wss://81.70.98.45",
-    "tokenFile": "~/.openclaw/gateway.token",
-    "reconnect": {
-      "enabled": true,
-      "maxRetries": 10,
-      "baseDelay": 1000,
-      "maxDelay": 60000
-    }
-  },
-  "agents": {
-    "codex": {
-      "command": "codex",
-      "args": ["--approval-mode", "suggest"],
-      "timeout": 300
-    },
-    "pi": {
-      "command": "pi",
-      "args": [],
-      "timeout": 300
-    },
-    "vscode-cc": {
-      "type": "file-queue",
-      "watchDir": "/tmp/oc-dev-tasks",
-      "timeout": 600
-    }
-  },
-  "tasks": {
-    "maxConcurrent": 2,
-    "defaultTimeout": 300,
-    "outputTailLines": 100
-  },
-  "logging": {
-    "level": "info",
-    "file": "~/.oc-bridge/bridge.log"
-  }
-}
-```
-
-### 4.2 启动方式
-
-```bash
-# 全局安装
-npm install -g @liuh82/oc-bridge
-
-# 启动
-oc-bridge start
-
-# 后台运行
-oc-bridge start --daemon
-
-# 查看状态
-oc-bridge status
-
-# 查看日志
-oc-bridge logs
-```
-
-### 4.3 Agent Runner 执行流程
-
-```typescript
-async function executeTask(task: TaskSubmit, adapter: AgentAdapter): Promise<TaskResult> {
-  const startTime = Date.now();
-  
-  // 1. 通知 Gateway：开始执行
-  ws.send({ type: 'task.progress', taskId: task.taskId, status: 'running' });
-  
-  try {
-    // 2. 创建超时控制器
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), task.timeout * 1000);
-    
-    // 3. 通过 Adapter 执行
-    const result = await adapter.execute({
-      prompt: task.prompt,
-      cwd: task.projectPath,
-      signal: controller.signal,
-      onOutput: (line) => {
-        // 实时输出流式回传
-        ws.send({ type: 'task.progress', taskId: task.taskId, output: line });
-      }
-    });
-    
-    clearTimeout(timeout);
-    
-    // 4. 通知 Gateway：完成
-    ws.send({
-      type: 'task.complete',
-      taskId: task.taskId,
-      result: { ...result, duration: Date.now() - startTime }
-    });
-    
-    return result;
-    
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      ws.send({ type: 'task.progress', taskId: task.taskId, status: 'failed', output: 'Timeout' });
-    } else {
-      ws.send({ type: 'task.progress', taskId: task.taskId, status: 'failed', output: err.message });
-    }
-    throw err;
-  }
-}
-```
-
-## 5. VS Code 集成方案
-
-### 方案 A：文件队列 + 文件监听（推荐，最简单）
-
-```
-Bridge → 写入 /tmp/oc-dev-tasks/task_uuid.json
-              ↓
-VS Code 扩展 (file watcher) → 读取任务
-              ↓
-注入到当前打开的终端 / 新建终端
-              ↓
-Terminal → `claude` / `codex` CLI
-              ↓
-执行完毕 → 写入 /tmp/oc-dev-tasks/task_uuid.result.json
-              ↓
-Bridge 读取结果 → 回传 Gateway
-```
-
-**优点**：不依赖任何协议，VS Code 原生支持 file watcher
-**缺点**：需要安装 VS Code 扩展，文件轮询有延迟（~1s）
-
-**任务文件格式：**
-```json
-{
-  "taskId": "task-uuid-xxx",
-  "prompt": "修复 approval.py 的 SQL 注入问题",
-  "projectPath": "/Users/liuh82/projects/agent-orchestration",
-  "status": "pending",
-  "createdAt": "2026-03-13T23:00:00Z"
-}
-```
-
-**结果文件格式：**
-```json
-{
-  "taskId": "task-uuid-xxx",
-  "status": "completed",
-  "exitCode": 0,
-  "output": "已修复 approval.py...",
-  "changedFiles": ["backend/app/services/approval.py"],
-  "duration": 45000
-}
-```
-
-### 方案 B：CLI 直接调用（中等复杂度）
+所有 IDE 都支持终端操作，CLI Adapter 是最通用的方案：
 
 ```
 Bridge → spawn `codex --quiet "prompt" --cwd /path`
-              ↓
-子进程执行
-              ↓
-stdout/stderr 捕获 → 流式回传 Gateway
+Bridge → spawn `pi "prompt"`  
+Bridge → spawn `openclaw acp --session xxx`
 ```
 
-**优点**：不需要 VS Code 扩展，直接在终端执行
-**缺点**：看不到 VS Code 里的实时编辑过程，用户不知道在执行什么
+**特点**：
+- ✅ 跨平台（Mac/Win/Linux）
+- ✅ 跨 IDE（任何 IDE 都能用终端）
+- ✅ 零 IDE 扩展依赖
+- ❌ 用户看不到 IDE 里的实时编辑过程
 
-### 方案 C：Terminal 注入（复杂但体验最好）
+### 5.2 VS Code / Cursor 集成（Phase 2）
+
+VS Code 和 Cursor 共享 Electron 架构，方案通用：
+
+**方案 A：文件队列 + 扩展监听**
 
 ```
-Bridge → 通过 VS Code Extension API → sendTextToActiveTerminal
+Bridge → 写入 {taskDir}/task_uuid.json
               ↓
-当前终端接收命令 → 执行
+VS Code/Cursor 扩展 (FileSystemWatcher)
               ↓
-捕获输出 → 回传
+读取任务 → 在当前终端发送命令
+              ↓
+CLI 执行完毕 → 扩展写 {taskDir}/task_uuid.result.json
+              ↓
+Bridge 监听结果文件 → 回传 Gateway
 ```
 
-**优点**：在 VS Code 终端里直接看到执行过程
-**缺点**：需要自定义 VS Code 扩展，API 不稳定
+**方案 B：通过 VS Code CLI 发送命令**
 
-### 推荐组合
+```bash
+# 在已有终端中发送命令
+code --send-to-terminal "codex 修复 approval.py 的 SQL 注入"
 
-**MVP（Phase 1）**：方案 B（CLI 直接调用）
-**完整版（Phase 2）**：方案 A（文件队列）+ 方案 B（CLI）并行
+# 或打开新终端执行
+code -r /path/to/project --goto /path/to/file
+```
+
+**方案 C：通过 VS Code 扩展 API 直接注入**
+
+```typescript
+// VS Code 扩展内部
+vscode.commands.executeCommand('workbench.action.terminal.sendSequence', {
+  text: `codex "${task.prompt}"\n`
+});
+```
+
+### 5.3 IntelliJ IDEA / WebStorm / PyCharm 集成（Phase 3）
+
+JetBrains IDE 通过独立扩展机制：
+
+**方案 A：文件队列（通用）**
+- 同 VS Code 方案 A，Bridge 写文件，JetBrains 插件监听
+
+**方案 B：通过 CLI 执行**
+```bash
+# JetBrains CLI (idea command)
+idea project --command "ai.assistant.submit" --param "prompt"
+```
+
+**方案 C：通过 HTTP API（IntelliJ 内置）**
+```bash
+# IntelliJ 插件启动本地 HTTP server
+curl -X POST http://localhost:63342/api/ai/execute \
+  -d '{"prompt": "修复SQL注入", "projectPath": "/path"}'
+```
+
+### 5.4 IDE 适配器对比
+
+| IDE | 文件队列 | CLI注入 | API调用 | 扩展开发语言 | 优先级 |
+|-----|---------|---------|---------|-------------|--------|
+| VS Code | ✅ | ✅ | ❌ | TypeScript | Phase 2 |
+| Cursor | ✅ | ✅ | ❌ | TypeScript | Phase 2 |
+| IntelliJ IDEA | ✅ | ⚠️ | ✅ | Kotlin/Java | Phase 3 |
+| WebStorm | ✅ | ⚠️ | ✅ | Kotlin/Java | Phase 3 |
+| PyCharm | ✅ | ⚠️ | ✅ | Kotlin/Java | Phase 3 |
+| Zed | ❌ | ✅ | ❌ | Rust (ACP原生) | 未来 |
+| Neovim | ❌ | ✅ | ❌ | Lua (可选) | Phase 1 via CLI |
 
 ## 6. 编排系统集成
 
 ### 6.1 LobsterEngine 添加 Remote 模式
 
 ```python
-# backend/app/services/lobster_engine.py 新增
-
 class RemoteAgentEngine:
-    """远端 Agent 执行引擎"""
+    """远端 Agent 执行引擎 — 跨平台"""
     
     def __init__(self, bridge_url: str = "http://127.0.0.1:18790"):
         self.bridge_url = bridge_url
     
-    async def execute(self, workflow: WorkflowDefinition, context: Dict[str, Any]) -> Dict[str, Any]:
-        """通过 Remote Bridge 执行任务"""
+    async def execute(self, workflow, context):
         task = {
             "prompt": context.get("prompt", ""),
             "projectPath": workflow.config.get("project_path", ""),
-            "agentType": workflow.config.get("agent_type", "codex"),
+            "agentType": workflow.config.get("agent_type", "cli"),
+            "preferredIde": workflow.config.get("preferred_ide"),  # 新增
             "timeout": workflow.config.get("timeout", 300),
         }
-        
-        # 调用 Bridge HTTP API
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{self.bridge_url}/api/tasks", json=task) as resp:
                 result = await resp.json()
-        
-        return {
-            "success": result["exitCode"] == 0,
-            "output": result["output"],
-            "taskId": result["taskId"],
-            "status": "completed" if result["exitCode"] == 0 else "failed"
-        }
+        return {"success": result["exitCode"] == 0, **result}
 ```
 
-### 6.2 Bridge HTTP API（本地代理）
-
-在 Bridge 服务上同时开一个 HTTP 端口（`:18790`），提供 REST API 供编排系统调用：
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/tasks` | 提交任务 |
-| GET | `/api/tasks/:id` | 查询任务状态 |
-| DELETE | `/api/tasks/:id` | 取消任务 |
-| GET | `/api/agents` | 列出可用 Agent |
-| GET | `/api/health` | 健康检查 |
-
-这样编排系统通过 HTTP 调用 Bridge，Bridge 通过 WebSocket 与 Gateway 通信。
-
-### 6.3 Workflow 集成
-
-在 Workflow 定义中添加远程 Agent 节点：
+### 6.2 Workflow 示例（跨 IDE）
 
 ```json
 {
-  "name": "ORM迁移开发",
   "steps": [
     {
-      "id": "step1",
+      "id": "dev",
       "type": "remote-agent",
       "agent": "codex",
-      "prompt": "将 task.py 迁移到 SQLAlchemy 2.0",
-      "projectPath": "/Users/liuh82/projects/agent-orchestration",
-      "timeout": 300,
-      "onComplete": "step2"
+      "preferredIde": "cursor",
+      "prompt": "迁移 task.py 到 ORM",
+      "projectPath": "/Users/liuh82/projects/agent-orchestration"
     },
     {
-      "id": "step2",
+      "id": "test",
       "type": "remote-agent",
-      "agent": "vscode-cc",
-      "prompt": "运行测试验证迁移结果",
+      "agent": "cli",
+      "prompt": "运行 pytest",
       "projectPath": "/Users/liuh82/projects/agent-orchestration"
     }
   ]
@@ -510,160 +595,171 @@ class RemoteAgentEngine:
 ### 7.1 认证
 
 ```
-Mac Bridge 启动时：
-1. 读取 ~/.openclaw/gateway.token
-2. WebSocket 连接时发送: { type: "auth", token: "xxx" }
-3. Gateway 验证 token → 发送: { type: "auth.ok", bridgeId: "assigned" }
-4. 后续所有消息携带 bridgeId
+Bridge 启动 → 读取 token 文件 → WebSocket 连接 → 发送认证消息
+         ↓
+    Mac:   ~/.openclaw/gateway.token
+    Win:   %APPDATA%\oc-bridge\gateway.token
+    Linux: ~/.openclaw/gateway.token
 ```
 
-### 7.2 授权
+### 7.2 任务白名单
 
-| 操作 | 权限级别 | 说明 |
-|------|---------|------|
-| dev_task | 普通 | 需要确认（可配置自动审批） |
-| run_test | 普通 | 自动允许 |
-| read_file | 只读 | 自动允许 |
-| cancel_task | 普通 | 任务提交者可取消 |
-| list_agents | 只读 | 自动允许 |
+```json
+{
+  "permissions": {
+    "allowedCommands": ["codex", "pi", "openclaw acp"],
+    "allowedPaths": ["/Users/liuh82/projects"],
+    "blockedPatterns": ["rm -rf /", "sudo"],
+    "autoApproveAgents": ["codex", "pi"],
+    "requireConfirmationFor": ["vscode-cc", "cursor-cc"]
+  }
+}
+```
 
 ### 7.3 审计日志
 
 ```
-[2026-03-13 23:00:01] AUTH  bridge_id=mac-001 source_ip=81.70.98.45
-[2026-03-13 23:00:05] TASK  submit  task_id=task-001 agent=codex prompt="修复SQL注入" caller=openclaw
-[2026-03-13 23:00:10] TASK  start   task_id=task-001
-[2026-03-13 23:02:30] TASK  done    task_id=task-001 exit_code=0 duration=145000ms files_changed=1
+[2026-03-13 23:00:01] AUTH  bridge=mac-001 platform=darwin hostname=MacBook-Pro
+[2026-03-13 23:00:05] TASK  submit  id=task-001 agent=codex caller=openclaw
+[2026-03-13 23:02:30] TASK  done    id=task-001 exit=0 dur=145s files=1
+[2026-03-13 23:10:00] AUTH  bridge=win-001 platform=win32 hostname=DESKTOP-PC
+[2026-03-13 23:10:05] TASK  submit  id=task-002 agent=pi caller=workflow
 ```
 
 ## 8. 容错与可靠性
 
-### 8.1 断线重连
+### 8.1 断线重连（指数退避 + jitter）
 
 ```typescript
-async function connectWithRetry(url: string, config: ReconnectConfig) {
-  let attempt = 0;
-  const delay = Math.min(
-    config.baseDelay * Math.pow(2, attempt),
-    config.maxDelay
-  );
-  
-  while (attempt < config.maxRetries) {
-    try {
-      const ws = new WebSocket(url);
-      await waitForOpen(ws);
-      return ws; // 成功
-    } catch (e) {
-      attempt++;
-      logger.warn(`Reconnect attempt ${attempt}/${config.maxRetries}, next in ${delay}ms`);
-      await sleep(delay + Math.random() * 1000); // jitter
-    }
-  }
-  throw new Error('Max reconnection attempts exceeded');
-}
+const reconnectConfig = {
+  maxRetries: Infinity,        // 永不放弃重连
+  baseDelay: 1000,
+  maxDelay: 60000,
+  jitter: 1000,
+};
 ```
 
-### 8.2 任务超时
+### 8.2 多 Bridge 故障转移
 
-- Bridge 端：`AbortController` 超时自动 kill 子进程
-- Gateway 端：如果 Bridge 断线，pending 的任务标记为 `interrupted`
-- 恢复后：Bridge 重连时上报未完成任务，Gateway 决定是否重派
+```
+Gateway 分配任务 → Bridge A (Mac, online, 0 tasks) ✓
+                     ↓
+Bridge A 断线 → Gateway 重新分配 → Bridge B (Windows, online, 0 tasks) ✓
+```
 
-### 8.3 失败重试
+### 8.3 任务持久化
 
-```typescript
-const RETRY_CONFIG = {
-  maxRetries: 3,
-  retryableErrors: ['TIMEOUT', 'ABORT', 'CONNECTION_LOST'],
-  backoff: [5000, 15000, 45000] // 5s, 15s, 45s
-};
+```
+Bridge 内存队列 → 定期刷入磁盘 → 重启后恢复未完成任务
+{configDir}/tasks/
+├── pending/
+│   ├── task-001.json
+│   └── task-002.json
+├── running/
+│   └── task-003.json
+└── completed/
+    ├── task-001.result.json
+    └── task-002.result.json
 ```
 
 ## 9. 风险与边界情况
 
 ### 9.1 已识别风险
 
-| 风险 | 影响 | 缓解措施 |
-|------|------|---------|
-| **Mac 休眠/睡眠** | Bridge 断连，任务中断 | 检测系统唤醒后自动重连；Gateway 标记中断任务 |
-| **VS Code 未启动** | vscode-cc 类型任务无法执行 | Bridge 检测 VS Code 状态，降级到 CLI 模式 |
-| **Agent CLI 版本不兼容** | 命令行参数变化 | Bridge 启动时检测 CLI 版本，上报给 Gateway |
-| **多个任务同时操作同一文件** | 文件冲突 | 按项目路径加锁，同一项目同时只允许一个任务 |
-| **Mac 磁盘满** | 子进程失败 | Bridge 检测磁盘空间，任务前预警 |
-| **网络不稳定（SSH/远程）** | WebSocket 频繁断连 | 指数退避重连 + 本地任务队列缓冲 |
-| **Gateway 重启** | 连接丢失 + 任务状态不清 | Bridge 重连时上报本地状态，Gateway 合并 |
-| **安全：恶意 prompt** | 执行危险命令 | Agent 级别沙箱限制；审批模式 |
+| # | 风险 | 影响 | 跨平台 | 缓解措施 |
+|---|------|------|--------|---------|
+| 1 | 主机休眠/睡眠 | Bridge 断连 | 全平台 | 检测唤醒事件，自动重连 + 任务恢复 |
+| 2 | IDE 未启动 | IDE 类型任务失败 | 全平台 | 降级到 CLI Adapter |
+| 3 | Agent CLI 版本变化 | 命令行参数不兼容 | 全平台 | 启动时检测版本，上报 Gateway |
+| 4 | 多任务同文件冲突 | 数据损坏 | 全平台 | 按项目路径加锁 |
+| 5 | 防火墙/代理阻 WebSocket | 连接失败 | 全平台 | 支持 HTTP 长轮询 fallback |
+| 6 | Gateway 重启 | 连接丢失 | 全平台 | Bridge 重连时上报本地状态 |
+| 7 | 多人共用同一台机器 | 任务冲突 | 全平台 | 用户级隔离 + 任务 owner |
+| 8 | Windows 路径分隔符 | 文件操作失败 | Windows | 统一使用 `path.join()` + `path.posix` |
+| 9 | Windows 权限问题 | 子进程启动失败 | Windows | 检测 admin 权限，提示提权 |
+| 10 | JetBrains 扩展市场审核 | 上线延迟 | JetBrains | Phase 3 内测先不发布市场 |
+| 11 | 恶意 prompt | 执行危险操作 | 全平台 | Agent 沙箱 + 命令白名单 |
+| 12 | 网络不稳定（移动设备） | 频繁断连 | 全平台 | 本地队列缓冲 + 断点续传 |
 
-### 9.2 未考虑到的地方（待讨论）
+### 9.2 待讨论项
 
-1. **多台 Mac 支持**：一个 Gateway 连多个 Bridge 实例，需要 Bridge 注册 + 路由策略
-2. **结果缓存**：相同 prompt 是否复用之前的结果
-3. **费用追踪**：远端 Agent 的 API 调用费用统计
-4. **Git 集成**：任务完成后自动 commit/push
-5. **通知机制**：任务完成时通过飞书/邮件通知
-6. **项目隔离**：不同项目的任务是否允许并行
+1. **多用户协作**：同一台机器多人使用，任务如何隔离？
+2. **结果缓存**：相同 prompt 是否复用结果（节省 API 费用）？
+3. **费用追踪**：远端 Agent API 调用费用如何统计和分摊？
+4. **Git 集成**：任务完成后自动 commit/push？
+5. **通知机制**：飞书 / 邮件 / IDE 内通知？
+6. **IDE 识别**：如何检测当前活跃的 IDE 和项目？
+7. **自动更新**：Bridge 版本自动升级？
+8. **离线模式**：网络不可用时的本地任务队列？
 
 ## 10. 开发路线图
 
-### Phase 1：MVP（1周）
+### Phase 1：MVP — CLI Agent 跨平台调度（1-1.5周）
 
-**目标**：服务器能通过 Bridge 调度 Mac 上的 CLI Agent（codex/pi）
+**目标**：Gateway 能调度任意平台上 Mac/Windows/Linux 的 CLI Agent
 
-- [ ] Bridge 服务核心（WebSocket 客户端 + 任务队列）
-- [ ] CLI Adapter（subprocess 调用 codex/pi）
-- [ ] 通信协议实现（消息收发、心跳、状态机）
-- [ ] 基础安全（token 认证）
-- [ ] Bridge HTTP API（供编排系统调用）
-- [ ] 安装脚本 + 配置管理
-- [ ] 端到端测试
+- [ ] Bridge 核心服务（WebSocket + 任务队列 + 状态机）
+- [ ] CLI Adapter（codex / pi / openclaw acp）
+- [ ] 跨平台路径适配（platform.ts）
+- [ ] 跨平台安装脚本（install.sh / install.ps1）
+- [ ] 交互式配置向导（setup.ts）
+- [ ] Token 认证 + 心跳
+- [ ] Gateway 多 Bridge 注册 + 路由
+- [ ] Bridge HTTP API
+- [ ] 端到端测试（Mac + Windows）
 
-**交付物**：`oc-bridge` npm 包，支持 `codex` / `pi` 远程调度
+**交付物**：`oc-bridge` npm 包，支持 Mac/Win/Linux，CLI Agent 调度
 
-### Phase 2：VS Code 集成（1周）
+### Phase 2：IDE 集成 — VS Code / Cursor（1周）
 
-**目标**：支持 VS Code + Claude Code 插件执行任务
+**目标**：VS Code 和 Cursor IDE 内执行任务
 
-- [ ] 文件队列机制
-- [ ] VS Code 扩展（监听任务文件）
-- [ ] 任务注入（终端发送）
-- [ ] 结果捕获（文件监听）
-- [ ] 多 Agent 并发控制
+- [ ] 文件队列机制（跨平台文件监听）
+- [ ] VS Code 扩展（监听任务 + 注入终端 + 捕获结果）
+- [ ] Cursor 扩展（复用 VS Code 方案，品牌适配）
+- [ ] IDE 状态检测（当前打开的项目、活跃状态）
+- [ ] 多任务并发控制（按项目锁定）
 
-**交付物**：VS Code 扩展 marketplace 发布
+**交付物**：VS Code + Cursor 扩展（marketplace / open-vsx）
 
-### Phase 3：编排系统对接（3天）
+### Phase 3：JetBrains IDE + 编排系统集成（1.5周）
 
-**目标**：Workflow 能调度远端 Agent
+**目标**：支持 IntelliJ IDEA 系列IDE，编排系统 Workflow 可调用远端 Agent
 
-- [ ] RemoteAgentEngine 实现
+- [ ] IntelliJ IDEA 扩展（文件队列 + HTTP API）
+- [ ] RemoteAgentEngine 集成到编排系统
 - [ ] Workflow 节点类型扩展
-- [ ] 前端看板展示远端任务状态
+- [ ] 前端看板显示远端任务状态
 - [ ] 飞书通知集成
-
-**交付物**：编排系统支持 `remote-agent` 工作流节点
-
-### Phase 4：生产加固（1周）
-
-- [ ] 多 Bridge 注册与路由
-- [ ] 费用追踪
 - [ ] Git 自动 commit/push
-- [ ] 完善审计日志
+
+**交付物**：JetBrains 插件 + 编排系统集成
+
+### Phase 4：生产加固 + 多人协作（1周）
+
+- [ ] 多用户任务隔离
+- [ ] 费用追踪仪表板
+- [ ] 结果缓存
+- [ ] HTTP 长轮询 fallback
+- [ ] Bridge 自动更新
+- [ ] 离线模式
 - [ ] 监控告警
-- [ ] 文档完善
+- [ ] 完善文档
 
 ---
 
-## 附录 A：与现有 ACP 方案的关系
+## 附录 A：与现有方案的关系
 
 | 维度 | ACP（现有） | Remote Bridge（新） |
 |------|------------|-------------------|
-| 方向 | Mac→服务器（单向） | 双向 |
-| 协议 | ACP over stdio | 自定义 WebSocket + JSON |
-| Agent 位置 | 服务器上 | Mac 上 |
-| VS Code 集成 | MCP（被卡住） | 文件队列 / CLI |
-| 编排系统集成 | 无 | 完整支持 |
+| 方向 | 单向（Mac→服务器） | **双向** |
+| 平台 | 依赖 Node.js | **Mac + Windows + Linux** |
+| IDE | VS Code MCP（被卡住） | **CLI + 多 IDE 适配** |
+| Agent 位置 | 服务器上 | **Bridge 所在机器上** |
+| 多机 | 不支持 | **多 Bridge 注册路由** |
+| 编排系统集成 | 无 | **完整支持** |
 | 开发状态 | 已验证连通 | 待开发 |
 
-两者**互补**，不冲突：
-- ACP 适合：IDE 里直接跟服务器上的 Agent 对话
-- Remote Bridge 适合：服务器主动推任务到 Mac Agent 执行
+两者互补：
+- **ACP**：IDE 里直接跟服务器 Agent 对话（单向，服务器执行）
+- **Remote Bridge**：服务器主动推任务到任意机器的 Agent 执行（双向，本地执行）
