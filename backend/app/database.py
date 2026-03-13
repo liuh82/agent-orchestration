@@ -5,10 +5,14 @@ import os
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tasks.db")
 
+# SQLite 连接池配置
 engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
-    echo=False
+    echo=False,
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
 )
 
 # SQLite WAL 模式：提升并发性能

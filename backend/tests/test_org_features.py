@@ -4,7 +4,6 @@
 """
 
 import pytest
-import asyncio
 from datetime import datetime
 from uuid import uuid4
 from sqlalchemy.orm import Session
@@ -37,7 +36,7 @@ class TestOrgChart:
             parent_id=None
         )
 
-        node = await service.create_node(node_data)
+        node = service.create_node(node_data)
         assert node.name == "CEO办公室"
         assert node.department == "EXEC"
         assert node.level == 1
@@ -157,8 +156,7 @@ class TestRole:
 class TestGoal:
     """目标管理测试"""
 
-    @pytest.mark.asyncio
-    async def test_create_goal(self, db: Session):
+    def test_create_goal(self, db: Session):
         """测试创建目标"""
         service = GoalService(db)
 
@@ -172,15 +170,14 @@ class TestGoal:
             progress=50.0
         )
 
-        goal = await service.create_goal(goal_data)
+        goal = service.create_goal(goal_data)
         assert goal.title == "完成产品开发"
         assert goal.priority == "high"
         assert goal.progress == 50.0
 
         return goal.id
 
-    @pytest.mark.asyncio
-    async def test_create_goal_alignment(self, db: Session):
+    def test_create_goal_alignment(self, db: Session):
         """测试创建目标对齐"""
         service = GoalService(db)
 
@@ -193,7 +190,7 @@ class TestGoal:
             status="active",
             owner_id="test_user_1"
         )
-        goal1 = await service.create_goal(goal1_data)
+        goal1 = service.create_goal(goal1_data)
 
         goal2_data = GoalCreate(
             title="子目标",
@@ -203,7 +200,7 @@ class TestGoal:
             status="active",
             owner_id="test_user_1"
         )
-        goal2 = await service.create_goal(goal2_data)
+        goal2 = service.create_goal(goal2_data)
 
         # 创建对齐关系
         alignment_data = GoalAlignmentCreate(
@@ -213,7 +210,7 @@ class TestGoal:
             description="支持关系"
         )
 
-        alignment = await service.create_goal_alignment(alignment_data)
+        alignment = service.create_goal_alignment(alignment_data)
         assert alignment.parent_id == goal1.id
         assert alignment.child_id == goal2.id
         assert alignment.weight == 0.8
@@ -224,8 +221,7 @@ class TestGoal:
 class TestApproval:
     """审批管理测试"""
 
-    @pytest.mark.asyncio
-    async def test_create_approval(self, db: Session):
+    def test_create_approval(self, db: Session):
         """测试创建审批"""
         service = ApprovalService(db)
 
@@ -238,15 +234,14 @@ class TestApproval:
             priority="medium"
         )
 
-        approval = await service.create_approval(approval_data)
+        approval = service.create_approval(approval_data)
         assert approval.title == "创建新Agent"
         assert approval.type == ApprovalType.AGENT_CREATE
         assert approval.requester_id == "user_1"
 
         return approval.id
 
-    @pytest.mark.asyncio
-    async def test_update_approval_status(self, db: Session):
+    def test_update_approval_status(self, db: Session):
         """测试更新审批状态"""
         service = ApprovalService(db)
 
@@ -259,10 +254,10 @@ class TestApproval:
             approver_ids=["user_2"],
             priority="medium"
         )
-        approval = await service.create_approval(approval_data)
+        approval = service.create_approval(approval_data)
 
         # 更新审批状态
-        updated_approval = await service.update_approval_status(
+        updated_approval = service.update_approval_status(
             approval.id,
             ApprovalStatus.APPROVED,
             "user_2",
@@ -278,8 +273,7 @@ class TestApproval:
 class TestAudit:
     """审计日志测试"""
 
-    @pytest.mark.asyncio
-    async def test_create_audit_log(self, db: Session):
+    def test_create_audit_log(self, db: Session):
         """测试创建审计日志"""
         service = AuditService(db)
 
@@ -294,19 +288,18 @@ class TestAudit:
             duration_ms=150
         )
 
-        audit_log = await service.create_audit_log(audit_data)
+        audit_log = service.create_audit_log(audit_data)
         assert audit_log.action == AuditLogAction.AGENT_CREATE
         assert audit_log.resource_id == "agent_123"
         assert audit_log.user_id == "user_1"
 
         return audit_log.id
 
-    @pytest.mark.asyncio
-    async def test_get_audit_logs(self, db: Session):
+    def test_get_audit_logs(self, db: Session):
         """测试获取审计日志"""
         service = AuditService(db)
 
-        logs = await service.get_audit_logs(page=1, page_size=10)
+        logs = service.get_audit_logs(page=1, page_size=10)
         assert logs.success is True
         assert logs.data is not None
         assert "pagination" in logs.model_dump()

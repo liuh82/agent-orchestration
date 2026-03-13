@@ -8,6 +8,11 @@ from ..models.member import MemberCreate, MemberUpdate, Member
 from ..models.orm_models import Member as MemberORM, Role as RoleORM, Department as DepartmentORM
 
 
+def _escape_like(s: str) -> str:
+    """转义 LIKE 查询中的特殊字符（% 和 _）"""
+    return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
+
 class MemberService:
     def __init__(self, db: Session):
         self.db = db
@@ -210,11 +215,12 @@ class MemberService:
 
     def get_members_by_role(self, role_id: str) -> List[Member]:
         """获取拥有指定角色的成员"""
+        escaped = _escape_like(role_id)
         result = self.db.execute(
             select(MemberORM)
             .where(
                 and_(
-                    MemberORM.role_ids.like(f'%{role_id}%'),
+                    MemberORM.role_ids.like(f'%{escaped}%', escape='\\'),
                     MemberORM.is_active == True
                 )
             )

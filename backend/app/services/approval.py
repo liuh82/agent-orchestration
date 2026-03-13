@@ -12,6 +12,11 @@ from ..models.approval import (
 from ..models.orm_models import Approval, ApprovalHistory
 
 
+def _escape_like(s: str) -> str:
+    """转义 LIKE 查询中的特殊字符（% 和 _）"""
+    return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
+
 class ApprovalService:
     def __init__(self, db: Session):
         self.db = db
@@ -175,7 +180,8 @@ class ApprovalService:
 
     def get_approvals_by_approver(self, approver_id: str, status: Optional[ApprovalStatus] = None) -> List[Approval]:
         """获取指定审批人的审批"""
-        query = select(Approval).where(Approval.approver_ids.like(f'%{approver_id}%'))
+        escaped = _escape_like(approver_id)
+        query = select(Approval).where(Approval.approver_ids.like(f'%{escaped}%', escape='\\'))
 
         if status:
             query = query.where(Approval.status == status.value)

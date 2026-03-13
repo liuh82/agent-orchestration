@@ -5,10 +5,6 @@ from uuid import uuid4
 from typing import List, Optional
 from datetime import datetime
 
-# Clear metadata to avoid table conflicts
-from sqlalchemy import MetaData
-metadata = MetaData()
-
 # tasks.db tables
 
 class Agent(Base):

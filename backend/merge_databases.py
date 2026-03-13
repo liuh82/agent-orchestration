@@ -11,7 +11,12 @@ Database Migration Script
 import sqlite3
 import os
 import shutil
+import logging
 from datetime import datetime
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 
 def backup_database(db_path):
     """备份数据库文件"""
@@ -85,7 +90,6 @@ def merge_databases():
 
             # 跳过 budget_configs 和 cost_alerts（已有 tasks.db 中的表）
             main_cursor.execute("DETACH DATABASE costs_db")
-            main_conn.commit()
 
         # 3. 合并 workflows.db
         if db_files['workflows']:
@@ -138,7 +142,6 @@ def merge_databases():
             print(f"  ✓ 迁移了 {main_cursor.rowcount} 条 workflow_templates 记录")
 
             main_cursor.execute("DETACH DATABASE workflows_db")
-            main_conn.commit()
 
         # 4. 合并 agents.db
         if db_files['agents']:
@@ -164,9 +167,8 @@ def merge_databases():
             print(f"  ✓ 迁移了 {main_cursor.rowcount} 条 agents 记录")
 
             main_cursor.execute("DETACH DATABASE agents_db")
-            main_conn.commit()
 
-        # 提交事务
+        # 提交事务（所有操作完成后统一提交）
         main_conn.commit()
         print("\n✓ 数据库合并完成！")
 
@@ -193,6 +195,7 @@ def merge_databases():
 
     except Exception as e:
         main_conn.rollback()
+        logger.error(f"迁移失败: {e}", exc_info=True)
         print(f"\n❌ 迁移失败: {e}")
         raise
     finally:
