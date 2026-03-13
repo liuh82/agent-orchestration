@@ -1,0 +1,20 @@
+{
+  "servers": {
+    "openclaw-acp": {
+      "type": "stdio",
+      "command": "openclaw",
+      "args": [
+        "acp",
+        "--url", "wss://81.70.98.45",
+        "--token-file", "~/.openclaw/gateway.token",
+        "--session", "agent:main:main",
+        "--no-prefix-cwd"
+      ],
+      "env": {
+        "OPENCLAW_HIDE_BANNER": "1",
+        "OPENCLAW_SUPPRESS_NOTES": "1",
+        "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+      }
+    }
+  }
+}

@@ -1,179 +1,157 @@
-import sqlite3
 from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
 
+from sqlalchemy import select, update, delete, and_
+from sqlalchemy.orm import Session
+
 from ..models.role import RoleCreate, RoleUpdate, Role
+from ..models.complete_orm import Role as RoleORM
 
 
 class RoleService:
-    def __init__(self):
-        self.conn = sqlite3.connect('tasks.db', check_same_thread=False)
-        self._init_db()
+    def __init__(self, db: Session):
+        self.db = db
 
-    def _init_db(self):
-        """初始化数据库"""
-        cursor = self.conn.cursor()
-
-        # Roles table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS roles (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                code TEXT NOT NULL UNIQUE,
-                description TEXT,
-                permissions TEXT,  -- JSON string
-                is_active BOOLEAN DEFAULT TRUE,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-        ''')
-
-        # Index for code
-        cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_roles_code ON roles (code)
-        ''')
-
-        self.conn.commit()
-
-    async def get_all_roles(self, include_inactive: bool = False) -> List[Role]:
+    def get_all_roles(self, include_inactive: bool = False) -> List[Role]:
         """获取所有角色"""
-        cursor = self.conn.cursor()
-
-        query = 'SELECT * FROM roles'
+        query = select(RoleORM)
         params = []
 
         if not include_inactive:
-            query += ' WHERE is_active = ?'
-            params.append(True)
+            query = query.where(RoleORM.is_active == True)
 
-        query += ' ORDER BY created_at DESC'
+        query = query.order_by(RoleORM.created_at.desc())
 
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
+        result = self.db.execute(query)
+        role_orms = result.scalars().all()
 
         roles = []
-        for row in rows:
+        for role_orm in role_orms:
             role = Role(
-                id=row[0],
-                name=row[1],
-                code=row[2],
-                description=row[3],
-                permissions=row[4].split(',') if row[4] else [],
-                is_active=bool(row[5]) if row[5] else True,
-                created_at=datetime.fromisoformat(row[6]),
-                updated_at=datetime.fromisoformat(row[7])
+                id=role_orm.id,
+                name=role_orm.name,
+                code=role_orm.code,
+                description=role_orm.description,
+                permissions=role_orm.permissions.split(',') if role_orm.permissions else [],
+                is_active=role_orm.is_active,
+                created_at=datetime.fromisoformat(role_orm.created_at),
+                updated_at=datetime.fromisoformat(role_orm.updated_at)
             )
             roles.append(role)
 
         return roles
 
-    async def get_role(self, role_id: str) -> Optional[Role]:
+    def get_role(self, role_id: str) -> Optional[Role]:
         """获取单个角色"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM roles WHERE id = ? AND is_active = ?', (role_id, True))
-        row = cursor.fetchone()
+        result = self.db.execute(
+            select(RoleORM).where(and_(RoleORM.id == role_id, RoleORM.is_active == True))
+        )
+        role_orm = result.scalar_one_or_none()
 
-        if not row:
+        if not role_orm:
             return None
 
         return Role(
-            id=row[0],
-            name=row[1],
-            code=row[2],
-            description=row[3],
-            permissions=row[4].split(',') if row[4] else [],
-            is_active=bool(row[5]) if row[5] else True,
-            created_at=datetime.fromisoformat(row[6]),
-            updated_at=datetime.fromisoformat(row[7])
+            id=role_orm.id,
+            name=role_orm.name,
+            code=role_orm.code,
+            description=role_orm.description,
+            permissions=role_orm.permissions.split(',') if role_orm.permissions else [],
+            is_active=role_orm.is_active,
+            created_at=datetime.fromisoformat(role_orm.created_at),
+            updated_at=datetime.fromisoformat(role_orm.updated_at)
         )
 
-    async def get_role_by_code(self, code: str) -> Optional[Role]:
+    def get_role_by_code(self, code: str) -> Optional[Role]:
         """通过代码获取角色"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM roles WHERE code = ?', (code,))
-        row = cursor.fetchone()
+        result = self.db.execute(
+            select(RoleORM).where(RoleORM.code == code)
+        )
+        role_orm = result.scalar_one_or_none()
 
-        if not row:
+        if not role_orm:
             return None
 
         return Role(
-            id=row[0],
-            name=row[1],
-            code=row[2],
-            description=row[3],
-            permissions=row[4].split(',') if row[4] else [],
-            is_active=bool(row[5]) if row[5] else True,
-            created_at=datetime.fromisoformat(row[6]),
-            updated_at=datetime.fromisoformat(row[7])
+            id=role_orm.id,
+            name=role_orm.name,
+            code=role_orm.code,
+            description=role_orm.description,
+            permissions=role_orm.permissions.split(',') if role_orm.permissions else [],
+            is_active=role_orm.is_active,
+            created_at=datetime.fromisoformat(role_orm.created_at),
+            updated_at=datetime.fromisoformat(role_orm.updated_at)
         )
 
-    async def create_role(self, role: RoleCreate) -> Role:
+    def create_role(self, role: RoleCreate) -> Role:
         """创建新角色"""
-        role_id = str(uuid4())
         created_at = datetime.now()
         updated_at = created_at
 
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            INSERT INTO roles (
-                id, name, code, description, permissions, is_active, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            role_id,
-            role.name,
-            role.code,
-            role.description,
-            ','.join(role.permissions),
-            role.is_active,
-            created_at.isoformat(),
-            updated_at.isoformat()
-        ))
-        self.conn.commit()
+        role_orm = RoleORM(
+            id=str(uuid4()),
+            name=role.name,
+            code=role.code,
+            description=role.description,
+            permissions=','.join(role.permissions),
+            is_active=role.is_active,
+            created_at=created_at.isoformat(),
+            updated_at=updated_at.isoformat()
+        )
 
-        return await self.get_role(role_id)
+        self.db.add(role_orm)
+        self.db.commit()
+        self.db.refresh(role_orm)
 
-    async def update_role(self, role_id: str, role: RoleUpdate) -> Optional[Role]:
+        return self.get_role(role_orm.id)
+
+    def update_role(self, role_id: str, role: RoleUpdate) -> Optional[Role]:
         """更新角色"""
-        existing_role = await self.get_role(role_id)
-        if not existing_role:
+        result = self.db.execute(
+            select(RoleORM).where(and_(RoleORM.id == role_id, RoleORM.is_active == True))
+        )
+        role_orm = result.scalar_one_or_none()
+
+        if not role_orm:
             return None
 
         updated_at = datetime.now()
 
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            UPDATE roles
-            SET name = ?, code = ?, description = ?, permissions = ?,
-                is_active = ?, updated_at = ?
-            WHERE id = ?
-        ''', (
-            role.name,
-            role.code,
-            role.description,
-            ','.join(role.permissions),
-            role.is_active,
-            updated_at.isoformat(),
-            role_id
-        ))
-        self.conn.commit()
+        # Update all fields
+        role_orm.name = role.name
+        role_orm.code = role.code
+        role_orm.description = role.description
+        role_orm.permissions = ','.join(role.permissions)
+        role_orm.is_active = role.is_active
+        role_orm.updated_at = updated_at.isoformat()
 
-        return await self.get_role(role_id)
+        self.db.commit()
+        self.db.refresh(role_orm)
 
-    async def delete_role(self, role_id: str) -> bool:
+        return self.get_role(role_id)
+
+    def delete_role(self, role_id: str) -> bool:
         """删除角色（软删除）"""
-        cursor = self.conn.cursor()
-        cursor.execute('UPDATE roles SET is_active = FALSE WHERE id = ?', (role_id,))
-        self.conn.commit()
-        return cursor.rowcount > 0
+        result = self.db.execute(
+            select(RoleORM).where(RoleORM.id == role_id)
+        )
+        role_orm = result.scalar_one_or_none()
 
-    async def check_role_exists(self, code: str, exclude_id: Optional[str] = None) -> bool:
+        if not role_orm:
+            return False
+
+        role_orm.is_active = False
+        role_orm.updated_at = datetime.now().isoformat()
+        self.db.commit()
+        return True
+
+    def check_role_exists(self, code: str, exclude_id: Optional[str] = None) -> bool:
         """检查角色是否存在"""
-        cursor = self.conn.cursor()
+        query = select(RoleORM).where(RoleORM.code == code)
 
         if exclude_id:
-            cursor.execute('SELECT 1 FROM roles WHERE code = ? AND id != ?', (code, exclude_id))
-        else:
-            cursor.execute('SELECT 1 FROM roles WHERE code = ?', (code,))
+            query = query.where(RoleORM.id != exclude_id)
 
-        return cursor.fetchone() is not None
+        result = self.db.execute(query)
+        return result.scalar_one_or_none() is not None

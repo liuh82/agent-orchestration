@@ -1,14 +1,13 @@
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 
 from ..models.agent import AgentCreate, AgentUpdate, Agent, AgentStats, AgentLogsRequest
 from ..services.agent import AgentService
+from ..database import get_db
 
 router = APIRouter()
-
-agent_service = AgentService()
 
 
 class AgentResponse(BaseModel):
@@ -18,16 +17,18 @@ class AgentResponse(BaseModel):
 
 
 @router.get("/", response_model=List[Agent])
-async def get_agents():
+async def get_agents(db = Depends(get_db)):
     """获取所有 Agent"""
-    return await agent_service.get_all_agents()
+    agent_service = AgentService(db)
+    return agent_service.get_all_agents()
 
 
 @router.post("/", response_model=AgentResponse)
-async def create_agent(agent: AgentCreate):
+async def create_agent(agent: AgentCreate, db = Depends(get_db)):
     """创建新 Agent"""
     try:
-        db_agent = await agent_service.create_agent(agent)
+        agent_service = AgentService(db)
+        db_agent = agent_service.create_agent(agent)
         return AgentResponse(
             success=True,
             data=db_agent,

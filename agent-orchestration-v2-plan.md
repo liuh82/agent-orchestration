@@ -2,7 +2,8 @@
 
 > 基于 agent-orchestration 项目现状 + Paperclip 功能对比
 > 更新日期：2026-03-13
-> 当前版本：v2.3.4 (commit: 0fe326a)
+> 当前版本：v2.3.5 (commit: c48bc60)
+> 项目状态：**稳定，可进入 Phase 5 ORM 迁移开发**
 
 ---
 
@@ -43,7 +44,7 @@
 |------|------|
 | 前端 | React 18 + TypeScript + Vite + Ant Design |
 | 后端 | Python FastAPI + Pydantic v2 |
-| 数据库 | SQLite (WAL模式) + **SQLAlchemy 2.0 ORM** (待迁移) |
+| 数据库 | SQLite (WAL模式) + **SQLAlchemy 2.0 ORM + Alembic** (待迁移) |
 | 状态管理 | Zustand + React Query |
 | 工作流引擎 | Lobster Engine (可插拔) |
 | 认证 | API Key (MVP) |
@@ -179,13 +180,16 @@
 
 ### v2.3.4 — 前端清理 ✅ (2026-03-13)
 
-**最新提交（0fe326a）：**
 - 清理未使用的 import 和变量（Audit/Heartbeats/Org/org.ts）
 - types/index.ts 类型扩展
-- 前端 TypeScript 0 error
-- 前端 build 成功
+- 前端 TypeScript 0 error，build 成功
 
-### v2.4 — 待开发
+### v2.3.5 — 审查修复验证通过 ✅ (2026-03-13)
+
+- TEST_REPORT_LOCAL.md 确认：后端 23/23 pytest 通过（本地 Python 3.9.10 交叉验证）
+- 前端 0 error，build 成功（1.7MB JS, gzip 544KB）
+- API 功能测试全部通过
+- **版本状态: 稳定**
 
 ---
 
@@ -211,13 +215,32 @@
 - 修复内容：Pydantic V2 迁移、fixture 补充、数据模型修复、API 路由修复
 - **报告文件**: `backend/test-report.md`
 
-### 4.4 当前验证状态（2026-03-13）
+### 4.4 服务器端验证（2026-03-13）
 
-| 检查项 | 结果 |
-|--------|------|
-| 后端 pytest | ✅ 23/23 通过 |
-| 前端 tsc --noEmit | ✅ 0 error |
-| 前端 npm run build | ✅ 成功 |
+- 后端 pytest 23/23 通过（Python 3.11）
+- 前端 tsc --noEmit 0 error
+- 前端 npm run build 成功
+
+### 4.5 审查修复后本地验证（2026-03-13）✅
+
+- 测试环境：Python 3.9.10, pytest 8.4.2, macOS
+- 后端 pytest **23/23 通过**（0.52s）
+- 前端 TypeScript **0 error**
+- 前端 build **成功**（输出 1.7MB JS, gzip 544KB）
+- API 功能测试：httpx.ASGITransport 全端点通过
+- **结论**: **PASS** — 审查修复正确实现
+- **报告文件**: `TEST_REPORT_LOCAL.md`
+
+**已确认修复的问题：**
+1. ✅ 后端数据库表结构优化
+2. ✅ 前端 TypeScript 类型错误
+3. ✅ 认证中间件实现
+4. ✅ 未使用的导入和变量清理
+
+**建议事项：**
+- 生产环境应更换 API Key（当前使用开发默认值）
+- 前端代码分割优化（当前 1.7MB）
+- 考虑添加集成测试用例
 
 ---
 
@@ -241,7 +264,7 @@
 | 🔵 API | 4 | 无分页、同步触发、无版本控制 |
 | 🟢 建议 | 6 | JWT、rate limiting、虚拟滚动 |
 
-**评分**: 代码质量⭐⭐⭐ / API设计⭐⭐⭐ / 安全性⭐⭐ / 可维护性⭐⭐⭐⭐
+**评分**: 代码质量⭐⭐⭐ / API设计⭐⭐⭐ / 安全性⭐⭐ → ⭐⭐⭐⭐ / 可维护性⭐⭐⭐⭐
 
 **修复状态**: 🔴 4/4 全部修复，🟡 3/5 已修复 → **可合并**
 
@@ -251,13 +274,38 @@
 
 ### Phase 5：数据库层 ORM 迁移 🔴 当前重点
 
-**背景**: 后端 12 个 service 文件共 **328 处原生 SQL**，全部使用 `cursor.execute` / `fetchall` / `sqlite3` 裸操作。`sqlalchemy==2.0.23` 已在 requirements.txt 中但从未使用。
+**背景**: 后端 12 个 service 文件共 **216 处原生 SQL**，全部使用 `cursor.execute` / `fetchall` / `sqlite3` 裸操作。`sqlalchemy==2.0.23` 已在 requirements.txt 中但从未使用。
 
-**目标**: 全面迁移到 SQLAlchemy 2.0 ORM，彻底消除原生 SQL。
+**目标**: 全面迁移到 SQLAlchemy 2.0 ORM + Alembic 迁移，彻底消除原生 SQL，支持多数据库（SQLite/PostgreSQL/MySQL）。
 
-#### 5.1 创建 ORM 模型
+**开发原则**: 不急于上线，追求架构完美。宁可影响进度，也要保证系统功能的质量和可扩展性。
 
-在 `app/models/` 下新建或改写 ORM 模型，对应现有数据库表：
+#### 5.0 数据库迁移策略：Alembic
+
+**决策：使用 Alembic 管理数据库版本**
+
+- `alembic init alembic` — 初始化迁移目录
+- `alembic revision --autogenerate -m "initial"` — 生成初始迁移脚本
+- `alembic upgrade head` — 执行迁移
+- 支持 `downgrade` 回滚
+- 数据库 URL 通过环境变量 `DATABASE_URL` 配置，支持切换后端
+
+**多数据库支持设计**：
+```python
+# .env 或环境变量
+DATABASE_URL=sqlite+aiosqlite:///./agent_orchestration.db  # 开发
+# DATABASE_URL=postgresql+asyncpg://user:pass@localhost/db  # 生产
+# DATABASE_URL=mysql+aiomysql://user:pass@localhost/db      # MySQL
+```
+
+**新增依赖**:
+- `alembic` — 数据库迁移
+- `aiosqlite` — SQLite async driver（与现有 async 路由兼容）
+- 未来可选：`asyncpg`（PostgreSQL）、`aiomysql`（MySQL）
+
+#### 5.1 创建 ORM 模型（18个表）
+
+在 `app/models/` 下新建 ORM 模型，对应现有数据库表：
 
 | ORM 模型 | 数据库表 |
 |----------|----------|
@@ -277,16 +325,20 @@
 | Heartbeat | heartbeats |
 | HeartbeatLog | heartbeat_logs |
 | CostRecord | cost_records |
+| Budget | budgets（如独立表）|
+| + 其他根据 CREATE TABLE 确认的表 |
 
 使用 SQLAlchemy 2.0 声明式映射（`DeclarativeBase` + `Mapped`），字段与现有表完全一致。
+**注意**: 不同数据库的方言差异在 ORM 层屏蔽，Service 层不需要关心。
 
 #### 5.2 创建数据库会话管理
 
 在 `app/database.py` 中：
-- `engine` — `create_engine`，SQLite + WAL 模式
+- `engine` — `create_engine(DATABASE_URL)`，根据 URL 自动选择方言
+- SQLite 启动时开启 WAL 模式（通过 event listener）
 - `SessionLocal` — sessionmaker
 - `get_db()` — FastAPI 依赖注入
-- `Base.metadata.create_all()` — 启动时自动建表
+- `Base` — 所有 ORM 模型的基类
 
 #### 5.3 重写 12 个 Service
 
@@ -335,6 +387,8 @@ def get_agents(db: Session = Depends(get_db)):
 3. **前端 tsc 0 error，build 成功**
 4. **启动无报错**
 5. **所有 API 端点返回正确**
+6. **Alembic 迁移正常** — `alembic upgrade head` / `alembic downgrade -1` 无报错
+7. **数据库可切换** — 修改 `DATABASE_URL` 后应用正常启动
 
 ### Phase 6：功能补齐（P2）
 
@@ -434,6 +488,9 @@ def get_agents(db: Session = Depends(get_db)):
 
 | Commit | 日期 | 说明 |
 |--------|------|------|
+| c48bc60 | 2026-03-13 | docs: 添加TEST_REPORT_LOCAL测试报告 |
+| 2717ee9 | 2026-03-13 | docs: 更新开发计划至v3.0 |
+| cb6979f | 2026-03-13 | docs: 更新开发计划 - 补充版本记录和ORM迁移计划 |
 | 0fe326a | 2026-03-13 | fix: 修复前端TypeScript类型错误和未使用变量 |
 | f3f4d8e | 2026-03-13 | Merge remote-tracking branch |
 | 264be35 | 2026-03-13 | chore: 更新配置和任务数据 |

@@ -7,7 +7,6 @@ from ..services.budget_service import BudgetService
 
 router = APIRouter()
 
-budget_service = BudgetService()
 
 
 @router.get("/report")

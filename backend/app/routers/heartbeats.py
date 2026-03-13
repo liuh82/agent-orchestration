@@ -25,7 +25,6 @@ def get_auth_dependency():
     return Depends(lambda: None)
 
 # Initialize services
-heartbeat_service = HeartbeatService()
 scheduler.set_heartbeat_service(heartbeat_service)
 
 

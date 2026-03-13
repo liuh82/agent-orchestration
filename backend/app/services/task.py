@@ -1,179 +1,161 @@
-import sqlite3
 from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
 
+from sqlalchemy import select, update, delete
+from sqlalchemy.orm import Session
+
 from ..models.task import TaskCreate, TaskUpdate, Task
+from ..models.complete_orm import Task as TaskORM, TaskAssignment
 from ..services.agent import AgentService
 
 
 class TaskService:
-    def __init__(self):
-        self.conn = sqlite3.connect('tasks.db', check_same_thread=False)
-        self.agent_service = AgentService()
-        self._init_db()
+    def __init__(self, db: Session):
+        self.db = db
+        self.agent_service = AgentService(db)
 
-    def _init_db(self):
-        """初始化数据库"""
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tasks (
-                id TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                description TEXT NOT NULL,
-                status TEXT DEFAULT 'pending',
-                priority TEXT DEFAULT 'medium',
-                assigned_to TEXT,
-                created_by TEXT,
-                created_at TEXT,
-                updated_at TEXT,
-                completed_at TEXT,
-                workflow_id TEXT,
-                input TEXT,
-                output TEXT,
-                logs TEXT
-            )
-        ''')
-        self.conn.commit()
-
-    async def get_all_tasks(self) -> List[Task]:
+    def get_all_tasks(self) -> List[Task]:
         """获取所有任务"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM tasks ORDER BY created_at DESC')
-        rows = cursor.fetchall()
+        result = self.db.execute(
+            select(TaskORM).order_by(TaskORM.created_at.desc())
+        )
+        task_orms = result.scalars().all()
 
         tasks = []
-        for row in rows:
+        for task_orm in task_orms:
             task = Task(
-                id=row[0],
-                title=row[1],
-                description=row[2],
-                status=row[3],
-                priority=row[4],
-                assigned_to=row[5],
-                created_by=row[6],
-                created_at=datetime.fromisoformat(row[7]),
-                updated_at=datetime.fromisoformat(row[8]),
-                completed_at=datetime.fromisoformat(row[9]) if row[9] else None,
-                workflow_id=row[10],
-                input=row[11] if row[11] else {},
-                output=row[12] if row[12] else {},
-                logs=row[13].split('||') if row[13] else []
+                id=task_orm.id,
+                title=task_orm.title,
+                description=task_orm.description,
+                status=task_orm.status,
+                priority=task_orm.priority,
+                assigned_to=task_orm.assignee_id,
+                created_by="system",  # TODO: Get from member_id
+                created_at=datetime.fromisoformat(task_orm.created_at),
+                updated_at=datetime.fromisoformat(task_orm.updated_at),
+                completed_at=datetime.fromisoformat(task_orm.completed_at) if task_orm.completed_at else None,
+                workflow_id=None,  # TODO: Map from workflow_id
+                input=task_orm.action_params or {},
+                output=task_orm.result or {},
+                logs=[]
             )
             tasks.append(task)
 
         return tasks
 
-    async def get_task(self, task_id: str) -> Optional[Task]:
+    def get_task(self, task_id: str) -> Optional[Task]:
         """获取单个任务"""
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM tasks WHERE id = ?', (task_id,))
-        row = cursor.fetchone()
+        result = self.db.execute(
+            select(TaskORM).where(TaskORM.id == task_id)
+        )
+        task_orm = result.scalar_one_or_none()
 
-        if not row:
+        if not task_orm:
             return None
 
         return Task(
-            id=row[0],
-            title=row[1],
-            description=row[2],
-            status=row[3],
-            priority=row[4],
-            assigned_to=row[5],
-            created_by=row[6],
-            created_at=datetime.fromisoformat(row[7]),
-            updated_at=datetime.fromisoformat(row[8]),
-            completed_at=datetime.fromisoformat(row[9]) if row[9] else None,
-            workflow_id=row[10],
-            input=row[11] if row[11] else {},
-            output=row[12] if row[12] else {},
-            logs=row[13].split('||') if row[13] else []
+            id=task_orm.id,
+            title=task_orm.title,
+            description=task_orm.description,
+            status=task_orm.status,
+            priority=task_orm.priority,
+            assigned_to=task_orm.assignee_id,
+            created_by="system",  # TODO: Get from member_id
+            created_at=datetime.fromisoformat(task_orm.created_at),
+            updated_at=datetime.fromisoformat(task_orm.updated_at),
+            completed_at=datetime.fromisoformat(task_orm.completed_at) if task_orm.completed_at else None,
+            workflow_id=None,  # TODO: Map from workflow_id
+            input=task_orm.action_params or {},
+            output=task_orm.result or {},
+            logs=[]
         )
 
-    async def create_task(self, task: TaskCreate) -> Task:
+    def create_task(self, task: TaskCreate) -> Task:
         """创建新任务"""
-        task_id = str(uuid4())
         created_at = datetime.now()
         updated_at = created_at
 
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            INSERT INTO tasks (id, title, description, status, priority,
-                            assigned_to, created_by, created_at, updated_at,
-                            workflow_id, input)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            task_id,
-            task.title,
-            task.description,
-            'pending',
-            task.priority,
-            None,
-            'system',
-            created_at.isoformat(),
-            updated_at.isoformat(),
-            task.workflow_id,
-            str(task.input)
-        ))
-        self.conn.commit()
+        task_orm = TaskORM(
+            id=str(uuid4()),
+            title=task.title,
+            description=task.description,
+            status='pending',
+            priority=task.priority,
+            action_params=str(task.input) if task.input else None,
+            created_at=created_at.isoformat(),
+            updated_at=updated_at.isoformat()
+        )
 
-        return await self.get_task(task_id)
+        self.db.add(task_orm)
+        self.db.commit()
+        self.db.refresh(task_orm)
 
-    async def update_task(self, task_id: str, task: TaskUpdate) -> Optional[Task]:
+        return self.get_task(task_orm.id)
+
+    def update_task(self, task_id: str, task: TaskUpdate) -> Optional[Task]:
         """更新任务"""
-        existing_task = await self.get_task(task_id)
-        if not existing_task:
+        result = self.db.execute(
+            select(TaskORM).where(TaskORM.id == task_id)
+        )
+        task_orm = result.scalar_one_or_none()
+
+        if not task_orm:
             return None
 
         updated_at = datetime.now()
 
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            UPDATE tasks
-            SET title = COALESCE(?, title),
-                description = COALESCE(?, description),
-                status = COALESCE(?, status),
-                priority = COALESCE(?, priority),
-                assigned_to = COALESCE(?, assigned_to),
-                updated_at = ?,
-                completed_at = CASE WHEN ? = 'completed' THEN ? ELSE completed_at END,
-                output = COALESCE(?, output)
-            WHERE id = ?
-        ''', (
-            task.title,
-            task.description,
-            task.status,
-            task.priority,
-            task.assigned_to,
-            updated_at.isoformat(),
-            task.status,
-            datetime.now().isoformat(),
-            str(task.output) if task.output is not None else None,
-            task_id
-        ))
-        self.conn.commit()
+        # Update fields if provided
+        if task.title is not None:
+            task_orm.title = task.title
+        if task.description is not None:
+            task_orm.description = task.description
+        if task.status is not None:
+            task_orm.status = task.status
+        if task.priority is not None:
+            task_orm.priority = task.priority
+        if task.assigned_to is not None:
+            task_orm.assignee_id = task.assigned_to
+        if task.output is not None:
+            task_orm.result = str(task.output) if task.output else None
 
-        return await self.get_task(task_id)
+        # Handle completed_at timestamp
+        if task.status == 'completed':
+            task_orm.completed_at = updated_at.isoformat()
 
-    async def delete_task(self, task_id: str) -> bool:
+        task_orm.updated_at = updated_at.isoformat()
+
+        self.db.commit()
+        self.db.refresh(task_orm)
+
+        return self.get_task(task_id)
+
+    def delete_task(self, task_id: str) -> bool:
         """删除任务"""
-        cursor = self.conn.cursor()
-        cursor.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
-        self.conn.commit()
-        return cursor.rowcount > 0
+        result = self.db.execute(
+            select(TaskORM).where(TaskORM.id == task_id)
+        )
+        task_orm = result.scalar_one_or_none()
 
-    async def assign_task(self, task_id: str, agent_id: str) -> Optional[Task]:
+        if not task_orm:
+            return False
+
+        self.db.delete(task_orm)
+        self.db.commit()
+        return True
+
+    def assign_task(self, task_id: str, agent_id: str) -> Optional[Task]:
         """分配任务"""
         # Check if agent exists and is running
-        agent = await self.agent_service.get_agent(agent_id)
+        agent = self.agent_service.get_agent(agent_id)
         if not agent or agent.status != 'running':
             return None
 
         # Assign task in database
-        updated_task = await self.update_task(task_id, TaskUpdate(assigned_to=agent_id))
+        updated_task = self.update_task(task_id, TaskUpdate(assigned_to=agent_id))
 
         if updated_task:
             # Create assignment record in agent service
-            await self.agent_service.assign_task(task_id, agent_id)
+            self.agent_service.assign_task(task_id, agent_id)
 
         return updated_task

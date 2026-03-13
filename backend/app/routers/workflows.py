@@ -9,7 +9,6 @@ from ..services.workflow_engine_registry import workflow_engine_registry
 
 router = APIRouter()
 
-workflow_service = WorkflowService()
 
 
 class WorkflowResponse(BaseModel):
