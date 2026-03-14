@@ -1,8 +1,9 @@
 """WebSocket server for managing Bridge connections."""
 from __future__ import annotations
 
+import asyncio
 import logging
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Awaitable
 
 from fastapi import WebSocket
 
@@ -79,20 +80,27 @@ class WSServer:
             if await self.send_message(bridge_id, message):
                 return True
             if attempt < max_retries - 1:
-                import asyncio
                 await asyncio.sleep(0.5 * (attempt + 1))
         return False
 
     async def broadcast(self, message: dict) -> None:
-        """Broadcast message to all connected Bridges."""
+        """Broadcast message to all connected Bridges concurrently."""
+        tasks = []
         disconnected = []
         for bridge_id, ws in self.active_connections.items():
-            try:
-                await ws.send_json(message)
-            except Exception:
-                disconnected.append(bridge_id)
+            tasks.append(self._send_and_track(bridge_id, ws, message, disconnected))
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
         for bridge_id in disconnected:
             await self.disconnect(bridge_id)
+
+    async def _send_and_track(
+        self, bridge_id: str, ws: WebSocket, message: dict, disconnected: list
+    ) -> None:
+        try:
+            await ws.send_json(message)
+        except Exception:
+            disconnected.append(bridge_id)
 
     def is_connected(self, bridge_id: str) -> bool:
         """Check if a Bridge is connected."""

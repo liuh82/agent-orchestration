@@ -17,8 +17,6 @@ from app.models.gateway_schemas import (
     AdapterInfo, TaskRequest, TaskInfo, TaskListResponse,
     SubmitTaskRequest, SubmitTaskResponse, TaskStatusResponse,
     BridgeListResponse, BridgeFilter,
-    GatewayError as GatewaySchemaError, GatewayErrorCode,
-    GatewayErrorResponse,
 )
 from app.services.gateway.ws_server import WSServer
 from app.services.gateway.bridge_manager import BridgeManager
@@ -29,45 +27,36 @@ from app.services.gateway.db_gateway import GatewayDB
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/gateway", tags=["Gateway"])
+router = APIRouter(tags=["Gateway"])
 
 # ---- Module-level singletons (initialized during app startup) ----
 
 ws_server: Optional[WSServer] = None
 bridge_manager: Optional[BridgeManager] = None
-task_router: Optional[TaskRouter] = None
 db_gateway: Optional[GatewayDB] = None
 
 
 def init_gateway_services() -> None:
     """Initialize Gateway services. Called during app startup."""
-    global ws_server, bridge_manager, task_router, db_gateway
+    global ws_server, bridge_manager, db_gateway
 
     ws_server = WSServer()
-
-    # Will be properly initialized with db session on first request
-    # or during lifespan startup
     logger.info("Gateway WebSocket Server initialized")
 
 
-def get_gateway_db(db: Session = Depends(get_db)) -> GatewayDB:
-    """Get GatewayDB instance for current request."""
-    return GatewayDB(db)
+def _get_shared_components(db: Session):
+    """Get shared gateway components with request-scoped DB.
 
-
-def get_components(db: Session = Depends(get_db)):
-    """Get all gateway components for current request."""
+    BridgeManager uses module-level singleton for memory cache consistency.
+    DB session is request-scoped via FastAPI Depends.
+    """
     gw_db = GatewayDB(db)
-    bm = BridgeManager(db, gw_db)
-    bm.load_from_db()
-    ws = ws_server  # shared singleton
+    bm = bridge_manager
+    if bm:
+        bm.db = db
+        bm.db_gateway = gw_db
+    ws = ws_server
     tr = TaskRouter(bm, ws, gw_db)
-
-    # Wire up callbacks
-    tr.handle_task_ack = tr.__class__.handle_task_ack.__get__(tr)
-    tr.handle_task_progress = tr.__class__.handle_task_progress.__get__(tr)
-    tr.handle_task_complete = tr.__class__.handle_task_complete.__get__(tr)
-
     return gw_db, bm, ws, tr
 
 
@@ -131,7 +120,7 @@ async def submit_task(
     _api_key: str = Depends(verify_api_key),
 ):
     """Submit a task to the Gateway."""
-    gw_db, bm, ws, tr = get_components(db)
+    gw_db, bm, ws, tr = _get_shared_components(db)
 
     task = TaskRequest(
         prompt=request.prompt,
@@ -154,9 +143,12 @@ async def submit_task(
             message="Task submitted successfully",
         )
     except NoAvailableBridgeError:
-        return SubmitTaskResponse(
-            success=False,
-            message="No available Bridge for this task",
+        return JSONResponse(
+            status_code=503,
+            content=SubmitTaskResponse(
+                success=False,
+                message="No available Bridge for this task",
+            ).model_dump(),
         )
 
 
@@ -167,7 +159,7 @@ async def get_task_status(
     _api_key: str = Depends(verify_api_key),
 ):
     """Query task status."""
-    gw_db = get_gateway_db(db)
+    gw_db = GatewayDB(db)
     record = gw_db.get_task(task_id)
     if not record:
         return TaskStatusResponse(success=False, data=None)
@@ -186,7 +178,7 @@ async def list_tasks(
     _api_key: str = Depends(verify_api_key),
 ):
     """Query task list with filtering and pagination."""
-    gw_db = get_gateway_db(db)
+    gw_db = GatewayDB(db)
     records, total = gw_db.list_tasks(
         status=status,
         bridge_id=bridge_id,
@@ -212,12 +204,15 @@ async def cancel_task(
     _api_key: str = Depends(verify_api_key),
 ):
     """Cancel a task."""
-    gw_db, bm, ws, tr = get_components(db)
+    gw_db, bm, ws, tr = _get_shared_components(db)
     try:
         await tr.cancel_task(task_id, reason)
         return {"success": True, "message": "Task cancelled"}
     except TaskNotFoundError:
-        return {"success": False, "message": "Task not found"}
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Task not found"},
+        )
 
 
 @router.get("/bridges", response_model=BridgeListResponse)
@@ -228,7 +223,7 @@ async def list_bridges(
     _api_key: str = Depends(verify_api_key),
 ):
     """List all Bridges."""
-    gw_db = get_gateway_db(db)
+    gw_db = GatewayDB(db)
     filters = BridgeFilter(status=status, platform=platform)
     records = gw_db.get_all_bridges(filters)
     return BridgeListResponse(
@@ -264,6 +259,8 @@ async def gateway_ws(
     3. Receive ack with resumed tasks (if any)
     4. Receive and execute tasks
     """
+    global bridge_manager
+
     # Handshake authentication
     if not verify_gateway_token(token):
         await websocket.close(code=4001, reason="Unauthorized")
@@ -292,22 +289,29 @@ async def gateway_ws(
                 # Register in WS server
                 await ws_server.register(bridge_id, websocket)
 
-                # Register in Bridge manager
+                # Register in Bridge manager (shared singleton)
                 db = next(get_db())
                 try:
                     gw_db = GatewayDB(db)
-                    bm = BridgeManager(db, gw_db)
-                    bm.load_from_db()
+                    if bridge_manager is None:
+                        bridge_manager = BridgeManager(db, gw_db)
+
+                    bridge_manager.db = db
+                    bridge_manager.db_gateway = gw_db
+                    bridge_manager.load_from_db()
 
                     # Build BridgeInfo from registration data
                     adapters = []
                     for a in data.get('adapters', []):
-                        adapters.append(AdapterInfo(
-                            type=AgentType(a.get('type', 'cli')),
-                            agent_name=a.get('name', ''),
-                            version=a.get('version'),
-                            executable_path=a.get('executablePath'),
-                        ))
+                        try:
+                            adapters.append(AdapterInfo(
+                                type=AgentType(a.get('type', 'cli')),
+                                agent_name=a.get('name', ''),
+                                version=a.get('version'),
+                                executable_path=a.get('executablePath'),
+                            ))
+                        except ValueError:
+                            logger.warning(f"Invalid adapter type: {a.get('type')}")
 
                     bridge_info = BridgeInfo(
                         bridge_id=bridge_id,
@@ -322,15 +326,15 @@ async def gateway_ws(
                         active_tasks=data.get('activeTasks', 0),
                         max_concurrent=data.get('maxConcurrent', 3),
                     )
-                    bm.register_bridge(bridge_info)
+                    bridge_manager.register_bridge(bridge_info)
 
-                    # Build TaskRouter for this session
-                    tr = TaskRouter(bm, ws_server, gw_db)
+                    # Build TaskRouter for message handling
+                    tr = TaskRouter(bridge_manager, ws_server, gw_db)
 
-                    # Set up message handlers
-                    def on_bridge_disconnect(bid: str):
-                        nonlocal heartbeat_task
-                        bm.set_bridge_offline(bid)
+                    # Set up async message handlers
+                    async def on_bridge_disconnect(bid: str):
+                        if bridge_manager:
+                            bridge_manager.set_bridge_offline(bid)
 
                     def on_task_progress(bid: str, msg: dict):
                         tr.handle_task_progress(bid, msg)
@@ -349,13 +353,10 @@ async def gateway_ws(
                         on_task_ack=on_task_ack,
                     )
 
-                    # Get queued tasks for recovery
+                    # Get queued/running tasks for recovery
                     queued = gw_db.get_queued_tasks(bridge_id)
                     running = gw_db.get_running_tasks(bridge_id)
-                    resumed_tasks = [
-                        _task_record_to_info(t)
-                        for t in (list(queued) + list(running))
-                    ]
+                    resumed_tasks = list(queued) + list(running)
 
                     # Send registration acknowledgment
                     await websocket.send_json({

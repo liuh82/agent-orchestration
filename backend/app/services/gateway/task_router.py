@@ -6,6 +6,7 @@ import logging
 import time
 import uuid
 
+from app.database import SessionLocal
 from app.models.gateway import BridgeRecord
 from app.models.gateway_schemas import (
     TaskRequest, TaskStatus, BridgeInfo, BridgeFilter,
@@ -253,17 +254,25 @@ class TaskRouter:
         """Schedule ack timeout check.
 
         If Bridge doesn't acknowledge within timeout, mark task as queued
-        for future recovery.
+        for future recovery. Uses an independent DB session to avoid
+        issues with request-scoped sessions being closed.
         """
         async def check_ack():
             await asyncio.sleep(timeout)
-            task = self.db_gateway.get_task(task_id)
-            if task and task.status == 'pending':
-                self.db_gateway.update_task_status(task_id, TaskStatus.QUEUED)
-                self.bridge_manager.decrement_active_tasks(bridge_id)
-                logger.warning(
-                    f"Task ack timeout: {task_id}, marked as queued"
-                )
+            db = SessionLocal()
+            try:
+                gw_db = GatewayDB(db)
+                task = gw_db.get_task(task_id)
+                if task and task.status == 'pending':
+                    gw_db.update_task_status(task_id, TaskStatus.QUEUED)
+                    self.bridge_manager.decrement_active_tasks(bridge_id)
+                    logger.warning(
+                        f"Task ack timeout: {task_id}, marked as queued"
+                    )
+            except Exception as e:
+                logger.error(f"Error in ack timeout check for {task_id}: {e}")
+            finally:
+                db.close()
 
         asyncio.create_task(check_ack())
 

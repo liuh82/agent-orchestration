@@ -25,7 +25,7 @@ class BridgeRecord(Base):
     bridge_version: Mapped[Optional[str]] = mapped_column(String(50))
     status: Mapped[str] = mapped_column(String(20), nullable=False, default='offline')
     last_seen: Mapped[int] = mapped_column(Integer, nullable=False)
-    available_adapters: Mapped[dict] = mapped_column(JSON, nullable=False)
+    available_adapters: Mapped[list] = mapped_column(JSON, nullable=False)
     active_tasks: Mapped[int] = mapped_column(Integer, default=0)
     max_concurrent: Mapped[int] = mapped_column(Integer, default=3)
     created_at: Mapped[int] = mapped_column(

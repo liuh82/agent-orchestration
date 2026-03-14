@@ -68,7 +68,7 @@ app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"]
 app.include_router(cost.router, prefix="/api/cost", tags=["cost"])
 app.include_router(org.router, prefix="/api/org", tags=["organization"])
 app.include_router(heartbeats.router, prefix="/api/heartbeats", tags=["heartbeats"])
-app.include_router(gateway.router, tags=["Gateway"])
+app.include_router(gateway.router, prefix="/api/gateway", tags=["Gateway"])
 
 
 @app.get("/")
