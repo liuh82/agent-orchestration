@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import agents, tasks, workflows, cost, org, heartbeats
+from app.routers import agents, tasks, workflows, cost, org, heartbeats, gateway
 from app.services.scheduler import scheduler
 from app.services.heartbeat import HeartbeatService
 
@@ -13,7 +13,16 @@ async def lifespan(app: FastAPI):
     # Startup
     print("Starting heartbeat scheduler...")
     # Initialize heartbeat service
-    from app.database import get_db
+    from app.database import get_db, engine, Base
+    from app.models.gateway import BridgeRecord, TaskRecord  # noqa: F401
+
+    # Create gateway tables if not exist
+    Base.metadata.create_all(bind=engine, tables=[
+        BridgeRecord.__table__,
+        TaskRecord.__table__,
+    ])
+    print("Gateway tables ensured")
+
     db = next(get_db())
     heartbeat_service = HeartbeatService(db)
     scheduler.set_heartbeat_service(heartbeat_service)
@@ -23,9 +32,14 @@ async def lifespan(app: FastAPI):
     await scheduler.load_and_schedule_heartbeats()
     print("Heartbeat scheduler started and jobs loaded")
 
+    # Initialize Gateway WebSocket Server
+    gateway.init_gateway_services()
+    print("Gateway WebSocket Server initialized")
+
     yield
 
     # Shutdown
+    print("Shutting down Gateway WebSocket Server...")
     print("Shutting down heartbeat scheduler...")
     scheduler.shutdown(wait=True)
     print("Heartbeat scheduler shutdown complete")
@@ -54,6 +68,7 @@ app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"]
 app.include_router(cost.router, prefix="/api/cost", tags=["cost"])
 app.include_router(org.router, prefix="/api/org", tags=["organization"])
 app.include_router(heartbeats.router, prefix="/api/heartbeats", tags=["heartbeats"])
+app.include_router(gateway.router, tags=["Gateway"])
 
 
 @app.get("/")

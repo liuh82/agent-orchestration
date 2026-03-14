@@ -48,3 +48,8 @@ def add_api_key(key: str) -> None:
 def is_auth_enabled() -> bool:
     """Check if authentication is enabled"""
     return bool(os.getenv("AUTH_ENABLED", "true").lower() == "true")
+
+
+def verify_gateway_token(token: str) -> bool:
+    """Verify Gateway WebSocket Token (reuses existing API Key)."""
+    return token in API_KEYS
