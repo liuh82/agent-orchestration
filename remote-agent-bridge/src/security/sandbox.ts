@@ -1,3 +1,4 @@
+import * as path from 'path';
 import type { ExecuteRequest } from '../adapters/types.js';
 import { getLogger } from '../utils/logger.js';
 
@@ -53,30 +54,45 @@ export class TaskSandbox {
       return { allowed: true };
     }
 
-    const parts = command.split(' ');
-    const cmdBase = parts[0] || '';
+    // Strip escape characters and normalize whitespace
+    const sanitized = command.replace(/\\[\s\/]/g, '');
+    const parts = sanitized.split(/\s+/);
+    const rawCmd = parts[0] || '';
+
+    // Normalize path to prevent bypass via ./sudo, /usr/bin/rm, etc.
+    const normalized = path.normalize(rawCmd);
+    const baseName = path.basename(normalized);
+
+    // Reject if normalized path differs from base name (path injection attempt)
+    // e.g. /usr/bin/rm -> base=rmdir, normalized=/usr/bin/rm
+    const isPathAttempt = normalized !== baseName;
+
+    if (isPathAttempt) {
+      logger.warn('Command path injection detected', { rawCmd, normalized, baseName });
+      return { allowed: false, reason: `Path-based command execution not allowed: ${baseName}` };
+    }
 
     if (this.config.allowedCommands.length > 0) {
       const isAllowed = this.config.allowedCommands.some((allowed) =>
-        cmdBase === allowed || cmdBase.endsWith(allowed)
+        baseName === allowed || baseName.endsWith(allowed)
       );
 
       if (!isAllowed) {
-        logger.warn('Command not in allowlist', { command: cmdBase });
-        return { allowed: false, reason: `Command "${cmdBase}" not in allowlist` };
+        logger.warn('Command not in allowlist', { command: baseName });
+        return { allowed: false, reason: `Command "${baseName}" not in allowlist` };
       }
     }
 
     for (const pattern of this.config.blockedPatterns) {
       const regex = new RegExp(pattern, 'i');
-      if (regex.test(command)) {
+      if (regex.test(sanitized)) {
         logger.warn('Command matched blocked pattern', { command, pattern });
         return { allowed: false, reason: `Command matches blocked pattern: ${pattern}` };
       }
     }
 
     for (const dangerousPattern of DANGEROUS_PATTERNS) {
-      if (dangerousPattern.test(command)) {
+      if (dangerousPattern.test(sanitized)) {
         logger.warn('Command matched dangerous pattern', { command });
         return { allowed: false, reason: 'Command contains dangerous pattern' };
       }

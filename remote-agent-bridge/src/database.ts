@@ -232,23 +232,23 @@ class DatabaseManager {
 
   listTasks(options: { status?: string; limit?: number; offset?: number } = {}): TaskRecord[] {
     let sql = 'SELECT * FROM tasks';
-    const params: Record<string, unknown> = {};
+    const params: { status?: string; limit?: number; offset?: number } = {};
 
-    if (options['status']) {
+    if (options.status) {
       sql += ' WHERE status = @status';
-      params['status'] = options['status'];
+      params.status = options.status;
     }
 
     sql += ' ORDER BY createdAt DESC';
 
     if (options.limit) {
       sql += ' LIMIT @limit';
-      params['limit'] = options.limit;
+      params.limit = options.limit;
     }
 
     if (options.offset) {
       sql += ' OFFSET @offset';
-      params['offset'] = options.offset;
+      params.offset = options.offset;
     }
 
     const stmt = this.prepareAll(sql);
@@ -313,18 +313,18 @@ class DatabaseManager {
 
   getAuditLogs(options: { action?: string; limit?: number } = {}): AuditLogRecord[] {
     let sql = 'SELECT * FROM audit_logs';
-    const params: Record<string, unknown> = {};
+    const params: { action?: string; limit?: number } = {};
 
     if (options.action) {
       sql += ' WHERE action = @action';
-      params['action'] = options.action;
+      params.action = options.action;
     }
 
     sql += ' ORDER BY timestamp DESC';
 
     if (options.limit) {
       sql += ' LIMIT @limit';
-      params['limit'] = options.limit;
+      params.limit = options.limit;
     }
 
     const stmt = this.prepareAll(sql);

@@ -156,6 +156,26 @@ class HttpServer {
 
       logger.info('Task submitted via HTTP API', { taskId, agentType: task.agentType });
 
+      if (!this.bridge) {
+        logger.error('Bridge not initialized, cannot submit task');
+        res.status(503).json({
+          success: false,
+          error: 'Bridge not initialized',
+        });
+        return;
+      }
+
+      try {
+        this.bridge.submitLocalTask(task);
+      } catch (error) {
+        logger.error('Failed to submit task to bridge', { error, taskId });
+        res.status(500).json({
+          success: false,
+          error: 'Failed to submit task',
+        });
+        return;
+      }
+
       res.status(202).json({
         success: true,
         data: { taskId, status: 'queued' },

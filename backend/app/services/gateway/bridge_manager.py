@@ -5,6 +5,7 @@ import time
 import logging
 from typing import Dict, Optional, List
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.gateway_schemas import (
@@ -16,12 +17,50 @@ logger = logging.getLogger(__name__)
 
 
 class BridgeManager:
-    """Bridge state manager with memory cache backed by database."""
+    """Bridge state manager with memory cache backed by database.
+
+    The db session is request-scoped and must be updated per-request
+    via the db property setter. The in-memory cache (_bridges) persists
+    across requests as the singleton instance.
+    """
 
     def __init__(self, db: Session, db_gateway: GatewayDB):
-        self.db = db
-        self.db_gateway = db_gateway
+        self._db: Optional[Session] = db
+        self._db_gateway: Optional[GatewayDB] = db_gateway
         self._bridges: Dict[str, BridgeInfo] = {}
+
+    @property
+    def db(self) -> Optional[Session]:
+        return self._db
+
+    @db.setter
+    def db(self, value: Session) -> None:
+        self._db = value
+
+    @property
+    def db_gateway(self) -> Optional[GatewayDB]:
+        return self._db_gateway
+
+    @db_gateway.setter
+    def db_gateway(self, value: GatewayDB) -> None:
+        self._db_gateway = value
+
+    # ---- Internal helpers ----
+
+    def _ensure_db_available(self) -> bool:
+        """Check if the DB session and gateway are available.
+
+        Returns False if either is None or the session is closed.
+        Callers should handle the False case gracefully.
+        """
+        if self._db is None or self._db_gateway is None:
+            return False
+        try:
+            # Execute a lightweight query to verify connection is alive
+            self._db.execute(text("SELECT 1"))
+            return True
+        except Exception:
+            return False
 
     # ---- Registration ----
 

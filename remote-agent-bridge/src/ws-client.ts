@@ -1,6 +1,6 @@
 import WebSocket, { type WebSocket as WebSocketType } from 'ws';
 import { EventEmitter } from 'events';
-import type { BridgeMessage, BridgeStatus, TaskSubmit, TaskCancel, Ping } from './protocol/types.js';
+import type { BridgeMessage, BridgeStatus, TaskSubmit, TaskCancel } from './protocol/types.js';
 import { decodeMessage } from './protocol/decoder.js';
 import { createAuthRequest, createBridgeRegister, createTaskProgress, createTaskComplete, createAck, createPong } from './protocol/encoder.js';
 import { getLogger } from './utils/logger.js';
@@ -8,6 +8,112 @@ import { ExponentialBackoff } from './utils/retry.js';
 import { isTerminating } from './utils/graceful-shutdown.js';
 
 const logger = getLogger('ws-client');
+
+// ---- Runtime message validators ----
+
+interface ValidatedAuthResponse {
+  success: boolean;
+  bridgeId?: string;
+  error?: string;
+}
+
+interface ValidatedPing {
+  timestamp: number;
+}
+
+interface ValidatedTaskSubmit {
+  taskId: string;
+  prompt: string;
+  projectPath: string;
+  agentType: string;
+  timeout: number;
+  priority: string;
+  callbackId?: string;
+  preferredIde?: string;
+}
+
+interface ValidatedTaskCancel {
+  taskId: string;
+  reason: string;
+}
+
+interface ValidatedAck {
+  originalMsgId: string;
+  success: boolean;
+}
+
+interface ValidatedError {
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
+function validateAuthResponse(data: unknown): ValidatedAuthResponse | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const obj: Record<string, unknown> = data as Record<string, unknown>;
+  if (typeof obj['success'] !== 'boolean') return null;
+  return {
+    success: obj['success'],
+    bridgeId: typeof obj['bridgeId'] === 'string' ? obj['bridgeId'] : undefined,
+    error: typeof obj['error'] === 'string' ? obj['error'] : undefined,
+  };
+}
+
+function validatePing(data: unknown): ValidatedPing | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const obj: Record<string, unknown> = data as Record<string, unknown>;
+  if (typeof obj['timestamp'] !== 'number') return null;
+  return { timestamp: obj['timestamp'] };
+}
+
+function validateTaskSubmit(data: unknown): ValidatedTaskSubmit | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const obj: Record<string, unknown> = data as Record<string, unknown>;
+  const taskId = obj['taskId'];
+  if (typeof taskId !== 'string' || !taskId) return null;
+  if (typeof obj['prompt'] !== 'string') return null;
+  if (typeof obj['projectPath'] !== 'string') return null;
+  if (typeof obj['agentType'] !== 'string') return null;
+  return {
+    taskId,
+    prompt: obj['prompt'],
+    projectPath: obj['projectPath'],
+    agentType: obj['agentType'],
+    timeout: typeof obj['timeout'] === 'number' ? obj['timeout'] : 300,
+    priority: typeof obj['priority'] === 'string' ? obj['priority'] : 'normal',
+    callbackId: typeof obj['callbackId'] === 'string' ? obj['callbackId'] : undefined,
+    preferredIde: typeof obj['preferredIde'] === 'string' ? obj['preferredIde'] : undefined,
+  };
+}
+
+function validateTaskCancel(data: unknown): ValidatedTaskCancel | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const obj: Record<string, unknown> = data as Record<string, unknown>;
+  const taskId = obj['taskId'];
+  if (typeof taskId !== 'string' || !taskId) return null;
+  if (typeof obj['reason'] !== 'string') return null;
+  return { taskId, reason: obj['reason'] };
+}
+
+function validateAck(data: unknown): ValidatedAck | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const obj: Record<string, unknown> = data as Record<string, unknown>;
+  if (typeof obj['originalMsgId'] !== 'string') return null;
+  if (typeof obj['success'] !== 'boolean') return null;
+  return { originalMsgId: obj['originalMsgId'], success: obj['success'] };
+}
+
+function validateError(data: unknown): ValidatedError | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const obj: Record<string, unknown> = data as Record<string, unknown>;
+  if (typeof obj['code'] !== 'string') return null;
+  if (typeof obj['message'] !== 'string') return null;
+  return {
+    code: obj['code'],
+    message: obj['message'],
+    details: obj['details'],
+  };
+}
 
 export interface WSClientConfig {
   url: string;
@@ -185,7 +291,11 @@ class WSClient extends EventEmitter {
   }
 
   private handleAuthResponse(data: unknown): void {
-    const response = data as { success: boolean; bridgeId?: string; error?: string };
+    const response = validateAuthResponse(data);
+    if (!response) {
+      logger.error('Invalid auth_response message format', { data });
+      return;
+    }
 
     if (response.success) {
       this.authenticated = true;
@@ -218,7 +328,11 @@ class WSClient extends EventEmitter {
   }
 
   private handlePing(data: unknown): void {
-    const ping = data as Ping;
+    const ping = validatePing(data);
+    if (!ping) {
+      logger.warn('Invalid ping message format', { data });
+      return;
+    }
     this.lastPing = ping.timestamp;
     const pong = createPong(ping.timestamp);
     this.sendRaw(pong);
@@ -226,26 +340,58 @@ class WSClient extends EventEmitter {
   }
 
   private handleTaskSubmit(data: unknown): void {
-    const task = data as TaskSubmit;
-    this.emit('taskSubmit', task);
+    const task = validateTaskSubmit(data);
+    if (!task) {
+      logger.error('Invalid task_submit message format', { data });
+      return;
+    }
+    const taskMsg: TaskSubmit = {
+      type: 'task.submit',
+      taskId: task.taskId,
+      prompt: task.prompt,
+      projectPath: task.projectPath,
+      agentType: task.agentType as TaskSubmit['agentType'],
+      timeout: task.timeout,
+      priority: task.priority as TaskSubmit['priority'],
+      callbackId: task.callbackId,
+      preferredIde: task.preferredIde,
+    };
+    this.emit('taskSubmit', taskMsg);
     this.sendAck(task.taskId, true);
     logger.info('Task received', { taskId: task.taskId, priority: task.priority });
   }
 
   private handleTaskCancel(data: unknown): void {
-    const task = data as TaskCancel;
-    this.emit('taskCancel', task);
+    const task = validateTaskCancel(data);
+    if (!task) {
+      logger.error('Invalid task_cancel message format', { data });
+      return;
+    }
+    const cancelMsg: TaskCancel = {
+      type: 'task.cancel',
+      taskId: task.taskId,
+      reason: task.reason,
+    };
+    this.emit('taskCancel', cancelMsg);
     this.sendAck(task.taskId, true);
     logger.info('Task cancel received', { taskId: task.taskId, reason: task.reason });
   }
 
   private handleAck(data: unknown): void {
-    const ack = data as { originalMsgId: string; success: boolean };
+    const ack = validateAck(data);
+    if (!ack) {
+      logger.warn('Invalid ack message format', { data });
+      return;
+    }
     logger.debug('Ack received', { originalMsgId: ack.originalMsgId, success: ack.success });
   }
 
   private handleError(data: unknown): void {
-    const error = data as { code: string; message: string; details?: unknown };
+    const error = validateError(data);
+    if (!error) {
+      logger.error('Invalid error message format', { data });
+      return;
+    }
     logger.error('Error message received', { code: error.code, message: error.message });
     this.emit('error', new Error(`Gateway error: ${error.code} - ${error.message}`));
   }

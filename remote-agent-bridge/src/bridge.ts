@@ -204,6 +204,11 @@ export class Bridge {
     this.taskRunner?.submit(task);
   }
 
+  /** Submit a task locally via HTTP API. Goes through sandbox validation then enqueues. */
+  submitLocalTask(task: TaskSubmit): void {
+    this.handleTaskSubmit(task);
+  }
+
   private handleTaskCancel(task: { taskId: string; reason: string }): void {
     logger.info('Cancelling task', { taskId: task.taskId, reason: task.reason });
     this.taskRunner?.cancel(task.taskId);

@@ -60,8 +60,23 @@ class GatewayDB:
             )
             self.db.add(record)
 
-        self.db.commit()
-        self.db.refresh(record)
+        try:
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to commit bridge record: {e}")
+            raise
+
+        try:
+            self.db.refresh(record)
+        except Exception as e:
+            logger.warning(f"Failed to refresh bridge after commit: {e}")
+            # Data is already committed, re-query if possible
+            try:
+                record = self.get_bridge(bridge_info.bridge_id)
+            except Exception as re_err:
+                logger.warning(f"Failed to re-query bridge after refresh failure: {re_err}")
+
         return record
 
     def get_bridge(self, bridge_id: str) -> BridgeRecord | None:
@@ -131,8 +146,22 @@ class GatewayDB:
             submitted_at=int(time.time()),
         )
         self.db.add(record)
-        self.db.commit()
-        self.db.refresh(record)
+        try:
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to commit task record: {e}")
+            raise
+
+        try:
+            self.db.refresh(record)
+        except Exception as e:
+            logger.warning(f"Failed to refresh task after commit: {e}")
+            try:
+                record = self.get_task(task_id)
+            except Exception as re_err:
+                logger.warning(f"Failed to re-query task after refresh failure: {re_err}")
+
         return record
 
     def get_task(self, task_id: str) -> TaskRecord | None:

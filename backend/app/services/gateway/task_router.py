@@ -259,20 +259,18 @@ class TaskRouter:
         """
         async def check_ack():
             await asyncio.sleep(timeout)
-            db = SessionLocal()
             try:
-                gw_db = GatewayDB(db)
-                task = gw_db.get_task(task_id)
-                if task and task.status == 'pending':
-                    gw_db.update_task_status(task_id, TaskStatus.QUEUED)
-                    self.bridge_manager.decrement_active_tasks(bridge_id)
-                    logger.warning(
-                        f"Task ack timeout: {task_id}, marked as queued"
-                    )
+                with SessionLocal() as db:
+                    gw_db = GatewayDB(db)
+                    task = gw_db.get_task(task_id)
+                    if task and task.status == 'pending':
+                        gw_db.update_task_status(task_id, TaskStatus.QUEUED)
+                        self.bridge_manager.decrement_active_tasks(bridge_id)
+                        logger.warning(
+                            f"Task ack timeout: {task_id}, marked as queued"
+                        )
             except Exception as e:
                 logger.error(f"Error in ack timeout check for {task_id}: {e}")
-            finally:
-                db.close()
 
         asyncio.create_task(check_ack())
 

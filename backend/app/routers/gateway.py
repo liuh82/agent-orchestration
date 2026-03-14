@@ -1,6 +1,7 @@
 """Gateway router - HTTP API + WebSocket endpoint."""
 import asyncio
 import logging
+import threading
 import time
 from typing import Optional
 
@@ -32,16 +33,28 @@ router = APIRouter(tags=["Gateway"])
 # ---- Module-level singletons (initialized during app startup) ----
 
 ws_server: Optional[WSServer] = None
-bridge_manager: Optional[BridgeManager] = None
+_bridge_manager: Optional[BridgeManager] = None
 db_gateway: Optional[GatewayDB] = None
+_bridge_manager_lock = threading.Lock()
 
 
 def init_gateway_services() -> None:
     """Initialize Gateway services. Called during app startup."""
-    global ws_server, bridge_manager, db_gateway
+    global ws_server, _bridge_manager, db_gateway
 
     ws_server = WSServer()
     logger.info("Gateway WebSocket Server initialized")
+
+
+def get_bridge_manager(db: Session, gw_db: GatewayDB) -> BridgeManager:
+    """Get or create the BridgeManager singleton using double-checked locking."""
+    global _bridge_manager
+    if _bridge_manager is None:
+        with _bridge_manager_lock:
+            if _bridge_manager is None:
+                _bridge_manager = BridgeManager(db, gw_db)
+                logger.info("BridgeManager singleton created")
+    return _bridge_manager
 
 
 def _get_shared_components(db: Session):
@@ -51,10 +64,9 @@ def _get_shared_components(db: Session):
     DB session is request-scoped via FastAPI Depends.
     """
     gw_db = GatewayDB(db)
-    bm = bridge_manager
-    if bm:
-        bm.db = db
-        bm.db_gateway = gw_db
+    bm = get_bridge_manager(db, gw_db)
+    bm.db = db
+    bm.db_gateway = gw_db
     ws = ws_server
     tr = TaskRouter(bm, ws, gw_db)
     return gw_db, bm, ws, tr
@@ -259,7 +271,7 @@ async def gateway_ws(
     3. Receive ack with resumed tasks (if any)
     4. Receive and execute tasks
     """
-    global bridge_manager
+    global _bridge_manager
 
     # Handshake authentication
     if not verify_gateway_token(token):
@@ -270,6 +282,7 @@ async def gateway_ws(
 
     bridge_id = None
     heartbeat_task = None
+    ws_db: Optional[Session] = None
 
     try:
         while True:
@@ -289,16 +302,15 @@ async def gateway_ws(
                 # Register in WS server
                 await ws_server.register(bridge_id, websocket)
 
-                # Register in Bridge manager (shared singleton)
-                db = next(get_db())
+                # Create a DB session scoped to the WebSocket connection lifetime
+                ws_db = next(get_db())
                 try:
-                    gw_db = GatewayDB(db)
-                    if bridge_manager is None:
-                        bridge_manager = BridgeManager(db, gw_db)
+                    gw_db = GatewayDB(ws_db)
+                    bm = get_bridge_manager(ws_db, gw_db)
 
-                    bridge_manager.db = db
-                    bridge_manager.db_gateway = gw_db
-                    bridge_manager.load_from_db()
+                    bm.db = ws_db
+                    bm.db_gateway = gw_db
+                    bm.load_from_db()
 
                     # Build BridgeInfo from registration data
                     adapters = []
@@ -326,15 +338,15 @@ async def gateway_ws(
                         active_tasks=data.get('activeTasks', 0),
                         max_concurrent=data.get('maxConcurrent', 3),
                     )
-                    bridge_manager.register_bridge(bridge_info)
+                    bm.register_bridge(bridge_info)
 
                     # Build TaskRouter for message handling
-                    tr = TaskRouter(bridge_manager, ws_server, gw_db)
+                    tr = TaskRouter(bm, ws_server, gw_db)
 
                     # Set up async message handlers
                     async def on_bridge_disconnect(bid: str):
-                        if bridge_manager:
-                            bridge_manager.set_bridge_offline(bid)
+                        if bm:
+                            bm.set_bridge_offline(bid)
 
                     def on_task_progress(bid: str, msg: dict):
                         tr.handle_task_progress(bid, msg)
@@ -379,8 +391,13 @@ async def gateway_ws(
                     if queued:
                         await tr.resume_queued_tasks(bridge_id)
 
-                finally:
-                    db.close()
+                except Exception as e:
+                    logger.error(f"Registration failed for bridge {bridge_id}: {e}")
+                    # Close ws_db since we won't use it further
+                    if ws_db:
+                        ws_db.close()
+                        ws_db = None
+                    continue
 
                 # Start heartbeat checker
                 heartbeat_task = asyncio.create_task(
@@ -409,6 +426,11 @@ async def gateway_ws(
             await ws_server.disconnect(bridge_id)
         if heartbeat_task:
             heartbeat_task.cancel()
+    finally:
+        # Always close the WebSocket-scoped DB session
+        if ws_db:
+            ws_db.close()
+            ws_db = None
 
 
 async def _heartbeat_checker(websocket: WebSocket, bridge_id: str, interval: int = 30):
