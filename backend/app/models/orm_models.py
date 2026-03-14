@@ -204,7 +204,7 @@ class Department(Base):
 
     # Relationships
     parent: Mapped["Department"] = relationship("Department", remote_side=[id])
-    children: Mapped[List["Department"]] = relationship("Department", foreign_keys=[parent_id])
+    children: Mapped[List["Department"]] = relationship("Department", foreign_keys=[parent_id], overlaps="parent")
 
 class Role(Base):
     __tablename__ = "roles"

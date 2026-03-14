@@ -42,8 +42,6 @@ class TestOrgChart:
         assert node.level == 1
         assert node.parent_id is None
 
-        return node.id
-
     def test_create_child_node(self, db: Session):
         """测试创建子节点"""
         service = OrgChartService(db)
@@ -70,8 +68,6 @@ class TestOrgChart:
         assert node.department == "TECH"
         assert node.level == 2
         assert node.parent_id == parent.id
-
-        return node.id
 
     def test_get_org_chart(self, db: Session):
         """测试获取组织架构图"""
@@ -101,8 +97,6 @@ class TestRole:
         assert role.name == "测试角色"
         assert role.permissions == ["view_test"]
 
-        return role.id
-
     def test_update_role(self, db: Session):
         """测试更新角色"""
         service = RoleService(db)
@@ -128,8 +122,6 @@ class TestRole:
         updated_role = service.update_role(role.id, update_data)
         assert updated_role.name == "更新后的测试角色"
         assert "edit_test" in updated_role.permissions
-
-        return role.id
 
     def test_delete_role(self, db: Session):
         """测试删除角色"""
@@ -175,8 +167,6 @@ class TestGoal:
         assert goal.priority == "high"
         assert goal.progress == 50.0
 
-        return goal.id
-
     def test_create_goal_alignment(self, db: Session):
         """测试创建目标对齐"""
         service = GoalService(db)
@@ -215,8 +205,6 @@ class TestGoal:
         assert alignment.child_id == goal2.id
         assert alignment.weight == 0.8
 
-        return alignment.id
-
 
 class TestApproval:
     """审批管理测试"""
@@ -238,8 +226,6 @@ class TestApproval:
         assert approval.title == "创建新Agent"
         assert approval.type == ApprovalType.AGENT_CREATE
         assert approval.requester_id == "user_1"
-
-        return approval.id
 
     def test_update_approval_status(self, db: Session):
         """测试更新审批状态"""
@@ -267,8 +253,6 @@ class TestApproval:
 
         assert updated_approval.status == ApprovalStatus.APPROVED.value
 
-        return approval.id
-
 
 class TestAudit:
     """审计日志测试"""
@@ -292,8 +276,6 @@ class TestAudit:
         assert audit_log.action == AuditLogAction.AGENT_CREATE
         assert audit_log.resource_id == "agent_123"
         assert audit_log.user_id == "user_1"
-
-        return audit_log.id
 
     def test_get_audit_logs(self, db: Session):
         """测试获取审计日志"""
