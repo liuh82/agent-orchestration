@@ -814,7 +814,7 @@ async def submit_task(
         message="Task submitted successfully"
     )
 
-@router.get("/gateway/tasks/{task_id}", response_model=TaskStatusResponse)
+@router.get("/tasks/{task_id}", response_model=TaskStatusResponse)
 async def get_task_status(task_id: str):
     """查询任务状态"""
     task = db_gateway.get_task(task_id)
@@ -823,7 +823,7 @@ async def get_task_status(task_id: str):
         data=task
     )
 
-@router.get("/gateway/bridges", response_model=BridgeListResponse)
+@router.get("/bridges", response_model=BridgeListResponse)
 async def list_bridges():
     """列出所有 Bridge"""
     bridges = bridge_manager.get_all_bridges()
@@ -832,7 +832,7 @@ async def list_bridges():
         data=bridges
     )
 
-@router.get("/gateway/tasks", response_model=TaskListResponse)
+@router.get("/tasks", response_model=TaskListResponse)
 async def list_tasks(
     status: TaskStatus | None = None,
     bridge_id: str | None = None,
@@ -858,13 +858,13 @@ async def list_tasks(
         offset=offset
     )
 
-@router.post("/gateway/tasks/{task_id}/cancel")
+@router.post("/tasks/{task_id}/cancel")
 async def cancel_task(task_id: str, reason: str = Query(default="user_request")):
     """取消任务"""
     await task_router.cancel_task(task_id, reason)
     return {"success": True, "message": "Task cancelled"}
 
-@router.post("/gateway/bridges/{bridge_id}/disconnect")
+@router.post("/bridges/{bridge_id}/disconnect")
 async def force_disconnect_bridge(bridge_id: str):
     """强制断开指定 Bridge（管理用途）"""
     ws_server.disconnect(bridge_id)
@@ -875,7 +875,7 @@ async def force_disconnect_bridge(bridge_id: str):
 
 ```python
 # WebSocket 连接
-@router.websocket("/gateway/ws")
+@router.websocket("/ws")
 async def gateway_ws(
     websocket: WebSocket,
     token: str = Query(..., description="API Key for authentication")
@@ -1192,7 +1192,7 @@ backend/
 - [ ] WSServer - WebSocket 连接管理和消息处理
 - [ ] BridgeManager - Bridge 注册、状态管理、查询
 - [ ] TaskRouter - 任务路由（MVP 版本：负载最低优先）
-- [ ] HTTP API - `/api/v1/gateway/tasks` 等
+- [ ] HTTP API - `/api/gateway/tasks` 等
 - [ ] WebSocket 端点 - `/api/gateway/ws`（握手鉴权）
 - [ ] 数据库表 - gateway_bridges、gateway_tasks
 - [ ] 基础错误处理
