@@ -1,0 +1,127 @@
+import type { BridgeConfig } from './types.js';
+import { OS } from '../platform/index.js';
+import { HOSTNAME } from '../platform/index.js';
+
+export const DEFAULT_CONFIG: BridgeConfig = {
+  bridge: {
+    id: '',
+    name: `bridge-${OS}-${HOSTNAME}`,
+    platform: OS,
+    hostname: HOSTNAME,
+  },
+  gateway: {
+    url: 'wss://81.70.98.45:18789',
+    token: '',
+    heartbeatInterval: 30000,
+    reconnect: {
+      maxRetries: Infinity,
+      baseDelay: 1000,
+      maxDelay: 60000,
+      jitter: 1000,
+    },
+  },
+  tasks: {
+    maxConcurrent: 3,
+    defaultTimeout: 300,
+    queue: {
+      maxSize: 1000,
+      timeoutMs: 300000,
+    },
+  },
+  adapters: {
+    available: ['cli'],
+    autoDetect: true,
+    cli: {
+      enabled: true,
+      agents: {
+        codex: { enabled: true },
+        pi: { enabled: true },
+        acp: { enabled: true },
+      },
+    },
+    vscode: {
+      enabled: false,
+      enabledPhases: ['2', '3'],
+    },
+    cursor: {
+      enabled: false,
+      enabledPhases: ['2', '3'],
+    },
+    intellij: {
+      enabled: false,
+      enabledPhases: ['3'],
+    },
+  },
+  http: {
+    enabled: true,
+    host: '127.0.0.1',
+    port: 18790,
+    cors: {
+      enabled: false,
+      origin: '*',
+    },
+    auth: {
+      enabled: false,
+      apiKey: '',
+    },
+  },
+  database: {
+    path: '',
+    busyTimeout: 5000,
+    walMode: true,
+    cacheSize: 16000,
+  },
+  checkpoint: {
+    enabled: true,
+    interval: 60000,
+    maxAge: 86400000,
+    maxFiles: 10,
+  },
+  logging: {
+    level: 'info',
+    file: {
+      enabled: true,
+      maxSize: 10485760,
+      maxFiles: 5,
+    },
+    console: {
+      enabled: true,
+      colored: true,
+    },
+  },
+  security: {
+    sandbox: {
+      enabled: true,
+      allowedCommands: ['codex', 'pi', 'openclaw', 'npx', 'npm', 'python', 'python3'],
+      blockedPatterns: [
+        'rm -rf',
+        'sudo',
+        'chmod 777',
+        'mkfs',
+        'format',
+        'del /f',
+        'format c:',
+      ],
+      promptSafetyCheck: true,
+    },
+    audit: {
+      enabled: true,
+      retentionDays: 30,
+    },
+  },
+};
+
+export const PRIORITY_WEIGHTS = {
+  high: 3,
+  normal: 2,
+  low: 1,
+} as const;
+
+export const TASK_STATUS_TRANSITIONS: Record<string, string[]> = {
+  pending: ['queued', 'cancelled'],
+  queued: ['running', 'cancelled'],
+  running: ['completed', 'failed', 'cancelled'],
+  completed: [],
+  failed: ['queued'],
+  cancelled: [],
+};

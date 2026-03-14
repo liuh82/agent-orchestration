@@ -149,3 +149,7 @@ yarn-error.log*
 # Frontend build
 frontend/dist/
 frontend/.vite/
+
+# Database files (SQLite)
+backend/tasks.db
+backend/tasks.db.backup.*
