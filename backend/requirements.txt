@@ -9,6 +9,8 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 celery==5.3.4
 apscheduler>=3.10.0
+slowapi>=0.1.9
+limits>=2.8,<3.0
 pytest==7.4.3
 pytest-asyncio==0.21.1
 pytest-cov==4.1.0

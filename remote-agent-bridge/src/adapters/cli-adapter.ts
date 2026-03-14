@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { existsSync } from 'fs';
+import { resolve, normalize, isAbsolute } from 'path';
 import which from 'which';
 import type { AgentAdapter, ExecuteRequest, ExecuteResult, AdapterInfo } from './types.js';
 import type { AgentType } from '../protocol/types.js';
@@ -11,6 +12,7 @@ const logger = getLogger('cli-adapter');
 interface CLIConfig {
   enabled: boolean;
   path?: string;
+  allowedBasePaths?: string[];
 }
 
 interface CLIAgentMapping {
@@ -32,22 +34,94 @@ const AGENT_MAPPINGS: CLIAgentMapping = {
   },
   npm: {
     command: 'npm',
-    args: (prompt: string) => prompt.split(' '),
+    args: (prompt: string) => {
+      const sanitized = sanitizePromptForSplitArgs(prompt);
+      if (sanitized === null) {
+        throw new Error('npm prompt contains shell metacharacters or is empty');
+      }
+      return sanitized.split(/\s+/);
+    },
   },
   npx: {
     command: 'npx',
-    args: (prompt: string) => prompt.split(' '),
+    args: (prompt: string) => {
+      const sanitized = sanitizePromptForSplitArgs(prompt);
+      if (sanitized === null) {
+        throw new Error('npx prompt contains shell metacharacters or is empty');
+      }
+      return sanitized.split(/\s+/);
+    },
   },
 };
+
+const ALLOWED_AGENT_TYPES = Object.keys(AGENT_MAPPINGS);
+
+/** Shell metacharacters that could enable command injection when passed as args */
+const SHELL_METACHAR_PATTERN = /[;&|`$><!()\[\]{}\\~\*\?#]/;
+
+function validateAgentType(agentType: string): void {
+  if (!agentType || !ALLOWED_AGENT_TYPES.includes(agentType)) {
+    const err = new Error(
+      `Forbidden agent type: "${agentType}". Allowed: ${ALLOWED_AGENT_TYPES.join(', ')}`
+    );
+    logger.error('Agent type validation failed', { agentType });
+    throw err;
+  }
+}
+
+/**
+ * Sanitize a prompt string for safe use as CLI arguments.
+ * Rejects prompts containing shell metacharacters when used with split-based arg mapping.
+ * Returns null if the prompt is unsafe.
+ */
+function sanitizePromptForSplitArgs(prompt: string): string | null {
+  if (!prompt || !prompt.trim()) {
+    return null;
+  }
+  if (SHELL_METACHAR_PATTERN.test(prompt)) {
+    return null;
+  }
+  return prompt.trim();
+}
+
+/**
+ * Validate that a working directory path does not escape allowed base paths.
+ * Resolves and normalizes the path, then checks it starts with an allowed base.
+ * Prevents path traversal attacks like "../../../../etc".
+ */
+function validateCwd(cwd: string, allowedPaths: string[]): string {
+  if (!cwd || typeof cwd !== 'string') {
+    throw new Error('Working directory is required');
+  }
+
+  const resolved = resolve(normalize(cwd));
+
+  if (!isAbsolute(resolved)) {
+    throw new Error(`Working directory must be absolute: ${cwd}`);
+  }
+
+  if (!allowedPaths.some((base) => resolved.startsWith(resolve(base)))) {
+    throw new Error(
+      `Working directory not allowed: ${cwd}. Allowed bases: ${allowedPaths.join(', ')}`
+    );
+  }
+
+  return resolved;
+}
 
 export class CLIAdapter implements AgentAdapter {
   readonly type: AgentType = 'cli';
 
   private processes = new Map<string, ChildProcess>();
   private agentConfigs: Map<string, CLIConfig>;
+  private readonly allowedBasePaths: string[];
 
-  constructor(agentConfigs: Map<string, CLIConfig> = new Map()) {
+  constructor(agentConfigs: Map<string, CLIConfig> = new Map(), allowedBasePaths?: string[]) {
     this.agentConfigs = agentConfigs;
+    this.allowedBasePaths = allowedBasePaths ?? [
+      '/home', '/workspace', '/projects', '/tmp',
+      process.env['HOME'] || '/home',
+    ];
   }
 
   async isAvailable(): Promise<boolean> {
@@ -113,21 +187,18 @@ export class CLIAdapter implements AgentAdapter {
 
     logger.info(`Executing task`, { taskId, agentType: request.agentType, cwd: request.cwd });
 
-    let command: string;
-    let args: string[];
+    // Strict whitelist: reject any agentType not in AGENT_MAPPINGS
+    validateAgentType(request.agentType);
 
-    const mapping = AGENT_MAPPINGS[request.agentType];
+    // Path traversal prevention: resolve and validate working directory
+    const safeCwd = validateCwd(request.cwd, this.allowedBasePaths);
 
-    if (mapping) {
-      command = mapping.command;
-      args = mapping.args(request.prompt);
-    } else {
-      command = request.agentType;
-      args = request.prompt.split(' ');
-    }
+    const mapping = AGENT_MAPPINGS[request.agentType]!;
+    const command = mapping.command;
+    const args = mapping.args(request.prompt);
 
     const options = {
-      cwd: request.cwd,
+      cwd: safeCwd,
       shell: IS_WINDOWS,
       stdio: ['pipe', 'pipe', 'pipe'] as ['pipe', 'pipe', 'pipe'],
     };
@@ -230,6 +301,9 @@ export class CLIAdapter implements AgentAdapter {
   }
 }
 
-export function createCLIAdapter(agentConfigs: Map<string, CLIConfig>): CLIAdapter {
-  return new CLIAdapter(agentConfigs);
+export function createCLIAdapter(
+  agentConfigs: Map<string, CLIConfig>,
+  allowedBasePaths?: string[],
+): CLIAdapter {
+  return new CLIAdapter(agentConfigs, allowedBasePaths);
 }

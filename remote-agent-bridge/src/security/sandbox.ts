@@ -30,6 +30,18 @@ const PROMPT_DANGEROUS_KEYWORDS = [
   'del /f',
 ];
 
+/**
+ * Shell metacharacters that should never appear in a prompt destined for
+ * CLI args built via `split(' ')`. Detects injection attempts like
+ * "; rm -rf /" or "$(cat /etc/passwd)".
+ */
+const SHELL_INJECTION_PATTERNS = [
+  /[;&|`$><!\\]\s/,       // metachar followed by space (command chaining)
+  /\$\(/,                  // command substitution $(...)
+  /\{[^}]*\}/,             // brace expansion {a,b}
+  /`[^`]+`/,              // backtick substitution
+];
+
 export interface SandboxConfig {
   enabled: boolean;
   allowedCommands: string[];
@@ -62,6 +74,13 @@ export class TaskSandbox {
     // Normalize path to prevent bypass via ./sudo, /usr/bin/rm, etc.
     const normalized = path.normalize(rawCmd);
     const baseName = path.basename(normalized);
+
+    // Always reject known dangerous commands regardless of allowlist
+    const DANGEROUS_COMMANDS = ['sudo', 'su', 'rm', 'rmdir', 'chmod', 'chown', 'mkfs', 'dd', 'sh', 'bash', 'zsh', 'fish', 'cmd', 'powershell', 'nc', 'ncat', 'curl', 'wget'];
+    if (DANGEROUS_COMMANDS.includes(baseName)) {
+      logger.warn('Dangerous command rejected', { command: baseName });
+      return { allowed: false, reason: `Command "${baseName}" is blacklisted` };
+    }
 
     // Reject if normalized path differs from base name (path injection attempt)
     // e.g. /usr/bin/rm -> base=rmdir, normalized=/usr/bin/rm
@@ -112,6 +131,13 @@ export class TaskSandbox {
       if (lowerPrompt.includes(keyword)) {
         logger.warn('Prompt contains dangerous keyword', { keyword, prompt: prompt.substring(0, 100) });
         return { allowed: false, reason: `Prompt contains dangerous keyword: ${keyword}` };
+      }
+    }
+
+    for (const pattern of SHELL_INJECTION_PATTERNS) {
+      if (pattern.test(prompt)) {
+        logger.warn('Prompt contains shell injection pattern', { prompt: prompt.substring(0, 100) });
+        return { allowed: false, reason: 'Prompt contains shell metacharacters' };
       }
     }
 

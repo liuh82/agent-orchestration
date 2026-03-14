@@ -103,6 +103,7 @@ export const DEFAULT_CONFIG: BridgeConfig = {
         'format c:',
       ],
       promptSafetyCheck: true,
+      allowedBasePaths: ['/home', '/workspace', '/projects', '/tmp', process.env['HOME'] || '/home'],
     },
     audit: {
       enabled: true,

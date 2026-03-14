@@ -114,6 +114,7 @@ export interface SecuritySection {
     allowedCommands: string[];
     blockedPatterns: string[];
     promptSafetyCheck: boolean;
+    allowedBasePaths?: string[];
   };
   audit: {
     enabled: boolean;

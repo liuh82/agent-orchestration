@@ -3,22 +3,24 @@ import asyncio
 import logging
 import threading
 import time
+import uuid
 from typing import Optional
 
 from fastapi import (
-    APIRouter, Query, WebSocket, WebSocketDisconnect, Depends,
+    APIRouter, Query, Request, WebSocket, WebSocketDisconnect, Depends,
 )
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.auth import verify_api_key, verify_gateway_token
+from app.auth import verify_api_key, verify_admin_key, verify_gateway_token
 from app.models.gateway_schemas import (
     AgentType, TaskPriority, TaskStatus, BridgeStatus, BridgeInfo,
     AdapterInfo, TaskRequest, TaskInfo, TaskListResponse,
     SubmitTaskRequest, SubmitTaskResponse, TaskStatusResponse,
     BridgeListResponse, BridgeFilter,
 )
+from app.rate_limit import limiter
 from app.services.gateway.ws_server import WSServer
 from app.services.gateway.bridge_manager import BridgeManager
 from app.services.gateway.task_router import (
@@ -29,6 +31,7 @@ from app.services.gateway.db_gateway import GatewayDB
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Gateway"])
+
 
 # ---- Module-level singletons (initialized during app startup) ----
 
@@ -125,8 +128,10 @@ def _bridge_record_to_info(record) -> BridgeInfo:
 # ============ HTTP API ============
 
 @router.post("/tasks", response_model=SubmitTaskResponse)
+@limiter.limit("10/minute")
 async def submit_task(
-    request: SubmitTaskRequest,
+    request: Request,
+    body: SubmitTaskRequest,
     source: str = Query(default="http", description="Task source"),
     db: Session = Depends(get_db),
     _api_key: str = Depends(verify_api_key),
@@ -135,13 +140,13 @@ async def submit_task(
     gw_db, bm, ws, tr = _get_shared_components(db)
 
     task = TaskRequest(
-        prompt=request.prompt,
-        project_path=request.project_path,
-        agent_type=request.agent_type,
-        timeout=request.timeout,
-        priority=request.priority,
-        preferred_ide=request.preferred_ide,
-        callback_id=request.callback_id,
+        prompt=body.prompt,
+        project_path=body.project_path,
+        agent_type=body.agent_type,
+        timeout=body.timeout,
+        priority=body.priority,
+        preferred_ide=body.preferred_ide,
+        callback_id=body.callback_id,
         source=source,
     )
 
@@ -165,7 +170,9 @@ async def submit_task(
 
 
 @router.get("/tasks/{task_id}", response_model=TaskStatusResponse)
+@limiter.limit("30/minute")
 async def get_task_status(
+    request: Request,
     task_id: str,
     db: Session = Depends(get_db),
     _api_key: str = Depends(verify_api_key),
@@ -179,7 +186,9 @@ async def get_task_status(
 
 
 @router.get("/tasks", response_model=TaskListResponse)
+@limiter.limit("30/minute")
 async def list_tasks(
+    request: Request,
     status: Optional[TaskStatus] = None,
     bridge_id: Optional[str] = None,
     limit: int = Query(default=20, le=100),
@@ -209,11 +218,13 @@ async def list_tasks(
 
 
 @router.post("/tasks/{task_id}/cancel")
+@limiter.limit("20/minute")
 async def cancel_task(
+    request: Request,
     task_id: str,
     reason: str = Query(default="user_request"),
     db: Session = Depends(get_db),
-    _api_key: str = Depends(verify_api_key),
+    _api_key: str = Depends(verify_admin_key),
 ):
     """Cancel a task."""
     gw_db, bm, ws, tr = _get_shared_components(db)
@@ -228,7 +239,9 @@ async def cancel_task(
 
 
 @router.get("/bridges", response_model=BridgeListResponse)
+@limiter.limit("30/minute")
 async def list_bridges(
+    request: Request,
     status: Optional[BridgeStatus] = None,
     platform: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -245,9 +258,11 @@ async def list_bridges(
 
 
 @router.post("/bridges/{bridge_id}/disconnect")
+@limiter.limit("20/minute")
 async def force_disconnect_bridge(
+    request: Request,
     bridge_id: str,
-    _api_key: str = Depends(verify_api_key),
+    _api_key: str = Depends(verify_admin_key),
 ):
     """Force disconnect a Bridge (admin use)."""
     if ws_server and ws_server.is_connected(bridge_id):
@@ -257,32 +272,175 @@ async def force_disconnect_bridge(
 
 # ============ WebSocket Endpoint ============
 
+# Backward compat: also accept ?token=xxx for legacy clients.
+# This path will be deprecated in a future release.
+_AUTH_TIMEOUT_SECONDS = 10.0
+
+
+def _make_envelope(msg_type: str, data: dict, reply_msg_id: Optional[str] = None) -> dict:
+    """Build a protocol message envelope matching Bridge's expected format."""
+    return {
+        "msgId": str(uuid.uuid4()),
+        "type": msg_type,
+        "ts": int(time.time() * 1000),
+        "data": data,
+        **({"inReplyTo": reply_msg_id} if reply_msg_id else {}),
+    }
+
+
 @router.websocket("/ws")
 async def gateway_ws(
     websocket: WebSocket,
-    token: str = Query(..., description="API Key for authentication"),
+    token: Optional[str] = Query(default=None, description="Legacy: API Key (deprecated, prefer auth.request)"),
 ):
     """Gateway WebSocket connection endpoint.
 
-    Authentication: pass token as query parameter.
+    Authentication: first-message ``auth.request`` containing the token.
+    Legacy fallback: ``?token=xxx`` query parameter (will be removed).
+
     Protocol:
-    1. Connect with ?token=xxx
-    2. Send bridge.register message
-    3. Receive ack with resumed tasks (if any)
-    4. Receive and execute tasks
+    1. Connect (no query params required)
+    2. Server sends ping, client MUST send ``auth.request`` within timeout
+    3. Server responds ``auth.response``
+    4. Client sends ``bridge.register``
+    5. Server responds ``bridge.registered`` with resumed tasks (if any)
+    6. Normal bidirectional communication
     """
     global _bridge_manager
 
-    # Handshake authentication
-    if not verify_gateway_token(token):
-        await websocket.close(code=4001, reason="Unauthorized")
-        return
-
     await websocket.accept()
 
-    bridge_id = None
+    # ---- Phase 1: Authentication ----
+    authenticated = False
+    bridge_id: Optional[str] = None
+
+    # Legacy token via query parameter — fast path for existing clients
+    if token and verify_gateway_token(token):
+        authenticated = True
+        logger.info("Authenticated via legacy query-param token (deprecated)")
+    else:
+        # First-message authentication: wait for auth.request
+        try:
+            auth_msg = await asyncio.wait_for(
+                websocket.receive_json(), timeout=_AUTH_TIMEOUT_SECONDS,
+            )
+        except (asyncio.TimeoutError, WebSocketDisconnect):
+            logger.warning("WebSocket auth timed out or disconnected")
+            try:
+                await websocket.close(code=4001, reason="Auth timeout")
+            except Exception:
+                pass
+            return
+        except Exception:
+            logger.warning("WebSocket auth read error")
+            try:
+                await websocket.close(code=4001, reason="Auth read error")
+            except Exception:
+                pass
+            return
+
+        msg_type = auth_msg.get("type")
+        # Extract payload: Bridge sends {msgId, type, ts, data: {...}}
+        payload = auth_msg.get("data", auth_msg)
+        auth_token = payload.get("token", "") if isinstance(payload, dict) else ""
+        reply_msg_id = auth_msg.get("msgId")
+
+        if msg_type != "auth.request" or not verify_gateway_token(auth_token):
+            logger.warning(f"WebSocket auth failed: type={msg_type}")
+            await websocket.send_json(
+                _make_envelope("auth.response", {
+                    "success": False,
+                    "error": "Authentication failed",
+                }, reply_msg_id),
+            )
+            try:
+                await websocket.close(code=4001, reason="Unauthorized")
+            except Exception:
+                pass
+            return
+
+        # Extract bridge_id from auth payload for early reference
+        bridge_id = payload.get("bridgeId") if isinstance(payload, dict) else None
+
+        await websocket.send_json(
+            _make_envelope("auth.response", {
+                "success": True,
+                "bridgeId": bridge_id,
+            }, reply_msg_id),
+        )
+        authenticated = True
+        logger.info(f"Authenticated via auth.request: {bridge_id}")
+
+    if not authenticated:
+        try:
+            await websocket.close(code=4001, reason="Unauthorized")
+        except Exception:
+            pass
+        return
+
+    # ---- Phase 2: Registration & Communication ----
     heartbeat_task = None
-    ws_db: Optional[Session] = None
+
+    # ---- Message handlers with per-call DB sessions ----
+
+    async def on_bridge_disconnect(bid: str):
+        """Handle Bridge disconnect with a short-lived DB session."""
+        db = next(get_db())
+        try:
+            gw_db = GatewayDB(db)
+            bm = get_bridge_manager(db, gw_db)
+            bm.db = db
+            bm.db_gateway = gw_db
+            bm.set_bridge_offline(bid)
+        except Exception as e:
+            logger.error(f"Error setting bridge offline {bid}: {e}")
+        finally:
+            db.close()
+
+    def on_task_progress(bid: str, msg: dict):
+        """Handle task progress with a short-lived DB session."""
+        db = next(get_db())
+        try:
+            gw_db = GatewayDB(db)
+            bm = get_bridge_manager(db, gw_db)
+            bm.db = db
+            bm.db_gateway = gw_db
+            tr = TaskRouter(bm, ws_server, gw_db)
+            tr.handle_task_progress(bid, msg)
+        except Exception as e:
+            logger.error(f"Error handling task progress from {bid}: {e}")
+        finally:
+            db.close()
+
+    def on_task_complete(bid: str, msg: dict):
+        """Handle task complete with a short-lived DB session."""
+        db = next(get_db())
+        try:
+            gw_db = GatewayDB(db)
+            bm = get_bridge_manager(db, gw_db)
+            bm.db = db
+            bm.db_gateway = gw_db
+            tr = TaskRouter(bm, ws_server, gw_db)
+            tr.handle_task_complete(bid, msg)
+        except Exception as e:
+            logger.error(f"Error handling task complete from {bid}: {e}")
+        finally:
+            db.close()
+
+    def on_task_ack(bid: str, msg: dict):
+        """Handle task ack with a short-lived DB session."""
+        db = next(get_db())
+        try:
+            gw_db = GatewayDB(db)
+            bm = get_bridge_manager(db, gw_db)
+            bm.db = db
+            bm.db_gateway = gw_db
+            tr = TaskRouter(bm, ws_server, gw_db)
+            tr.handle_task_ack(bid, msg)
+        except Exception as e:
+            logger.error(f"Error handling task ack from {bid}: {e}")
+        finally:
+            db.close()
 
     try:
         while True:
@@ -300,15 +458,24 @@ async def gateway_ws(
                     continue
 
                 # Register in WS server
-                await ws_server.register(bridge_id, websocket)
-
-                # Create a DB session scoped to the WebSocket connection lifetime
-                ws_db = next(get_db())
                 try:
-                    gw_db = GatewayDB(ws_db)
-                    bm = get_bridge_manager(ws_db, gw_db)
+                    await ws_server.register(bridge_id, websocket)
+                except RuntimeError as e:
+                    logger.warning(f"Registration rejected: {e}")
+                    await websocket.send_json({
+                        'type': 'error',
+                        'code': 'MAX_CONNECTIONS',
+                        'message': str(e),
+                    })
+                    continue
 
-                    bm.db = ws_db
+                # Short-lived DB session for registration
+                db = next(get_db())
+                try:
+                    gw_db = GatewayDB(db)
+                    bm = get_bridge_manager(db, gw_db)
+
+                    bm.db = db
                     bm.db_gateway = gw_db
                     bm.load_from_db()
 
@@ -340,23 +507,7 @@ async def gateway_ws(
                     )
                     bm.register_bridge(bridge_info)
 
-                    # Build TaskRouter for message handling
-                    tr = TaskRouter(bm, ws_server, gw_db)
-
-                    # Set up async message handlers
-                    async def on_bridge_disconnect(bid: str):
-                        if bm:
-                            bm.set_bridge_offline(bid)
-
-                    def on_task_progress(bid: str, msg: dict):
-                        tr.handle_task_progress(bid, msg)
-
-                    def on_task_complete(bid: str, msg: dict):
-                        tr.handle_task_complete(bid, msg)
-
-                    def on_task_ack(bid: str, msg: dict):
-                        tr.handle_task_ack(bid, msg)
-
+                    # Set up async message handlers (use per-call sessions)
                     ws_server.set_handlers(
                         on_bridge_register=None,
                         on_bridge_disconnect=on_bridge_disconnect,
@@ -387,17 +538,16 @@ async def gateway_ws(
                         ],
                     })
 
-                    # Resume queued tasks
+                    # Resume queued tasks (uses same session — still short-lived)
                     if queued:
+                        tr = TaskRouter(bm, ws_server, gw_db)
                         await tr.resume_queued_tasks(bridge_id)
 
                 except Exception as e:
                     logger.error(f"Registration failed for bridge {bridge_id}: {e}")
-                    # Close ws_db since we won't use it further
-                    if ws_db:
-                        ws_db.close()
-                        ws_db = None
                     continue
+                finally:
+                    db.close()
 
                 # Start heartbeat checker
                 heartbeat_task = asyncio.create_task(
@@ -426,11 +576,6 @@ async def gateway_ws(
             await ws_server.disconnect(bridge_id)
         if heartbeat_task:
             heartbeat_task.cancel()
-    finally:
-        # Always close the WebSocket-scoped DB session
-        if ws_db:
-            ws_db.close()
-            ws_db = None
 
 
 async def _heartbeat_checker(websocket: WebSocket, bridge_id: str, interval: int = 30):

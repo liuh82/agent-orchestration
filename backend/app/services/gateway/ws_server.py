@@ -9,12 +9,16 @@ from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
 
+# Maximum concurrent WebSocket connections to prevent resource exhaustion
+MAX_WS_CONNECTIONS: int = 100
+
 
 class WSServer:
     """WebSocket connection manager."""
 
-    def __init__(self):
+    def __init__(self, max_connections: int = MAX_WS_CONNECTIONS):
         self.active_connections: Dict[str, WebSocket] = {}
+        self.max_connections = max_connections
         self._handlers: Dict[str, Callable] = {
             'auth.request': self._handle_auth_request,
             'bridge.register': self._handle_bridge_register,
@@ -47,7 +51,15 @@ class WSServer:
     # ---- Connection management ----
 
     async def register(self, bridge_id: str, websocket: WebSocket) -> None:
-        """Register a Bridge WebSocket connection."""
+        """Register a Bridge WebSocket connection.
+
+        Raises RuntimeError if max connection limit is reached.
+        """
+        if len(self.active_connections) >= self.max_connections:
+            raise RuntimeError(
+                f"Max WebSocket connections ({self.max_connections}) reached, "
+                f"rejecting Bridge {bridge_id}"
+            )
         self.active_connections[bridge_id] = websocket
         logger.info(f"Bridge registered: {bridge_id}, total connections: {len(self.active_connections)}")
 

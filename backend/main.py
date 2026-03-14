@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
 
+from app.rate_limit import limiter
 from app.routers import agents, tasks, workflows, cost, org, heartbeats, gateway
 from app.services.scheduler import scheduler
 from app.services.heartbeat import HeartbeatService
@@ -51,6 +54,10 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # 配置 CORS
 app.add_middleware(
