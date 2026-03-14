@@ -12,7 +12,7 @@ import {
 import { useOrgStore } from '../stores/org';
 import { AuditLog } from '../types';
 import dayjs from 'dayjs';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
