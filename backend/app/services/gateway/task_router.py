@@ -45,9 +45,27 @@ class TaskRouter:
         """Select the best available Bridge for a task.
 
         MVP: select Bridge with lowest active task count.
+        Filters out bridges that are DB-online but WS-offline (ghost bridges).
         Optionally filters by IDE preference.
         """
         candidates = self.bridge_manager.get_available_bridges()
+        if not candidates:
+            return None
+
+        # Step 0: filter out ghost bridges (DB-online but WS-disconnected)
+        if self.ws_server is not None:
+            live = []
+            for b in candidates:
+                if not self.ws_server.is_connected(b.bridge_id):
+                    logger.debug(
+                        f"Bridge {b.bridge_id} is DB-online but WS-offline, "
+                        f"setting offline and skipping"
+                    )
+                    self.bridge_manager.set_bridge_offline(b.bridge_id)
+                else:
+                    live.append(b)
+            candidates = live
+
         if not candidates:
             return None
 
