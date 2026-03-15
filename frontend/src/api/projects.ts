@@ -21,4 +21,31 @@ export const projectApi = {
 
   createTask: (projectId: string, data: Record<string, unknown>) =>
     api.post(`/projects/${projectId}/tasks/`, data) as Promise<any>,
+
+  // ── 文档 ──
+  getDocuments: (projectId: string) =>
+    api.get(`/projects/${projectId}/documents/`) as Promise<any>,
+
+  createDocument: (projectId: string, data: { title: string; doc_type: string; content?: string; file_id?: string }) =>
+    api.post(`/projects/${projectId}/documents/`, data) as Promise<any>,
+
+  updateDocument: (projectId: string, docId: string, data: { title?: string; content?: string }) =>
+    api.put(`/projects/${projectId}/documents/${docId}/`, data) as Promise<any>,
+
+  deleteDocument: (projectId: string, docId: string) =>
+    api.delete(`/projects/${projectId}/documents/${docId}/`) as Promise<any>,
+
+  // ── Agent 配置文件 ──
+  getAgentConfigs: (projectId: string) =>
+    api.get(`/projects/${projectId}/agent-configs/`) as Promise<any>,
+
+  saveAgentConfig: (projectId: string, data: { agent_type: string; config_type: string; content: string }) =>
+    api.post(`/projects/${projectId}/agent-configs/`, data) as Promise<any>,
+
+  // ── 文件管理 ──
+  getFiles: (projectId: string) =>
+    api.get(`/projects/${projectId}/files/`) as Promise<any>,
+
+  deleteFile: (projectId: string, fileId: string) =>
+    api.delete(`/projects/${projectId}/files/${fileId}/`) as Promise<any>,
 };

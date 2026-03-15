@@ -1,4 +1,6 @@
 """Job ORM model."""
+from typing import Optional
+
 from sqlalchemy import String, Integer, Float, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -13,22 +15,22 @@ class Job(Base, TimestampMixin):
     task_id: Mapped[str] = mapped_column(String(36), nullable=False)
     project_id: Mapped[str] = mapped_column(String(36), nullable=False)
     user_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    agent_inst_id: Mapped[str | None] = mapped_column(String(36))
+    agent_inst_id: Mapped[Optional[str]] = mapped_column(String(36))
 
-    name: Mapped[str | None] = mapped_column(String(255))
+    name: Mapped[Optional[str]] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(20), default="pending")
     priority: Mapped[str] = mapped_column(String(20), default="medium")
 
     # Execution content
-    prompt: Mapped[str | None] = mapped_column(Text)
-    action_params: Mapped[str | None] = mapped_column(Text)  # JSON
-    result: Mapped[str | None] = mapped_column(Text)  # JSON
-    error_message: Mapped[str | None] = mapped_column(Text)
-    input_files: Mapped[str | None] = mapped_column(Text)  # JSON array
-    output_files: Mapped[str | None] = mapped_column(Text)  # JSON array
-    messages: Mapped[str | None] = mapped_column(Text)  # JSON
-    node_data: Mapped[str | None] = mapped_column(Text)  # JSON
-    spec: Mapped[str | None] = mapped_column(Text)
+    prompt: Mapped[Optional[str]] = mapped_column(Text)
+    action_params: Mapped[Optional[str]] = mapped_column(Text)  # JSON
+    result: Mapped[Optional[str]] = mapped_column(Text)  # JSON
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    input_files: Mapped[Optional[str]] = mapped_column(Text)  # JSON array
+    output_files: Mapped[Optional[str]] = mapped_column(Text)  # JSON array
+    messages: Mapped[Optional[str]] = mapped_column(Text)  # JSON
+    node_data: Mapped[Optional[str]] = mapped_column(Text)  # JSON
+    spec: Mapped[Optional[str]] = mapped_column(Text)
 
     # Token statistics
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
@@ -41,5 +43,5 @@ class Job(Base, TimestampMixin):
     # Timeout
     timeout_seconds: Mapped[int] = mapped_column(Integer, default=300)
 
-    started_at: Mapped[str | None] = mapped_column(String)
-    completed_at: Mapped[str | None] = mapped_column(String)
+    started_at: Mapped[Optional[str]] = mapped_column(String)
+    completed_at: Mapped[Optional[str]] = mapped_column(String)

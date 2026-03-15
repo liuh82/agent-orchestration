@@ -8,6 +8,7 @@ from app.rate_limit import limiter
 from app.routers import agents_legacy, tasks_legacy, workflows, cost, org, heartbeats, gateway, auth
 from app.routers import agents as agents_v1, projects, tasks as tasks_v1, jobs
 from app.routers import admin, settings as settings_router, notifications, stats
+from app.routers import bridges, agent_types, project_documents, task_files
 from app.services.scheduler import scheduler
 from app.services.heartbeat import HeartbeatService
 
@@ -97,6 +98,13 @@ app.include_router(tasks_v1.router, prefix="/api/v1/projects/{project_id}/tasks"
 app.include_router(tasks_v1.router, prefix="/api/v1/tasks", tags=["v1-tasks"])
 app.include_router(jobs.router, prefix="/api/v1/tasks/{task_id}/jobs", tags=["v1-jobs"])
 app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["v1-jobs"])
+
+# Phase 2: bridges, agent-types, project docs/configs, task files
+app.include_router(bridges.router, prefix="/api/v1/bridges", tags=["bridges"])
+app.include_router(bridges.router, prefix="/api/bridges", tags=["bridges-compat"])
+app.include_router(agent_types.router, prefix="/api/v1/agent-types-manage", tags=["agent-types-manage"])
+app.include_router(project_documents.router, prefix="/api/v1/projects/{project_id}", tags=["project-docs"])
+app.include_router(task_files.router, prefix="/api/v1/tasks/{task_id}/files", tags=["task-files"])
 
 # v1 admin / settings / notifications / stats routes
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["v1-admin"])

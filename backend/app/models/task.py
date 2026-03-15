@@ -1,4 +1,6 @@
 """Task ORM model — maps to 'tasks' table (shared with legacy orm_models)."""
+from typing import Optional
+
 from sqlalchemy import String, Integer, Float, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,21 +16,21 @@ class NexusTask(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
     project_id: Mapped[str] = mapped_column(String(36), nullable=False)
     user_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    parent_task_id: Mapped[str | None] = mapped_column(String(36))
+    parent_task_id: Mapped[Optional[str]] = mapped_column(String(36))
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     title: Mapped[str] = mapped_column(String(255), default="")  # legacy column
-    description: Mapped[str | None] = mapped_column(Text)
-    spec: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    spec: Mapped[Optional[str]] = mapped_column(Text)
     priority: Mapped[str] = mapped_column(String(20), default="medium")
     status: Mapped[str] = mapped_column(String(20), default="pending")
-    depends_on: Mapped[str | None] = mapped_column(Text)
-    assigned_agent: Mapped[str | None] = mapped_column(String(36))
-    workflow_id: Mapped[str | None] = mapped_column(String(36))
+    depends_on: Mapped[Optional[str]] = mapped_column(Text)
+    assigned_agent: Mapped[Optional[str]] = mapped_column(String(36))
+    workflow_id: Mapped[Optional[str]] = mapped_column(String(36))
 
     total_jobs: Mapped[int] = mapped_column(Integer, default=0)
     completed_jobs: Mapped[int] = mapped_column(Integer, default=0)
     total_tokens: Mapped[int] = mapped_column(Integer, default=0)
     total_cost: Mapped[float] = mapped_column(Float, default=0.0)
 
-    started_at: Mapped[str | None] = mapped_column(String)
-    completed_at: Mapped[str | None] = mapped_column(String)
+    started_at: Mapped[Optional[str]] = mapped_column(String)
+    completed_at: Mapped[Optional[str]] = mapped_column(String)

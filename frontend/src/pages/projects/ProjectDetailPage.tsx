@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { Button, Table, Modal, Form, Input, Select, Tag, Space, Skeleton, message } from 'antd';
+import { Button, Table, Modal, Form, Input, Select, Tag, Tabs, Space, Skeleton, message } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
@@ -18,6 +18,9 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorBlock } from '@/components/common/ErrorBlock';
 import { projectApi } from '@/api/projects';
+import { DocumentManager } from './components/DocumentManager';
+import { AgentConfigEditor } from './components/AgentConfigEditor';
+import { FileManager } from './components/FileManager';
 import type { ApiResponse, PagedData } from '@/types/api';
 import type { Project } from '@/types/project';
 import type { Task } from '@/types/task';
@@ -35,6 +38,14 @@ const priorityLabels: Record<Task['priority'], string> = {
   medium: '中',
   high: '高',
   critical: '紧急',
+};
+
+const statusToBadge: Record<Task['status'], 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'> = {
+  pending: 'pending',
+  running: 'running',
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
 };
 
 // --------------- Styled components ---------------
@@ -98,13 +109,9 @@ const DescriptionText = styled.p`
   line-height: 1.6;
 `;
 
-const statusToBadge: Record<Task['status'], 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'> = {
-  pending: 'pending',
-  running: 'running',
-  completed: 'completed',
-  failed: 'failed',
-  cancelled: 'cancelled',
-};
+const TabContent = styled.div`
+  min-height: 300px;
+`;
 
 export const ProjectDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -253,11 +260,7 @@ export const ProjectDetailPage: React.FC = () => {
       <div>
         <PageHeader title="项目详情" />
         <ErrorBlock
-          message={
-            projectErr instanceof Error
-              ? projectErr.message
-              : '项目加载失败，请稍后重试'
-          }
+          message={projectErr instanceof Error ? projectErr.message : '项目加载失败，请稍后重试'}
           onRetry={() => refetchProject()}
         />
       </div>
@@ -280,10 +283,7 @@ export const ProjectDetailPage: React.FC = () => {
       dataIndex: 'title',
       key: 'title',
       render: (text: string, record: Task) => (
-        <a
-          onClick={() => navigate(`/tasks/${record.id}`)}
-          style={{ color: colors.text.brand, textDecoration: 'none' }}
-        >
+        <a onClick={() => navigate(`/tasks/${record.id}`)} style={{ color: colors.text.brand, textDecoration: 'none' }}>
           {text}
         </a>
       ),
@@ -302,17 +302,121 @@ export const ProjectDetailPage: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: 120,
-      render: (status: Task['status']) => (
-        <StatusBadge status={statusToBadge[status]} />
-      ),
+      render: (status: Task['status']) => <StatusBadge status={statusToBadge[status]} />,
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
       width: 180,
-      render: (val: string) =>
-        val ? new Date(val).toLocaleString('zh-CN') : '-',
+      render: (val: string) => (val ? new Date(val).toLocaleString('zh-CN') : '-'),
+    },
+  ];
+
+  // ---- Tab items ----
+  const tabItems = [
+    {
+      key: 'overview',
+      label: '概述',
+      children: (
+        <TabContent>
+          <InfoCard>
+            {project.description && <DescriptionText>{project.description}</DescriptionText>}
+            <InfoGrid>
+              <InfoItem>
+                <InfoLabel>状态</InfoLabel>
+                <InfoValue><StatusBadge status={project.status === 'deleted' ? 'archived' : project.status} /></InfoValue>
+              </InfoItem>
+              <InfoItem>
+                <InfoLabel>创建者</InfoLabel>
+                <InfoValue>{(project as any).created_by || '-'}</InfoValue>
+              </InfoItem>
+              <InfoItem>
+                <InfoLabel>创建时间</InfoLabel>
+                <InfoValue>{new Date(project.created_at).toLocaleString('zh-CN')}</InfoValue>
+              </InfoItem>
+              <InfoItem>
+                <InfoLabel>更新时间</InfoLabel>
+                <InfoValue>{new Date(project.updated_at).toLocaleString('zh-CN')}</InfoValue>
+              </InfoItem>
+              <InfoItem>
+                <InfoLabel>任务总数</InfoLabel>
+                <InfoValue>{total}</InfoValue>
+              </InfoItem>
+              {(project as any).total_tokens != null && (
+                <InfoItem>
+                  <InfoLabel>Token 消耗</InfoLabel>
+                  <InfoValue>{(project as any).total_tokens.toLocaleString()}</InfoValue>
+                </InfoItem>
+              )}
+            </InfoGrid>
+          </InfoCard>
+        </TabContent>
+      ),
+    },
+    {
+      key: 'tasks',
+      label: '任务',
+      children: (
+        <TabContent>
+          <TableWrapper>
+            <TableHeader>
+              <TableTitle>任务列表</TableTitle>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setTaskModalOpen(true)}>
+                创建任务
+              </Button>
+            </TableHeader>
+            {tasksError ? (
+              <ErrorBlock message={tasksErr instanceof Error ? tasksErr.message : '任务列表加载失败'} onRetry={() => refetchTasks()} />
+            ) : tasksLoading ? (
+              <Table columns={taskColumns} dataSource={[]} loading pagination={false} rowKey="id" />
+            ) : tasks.length === 0 ? (
+              <EmptyState icon={<InboxOutlined style={{ fontSize: 48, color: colors.text.disabled }} />} description="还没有任务，点击上方按钮创建" />
+            ) : (
+              <Table
+                columns={taskColumns}
+                dataSource={tasks}
+                rowKey="id"
+                pagination={{
+                  current: page,
+                  pageSize,
+                  total,
+                  showSizeChanger: false,
+                  showTotal: (t) => `共 ${t} 条`,
+                  onChange: (p) => setPage(p),
+                }}
+              />
+            )}
+          </TableWrapper>
+        </TabContent>
+      ),
+    },
+    {
+      key: 'documents',
+      label: '文档库',
+      children: (
+        <TabContent>
+          <DocumentManager projectId={id!} />
+        </TabContent>
+      ),
+    },
+    {
+      key: 'agent-config',
+      label: 'Agent 配置',
+      children: (
+        <TabContent>
+          <AgentConfigEditor projectId={id!} />
+        </TabContent>
+      ),
+    },
+    {
+      key: 'files',
+      label: '文件管理',
+      children: (
+        <TabContent>
+          <FileManager projectId={id!} />
+        </TabContent>
+      ),
     },
   ];
 
@@ -322,134 +426,35 @@ export const ProjectDetailPage: React.FC = () => {
         title={project.name}
         actions={
           <Space>
-            <Button icon={<EditOutlined />} onClick={handleEdit}>
-              编辑
-            </Button>
-            <Button danger onClick={handleArchive}>
-              归档
-            </Button>
+            <Button icon={<EditOutlined />} onClick={handleEdit}>编辑</Button>
+            <Button danger onClick={handleArchive}>归档</Button>
           </Space>
         }
       />
 
-      {/* Project info card */}
-      <InfoCard>
-        {project.description && (
-          <DescriptionText>{project.description}</DescriptionText>
-        )}
-        <InfoGrid>
-          <InfoItem>
-            <InfoLabel>状态</InfoLabel>
-            <InfoValue>
-              <StatusBadge
-                status={project.status === 'deleted' ? 'archived' : project.status}
-              />
-            </InfoValue>
-          </InfoItem>
-          <InfoItem>
-            <InfoLabel>创建者</InfoLabel>
-            <InfoValue>{project.created_by}</InfoValue>
-          </InfoItem>
-          <InfoItem>
-            <InfoLabel>创建时间</InfoLabel>
-            <InfoValue>
-              {new Date(project.created_at).toLocaleString('zh-CN')}
-            </InfoValue>
-          </InfoItem>
-          <InfoItem>
-            <InfoLabel>更新时间</InfoLabel>
-            <InfoValue>
-              {new Date(project.updated_at).toLocaleString('zh-CN')}
-            </InfoValue>
-          </InfoItem>
-          <InfoItem>
-            <InfoLabel>任务总数</InfoLabel>
-            <InfoValue>{total}</InfoValue>
-          </InfoItem>
-        </InfoGrid>
-      </InfoCard>
-
-      {/* Task list */}
-      <TableWrapper>
-        <TableHeader>
-          <TableTitle>任务列表</TableTitle>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setTaskModalOpen(true)}
-          >
-            创建任务
-          </Button>
-        </TableHeader>
-
-        {tasksError ? (
-          <ErrorBlock
-            message={
-              tasksErr instanceof Error
-                ? tasksErr.message
-                : '任务列表加载失败'
-            }
-            onRetry={() => refetchTasks()}
-          />
-        ) : tasksLoading ? (
-          <Table
-            columns={taskColumns}
-            dataSource={[]}
-            loading
-            pagination={false}
-            rowKey="id"
-          />
-        ) : tasks.length === 0 ? (
-          <EmptyState
-            icon={<InboxOutlined style={{ fontSize: 48, color: colors.text.disabled }} />}
-            description="还没有任务，点击上方按钮创建"
-          />
-        ) : (
-          <Table
-            columns={taskColumns}
-            dataSource={tasks}
-            rowKey="id"
-            pagination={{
-              current: page,
-              pageSize,
-              total,
-              showSizeChanger: false,
-              showTotal: (t) => `共 ${t} 条`,
-              onChange: (p) => setPage(p),
-            }}
-          />
-        )}
-      </TableWrapper>
+      <Tabs
+        items={tabItems}
+        defaultActiveKey="overview"
+        style={{ marginTop: spacing[4] }}
+      />
 
       {/* Edit project modal */}
       <Modal
         title="编辑项目"
         open={editModalOpen}
         onOk={handleEditSubmit}
-        onCancel={() => {
-          setEditModalOpen(false);
-          editForm.resetFields();
-        }}
+        onCancel={() => { setEditModalOpen(false); editForm.resetFields(); }}
         confirmLoading={editMutation.isLoading}
         okText="保存"
         cancelText="取消"
         destroyOnClose
       >
         <Form form={editForm} layout="vertical" preserve={false}>
-          <Form.Item
-            name="name"
-            label="项目名称"
-            rules={[{ required: true, message: '请输入项目名称' }]}
-          >
+          <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
             <Input placeholder="请输入项目名称" />
           </Form.Item>
           <Form.Item name="description" label="项目描述">
-            <Input.TextArea
-              rows={3}
-              placeholder="请输入项目描述（可选）"
-              showCount
-              maxLength={500}
-            />
+            <Input.TextArea rows={3} placeholder="请输入项目描述（可选）" showCount maxLength={500} />
           </Form.Item>
         </Form>
       </Modal>
@@ -459,35 +464,18 @@ export const ProjectDetailPage: React.FC = () => {
         title="创建任务"
         open={taskModalOpen}
         onOk={handleCreateTask}
-        onCancel={() => {
-          setTaskModalOpen(false);
-          taskForm.resetFields();
-        }}
+        onCancel={() => { setTaskModalOpen(false); taskForm.resetFields(); }}
         confirmLoading={createTaskMutation.isLoading}
         okText="创建"
         cancelText="取消"
         destroyOnClose
       >
-        <Form
-          form={taskForm}
-          layout="vertical"
-          preserve={false}
-          initialValues={{ priority: 'medium' as const }}
-        >
-          <Form.Item
-            name="title"
-            label="任务标题"
-            rules={[{ required: true, message: '请输入任务标题' }]}
-          >
+        <Form form={taskForm} layout="vertical" preserve={false} initialValues={{ priority: 'medium' as const }}>
+          <Form.Item name="title" label="任务标题" rules={[{ required: true, message: '请输入任务标题' }]}>
             <Input placeholder="请输入任务标题" />
           </Form.Item>
           <Form.Item name="description" label="任务描述">
-            <Input.TextArea
-              rows={3}
-              placeholder="请输入任务描述（可选）"
-              showCount
-              maxLength={1000}
-            />
+            <Input.TextArea rows={3} placeholder="请输入任务描述（可选）" showCount maxLength={1000} />
           </Form.Item>
           <Form.Item name="priority" label="优先级">
             <Select>

@@ -1,4 +1,6 @@
 """AgentInstance ORM model."""
+from typing import Optional
+
 from sqlalchemy import String, Boolean, Integer, Float, Text, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,8 +20,8 @@ class AgentInstance(Base, TimestampMixin):
     type_id: Mapped[str] = mapped_column(String(36), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="offline")  # online/offline/busy/error
-    model: Mapped[str | None] = mapped_column(String(100))
-    config: Mapped[str | None] = mapped_column(Text)  # JSON
+    model: Mapped[Optional[str]] = mapped_column(String(100))
+    config: Mapped[Optional[str]] = mapped_column(Text)  # JSON
 
     # Statistics
     task_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -29,4 +31,4 @@ class AgentInstance(Base, TimestampMixin):
     total_cost: Mapped[float] = mapped_column(Float, default=0.0)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    last_seen_at: Mapped[str | None] = mapped_column(String)
+    last_seen_at: Mapped[Optional[str]] = mapped_column(String)

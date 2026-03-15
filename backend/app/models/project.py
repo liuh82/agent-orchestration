@@ -1,4 +1,6 @@
 """Project ORM model."""
+from typing import Optional
+
 from sqlalchemy import String, Integer, Float, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,9 +17,9 @@ class Project(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
     user_id: Mapped[str] = mapped_column(String(36), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text)
-    spec: Mapped[str | None] = mapped_column(Text)  # Markdown/YAML
-    workflow_id: Mapped[str | None] = mapped_column(String(36))  # FK to workflows
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    spec: Mapped[Optional[str]] = mapped_column(Text)  # Markdown/YAML
+    workflow_id: Mapped[Optional[str]] = mapped_column(String(36))  # FK to workflows
     status: Mapped[str] = mapped_column(String(20), default="active")
 
     total_tasks: Mapped[int] = mapped_column(Integer, default=0)

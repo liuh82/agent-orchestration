@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Tabs, Form, Input, Button, Avatar, Tag, Switch, Skeleton, message } from 'antd';
-import { UserOutlined, LockOutlined, BellOutlined, SaveOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, BellOutlined, SaveOutlined, ApiOutlined } from '@ant-design/icons';
 import { useMutation } from 'react-query';
 import styled from 'styled-components';
 import { colors } from '@/styles/tokens/color';
@@ -8,6 +8,7 @@ import { spacing } from '@/styles/tokens/spacing';
 import { typography } from '@/styles/tokens/typography';
 import { radius } from '@/styles/tokens/radius';
 import { authApi } from '@/api/auth';
+import { BridgeManager } from './BridgeManager';
 import { useAuthStore } from '@/stores/auth';
 import { PageHeader } from '@/components/common/PageHeader';
 
@@ -347,6 +348,16 @@ export const SettingsPage = () => {
         </span>
       ),
       children: <NotificationPreferencesTab />,
+    },
+    {
+      key: 'bridges',
+      label: (
+        <span>
+          <ApiOutlined style={{ marginRight: spacing[2] }} />
+          Bridge 管理
+        </span>
+      ),
+      children: <BridgeManager />,
     },
   ];
 

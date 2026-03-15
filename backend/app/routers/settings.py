@@ -1,5 +1,6 @@
 """Settings router — system key-value configuration."""
 import json
+from typing import Optional, Union
 
 from fastapi import APIRouter, Depends
 
@@ -13,7 +14,7 @@ from app.schemas.common import success_response
 router = APIRouter()
 
 
-def _parse_json(val: str | None) -> dict | str | None:
+def _parse_json(val: Optional[str]) -> Union[dict, str, None]:
     if val:
         try:
             return json.loads(val)

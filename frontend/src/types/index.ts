@@ -13,6 +13,7 @@ export type { PagedData as PaginatedData } from './api';
 
 // Legacy: Agent alias (old pages use `Agent` instead of `AgentInstance`)
 export type { AgentInstance as Agent } from './agent';
+export type { Bridge, BridgeTask, BridgeCreateResponse } from './bridge';
 
 // Legacy types for old pages that haven't been migrated yet
 
