@@ -1,27 +1,30 @@
-# Agent Orchestrator 全流程验收测试（Playwright）
+# Agent Orchestrator 第 5 轮验收测试
 
-## 前置条件
-1. 前端代码已部署到服务器，Vite dev server 正常运行在 127.0.0.1:5174
-2. 后端服务正常运行在 127.0.0.1:8082
-3. Nginx 反代正常：81.70.98.45:9443
-4. Playwright 已安装（npm install -D @playwright/test && npx playwright install chromium）
+## 项目路径
+/root/.openclaw/workspace/agent-orchestration
 
-## 测试环境
-- 访问地址：http://81.70.98.45:9443
+## 你的任务
+你是 tester，负责编写并执行 Playwright 端到端测试，输出测试报告。**只测试，不改代码**。
+
+## 环境
+- Playwright 1.58.2 已全局安装（`npx playwright`）
+- 测试目标地址：http://81.70.98.45:9443
 - Admin 账号：admin@example.com / Admin@2026
-- 普通用户账号：test@test.com / Test@2026（如密码不对请尝试其他常见密码或重置）
-- 浏览器：Chromium headless
+- 普通用户账号：test@test.com / Test@2026（如登录失败则跳过相关测试，标注 SKIP）
+- 浏览器：Chromium
 
-## 执行方式
-```bash
-cd /Users/lh8/projects/agent-orchestration
-npx playwright test --config=playwright.config.ts
-```
+## 步骤
 
-## 测试用例（共 26 项）
+### 1. 初始化测试项目
+在 `/root/.openclaw/workspace/agent-orchestration` 根目录创建：
+- `playwright.config.ts`（baseURL 设为 `http://81.70.98.45:9443`，screenshots 保存到 `docs/screenshots/`，timeout 设为 30000ms）
+- `e2e/` 目录，测试文件放这里
+- `package.json` 里确保有 `@playwright/test` 依赖（已全局安装，可 link）
 
-### 一、前台页面（admin 账号）
+### 2. 编写测试用例
+按以下 29 项编写自动化测试，每个测试用例截图保存到 `docs/screenshots/{序号}-{页面名}.png`：
 
+#### 前台页面（admin 账号）
 | # | 测试项 | 操作 | 预期 |
 |---|--------|------|------|
 | 1 | 登录页 | 打开 /login，输入 admin@example.com / Admin@2026，点击登录 | 跳转到 / |
@@ -34,18 +37,17 @@ npx playwright test --config=playwright.config.ts
 | 8 | 工作流 | 点击侧边栏「工作流」 | 工作流列表页渲染，三个 Tab 正常切换（工作流/模板库/编辑器） |
 | 9 | 个人设置 | 点击侧边栏「设置」 | 设置页面正常渲染 |
 | 10 | 后台管理入口 | 检查侧边栏底部 | 有「后台管理」按钮/入口 |
+| 11 | 前台无代理中心 | 检查前台侧边栏 | **不应该有**「代理中心」菜单项 |
 
-### 二、后台页面（admin 账号）
-
+#### 后台页面（admin 账号）
 | # | 测试项 | 操作 | 预期 |
 |---|--------|------|------|
-| 11 | 进入后台 | 点击「后台管理」 | 跳转到 /admin，页面浅色主题 |
-| 12 | 后台首页 | 检查统计卡片 | 统计数据正常渲染 |
-| 13 | Gateway 管理 | 点击侧边栏「Gateway 管理」 | Bridge 列表页渲染（可能为空，空状态正常） |
-| 14 | 代理中心 | 点击侧边栏「代理中心」 | Agent 列表页渲染，有创建代理按钮 |
-| 15 | 创建代理-选择类型 | 点击「创建代理」 | 类型卡片显示：Claude Code、Codex、OpenCode、OpenClaw |
-| 16 | 创建代理-配置 | 选择类型，点击下一步 | 配置表单正常，**无「连接地址」字段** |
-| 17 | 创建代理-确认 | 填写名称，点击下一步 | 确认页正常显示，无 bridge_url 信息 |
+| 12 | 进入后台 | 点击「后台管理」或直接访问 /admin | 跳转到 /admin，页面浅色主题 |
+| 13 | 后台首页 | 检查统计卡片 | 统计数据正常渲染 |
+| 14 | Gateway 管理 | 点击侧边栏「Gateway 管理」 | Bridge 列表页渲染（可能为空，空状态正常） |
+| 15 | 代理中心 | 点击侧边栏「代理中心」 | Agent 列表页渲染，有创建代理按钮 |
+| 16 | 创建代理-选择类型 | 点击「创建代理」 | 类型卡片显示：Claude Code、Codex、OpenCode、OpenClaw |
+| 17 | 创建代理-配置 | 选择类型，点击下一步 | 配置表单正常，**无「连接地址」字段** |
 | 18 | Agent 类型 | 点击侧边栏「Agent 类型」 | 类型列表正常渲染 |
 | 19 | 用户管理 | 点击侧边栏「用户管理」 | 用户列表正常，有 role 列 |
 | 20 | 系统设置 | 点击侧边栏「系统设置」 | 页面正常渲染 |
@@ -53,35 +55,58 @@ npx playwright test --config=playwright.config.ts
 | 22 | 全局统计 | 点击侧边栏「全局统计」 | 页面正常渲染 |
 | 23 | 返回前台 | 点击 Header 返回按钮 | 跳转到 / |
 
-### 三、权限验证（普通用户 test@test.com）
-
+#### 权限验证（普通用户 test@test.com）
 | # | 测试项 | 操作 | 预期 |
 |---|--------|------|------|
-| 24 | 登录普通用户 | 退出，用 test@test.com 登录 | 登录成功 |
-| 25 | 进入后台 | 点击「后台管理」 | 能进入 /admin，**不被拦截** |
+| 24 | 登录普通用户 | 退出，用 test@test.com / Test@2026 登录 | 登录成功 |
+| 25 | 进入后台 | 点击「后台管理」或直接访问 /admin | 能进入 /admin，**不被拦截** |
 | 26 | 菜单过滤 | 检查后台侧边栏 | 只显示：后台首页、Gateway 管理、代理中心、通知配置；**不显示**：Agent 类型、用户管理、系统设置、全局统计 |
 
-### 四、样式检查
-
+#### 样式检查
 | # | 测试项 | 检查 | 预期 |
 |---|--------|------|------|
-| 27 | 前台无暗色 | 检查所有前台页面 | 无 neutral[950] 纯黑背景 |
-| 28 | 后台主题 | 检查后台页面 | Header #334155, Sidebar #1e293b, 内容区 #f5f5f5 |
+| 27 | 前台无暗色 | 检查所有前台页面 body/容器背景色 | 无 neutral[950] 纯黑背景 |
+| 28 | 后台主题 | 检查后台页面 | Header 深色（#334155 附近），Sidebar 深色（#1e293b 附近），内容区浅色 |
 | 29 | 侧边栏交互 | 点击收起/展开按钮 | 正常折叠/展开 |
 
-## 测试结果要求
+### 3. 执行测试
+```bash
+cd /root/.openclaw/workspace/agent-orchestration
+npx playwright test --config=playwright.config.ts
+```
 
-1. **每个页面截图**保存到 /Users/lh8/projects/agent-orchestration/docs/screenshots/
-   - 文件名格式：{序号}-{页面名}.png，如 `01-login.png`、`11-admin-dashboard.png`
-2. **输出测试报告**：/Users/lh8/projects/agent-orchestration/docs/test-report-v5.md
-   - 格式：Markdown 表格，列包含序号、测试项、状态（PASS/FAIL/SKIP）、备注
-   - 失败项标注具体错误信息和浏览器控制台日志
-3. **只测试，不改代码**。如有问题，记录下来等待修复
-4. 测试完成后把报告和截图 commit 推送到 GitHub
+### 4. 输出测试报告
+生成 `docs/test-report-v5.md`，格式：
+```markdown
+# 第 5 轮验收测试报告
+
+## 概要
+- 总计：29 项
+- 通过：X 项
+- 失败：X 项
+- 跳过：X 项
+
+## 详细结果
+
+| 序号 | 测试项 | 状态 | 备注 |
+|------|--------|------|------|
+| 1 | 登录页 | PASS/FAIL/SKIP | ... |
+...
+```
+
+失败项标注具体错误信息和浏览器控制台日志。
+
+### 5. 提交
+```bash
+git add playwright.config.ts e2e/ docs/screenshots/ docs/test-report-v5.md
+git commit -m "test: 第5轮 Playwright 验收测试（29项）"
+git push origin main
+```
 
 ## 注意事项
-1. 前台侧边栏应该**没有**「代理中心」菜单项（已移到后台）
-2. 工作流编辑器的节点可以点击添加，连线用 SVG，不需要测试拖拽功能
-3. 如果普通用户密码不正确，跳过测试 24-26，标注 SKIP
-4. 截图使用 page.screenshot({ fullPage: true }) 全页截图
-5. 每个测试用例之间需要重新登录或清除状态，避免残留影响
+1. 截图用 `page.screenshot({ path: 'docs/screenshots/XX-xxx.png', fullPage: true })`
+2. 测试之间用独立的 browser context 隔离状态，或必要时重新登录
+3. 元素选择器优先用 `data-testid`、`aria-label`、`role`、文本内容，避免脆弱的 class 选择器
+4. 某些页面可能加载慢，适当用 `waitForLoadState('networkidle')` 或 `waitForSelector`
+5. 如果某个测试一直失败且是环境问题（如端口不通），标注 SKIP 并说明原因
+6. **不要修改任何业务代码**，只写测试和报告
