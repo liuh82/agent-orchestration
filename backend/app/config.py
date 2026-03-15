@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     JWT_REFRESH_EXPIRE_DAYS: int = 7
 
     # First-run admin
-    ADMIN_EMAIL: str = "admin@nexus.local"
-    ADMIN_PASSWORD: str = "changeme"
+    ADMIN_EMAIL: str = "admin@example.com"
+    ADMIN_PASSWORD: str = "Admin@2026"
 
     # Gateway
     GATEWAY_WS_PORT: int = 8765

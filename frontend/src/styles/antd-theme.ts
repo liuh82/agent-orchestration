@@ -3,7 +3,7 @@ import type { ThemeConfig } from 'antd';
 /**
  * Ant Design 5 主题配置
  *
- * 覆盖默认 token 以匹配设计规范。
+ * 浅色主题 — 匹配浅色内容区 + 深色 Sidebar/Header 布局。
  * 所有前端页面必须在 ConfigProvider 中使用此主题。
  */
 
@@ -16,17 +16,17 @@ export const antdTheme: ThemeConfig = {
     colorWarning: '#f59e0b',
     colorInfo: '#3b82f6',
 
-    colorBgContainer: '#141414',
-    colorBgElevated: '#1a1a1a',
-    colorBgLayout: '#0a0a0a',
+    colorBgContainer: '#ffffff',
+    colorBgElevated: '#ffffff',
+    colorBgLayout: '#f1f5f9',
 
-    colorBorder: 'rgba(255,255,255,0.06)',
-    colorBorderSecondary: 'rgba(255,255,255,0.03)',
+    colorBorder: '#e2e8f0',
+    colorBorderSecondary: '#f1f5f9',
 
-    colorText: '#fafafa',
-    colorTextSecondary: '#a3a3a3',
-    colorTextTertiary: '#737373',
-    colorTextDisabled: '#525252',
+    colorText: '#0f172a',
+    colorTextSecondary: '#64748b',
+    colorTextTertiary: '#94a3b8',
+    colorTextDisabled: '#cbd5e1',
 
     // === 字体 ===
     fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -61,10 +61,10 @@ export const antdTheme: ThemeConfig = {
 
   components: {
     Button: {
-      primaryShadow: '0 0 0 0 transparent',
-      defaultBg: 'transparent',
-      defaultBorderColor: 'rgba(255,255,255,0.1)',
-      defaultColor: '#fafafa',
+      primaryShadow: '0 1px 2px rgba(99,102,241,0.3)',
+      defaultBg: '#ffffff',
+      defaultBorderColor: '#e2e8f0',
+      defaultColor: '#0f172a',
       contentFontSizeLG: 15,
       paddingInline: 16,
       fontWeight: 500,
@@ -73,15 +73,15 @@ export const antdTheme: ThemeConfig = {
     Card: {
       paddingLG: 24,
       borderRadiusLG: 12,
-      colorBgContainer: '#141414',
-      colorBorderSecondary: 'rgba(255,255,255,0.03)',
+      colorBgContainer: '#ffffff',
+      colorBorderSecondary: '#f1f5f9',
     },
 
     Table: {
-      headerBg: '#1a1a1a',
-      headerColor: '#a3a3a3',
-      rowHoverBg: 'rgba(255,255,255,0.02)',
-      borderColor: 'rgba(255,255,255,0.06)',
+      headerBg: '#f8fafc',
+      headerColor: '#64748b',
+      rowHoverBg: '#f1f5f9',
+      borderColor: '#e2e8f0',
       fontSize: 14,
       cellPaddingBlock: 12,
       cellPaddingInline: 16,
@@ -89,28 +89,30 @@ export const antdTheme: ThemeConfig = {
 
     Input: {
       activeBorderColor: '#6366f1',
-      hoverBorderColor: 'rgba(255,255,255,0.15)',
-      colorBgContainer: '#141414',
+      hoverBorderColor: '#cbd5e1',
+      colorBgContainer: '#ffffff',
       activeShadow: '0 0 0 2px rgba(99,102,241,0.15)',
     },
 
     Modal: {
-      contentBg: '#1a1a1a',
-      headerBg: '#1a1a1a',
+      contentBg: '#ffffff',
+      headerBg: '#ffffff',
       borderRadiusLG: 16,
     },
 
     Menu: {
+      // Sidebar menu stays dark — these tokens apply to inline dark menus
       itemBg: 'transparent',
-      itemHoverBg: 'rgba(255,255,255,0.04)',
-      itemSelectedBg: 'rgba(99,102,241,0.1)',
-      itemSelectedColor: '#818cf8',
+      itemHoverBg: 'rgba(255,255,255,0.08)',
+      itemSelectedBg: 'rgba(99,102,241,0.25)',
+      itemSelectedColor: '#ffffff',
+      itemColor: 'rgba(255,255,255,0.7)',
       iconSize: 16,
     },
 
     Tag: {
       borderRadiusSM: 4,
-      defaultBg: 'rgba(255,255,255,0.06)',
+      defaultBg: '#f1f5f9',
     },
 
     Badge: {
@@ -118,17 +120,21 @@ export const antdTheme: ThemeConfig = {
     },
 
     Tooltip: {
-      colorBgSpotlight: '#262626',
+      colorBgSpotlight: '#1e293b',
       borderRadius: 6,
       fontSize: 13,
     },
 
     Tabs: {
-      itemColor: '#737373',
-      itemActiveColor: '#fafafa',
+      itemColor: '#64748b',
+      itemActiveColor: '#0f172a',
       itemSelectedColor: '#6366f1',
       inkBarColor: '#6366f1',
       horizontalItemPadding: '12px 16px',
+    },
+
+    Message: {
+      contentBg: '#ffffff',
     },
   },
 };

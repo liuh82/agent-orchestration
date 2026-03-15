@@ -5,7 +5,6 @@ import {
   DashboardOutlined,
   ProjectOutlined,
   RobotOutlined,
-  ApiOutlined,
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -18,7 +17,6 @@ import { useUIStore } from '@/stores/ui';
 import { colors } from '@/styles/tokens/color';
 import { spacing } from '@/styles/tokens/spacing';
 import { radius } from '@/styles/tokens/radius';
-import { typography } from '@/styles/tokens/typography';
 import { animation } from '@/styles/tokens/animation';
 import type { MenuProps } from 'antd';
 
@@ -28,7 +26,7 @@ const Layout = styled.div`
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: ${colors.neutral[950]};
+  background: #f5f5f5;
 `;
 
 const Body = styled.div`
@@ -38,28 +36,30 @@ const Body = styled.div`
 `;
 
 const StyledHeader = styled.header`
-  height: ${spacing.layout.headerHeight};
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 ${spacing[6]};
-  background: rgba(10,10,10,0.8);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid ${colors.border.DEFAULT};
+  padding: 0 24px;
+  background: #334155;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
   position: sticky;
   top: 0;
   z-index: 100;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 `;
 
 const HeaderLeft = styled.div`
   display: flex;
   align-items: center;
   gap: ${spacing[4]};
+  padding-left: 4px;
 `;
 
 const LogoText = styled.span`
-  font-size: ${typography.fontSize.xl};
-  font-weight: ${typography.fontWeight.bold};
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 1px;
   background: ${colors.gradient.brand};
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -80,15 +80,15 @@ const IconButton = styled.button`
   height: 36px;
   border: none;
   background: transparent;
-  color: ${colors.text.secondary};
+  color: rgba(255,255,255,0.6);
   border-radius: ${radius.md};
   cursor: pointer;
   transition: all ${animation.duration.fast} ${animation.easing.default};
   font-size: 16px;
 
   &:hover {
-    background: rgba(255,255,255,0.06);
-    color: ${colors.text.primary};
+    background: rgba(255,255,255,0.1);
+    color: #fff;
   }
 `;
 
@@ -97,32 +97,27 @@ const StyledAvatar = styled(Avatar)`
 `;
 
 const SidebarWrapper = styled.aside<{ $collapsed: boolean }>`
-  width: ${({ $collapsed }) => ($collapsed ? spacing.layout.sidebarCollapsed : spacing.layout.sidebarWidth)};
-  background: ${colors.neutral[950]};
-  border-right: 1px solid ${colors.border.DEFAULT};
+  width: ${({ $collapsed }) => ($collapsed ? '64px' : spacing.layout.sidebarWidth)};
+  background: #1e293b;
   display: flex;
   flex-direction: column;
   transition: width ${animation.duration.normal} ${animation.easing.default};
   overflow: hidden;
   flex-shrink: 0;
+  padding-top: 4px;
 `;
 
-const SidebarMenu = styled(Menu)`
+const SidebarMenu = styled.div`
   flex: 1;
-  border: none;
-  background: transparent;
-  padding: ${spacing[2]} ${spacing[2]};
+  padding: ${spacing[3]} ${spacing[2]};
   overflow-y: auto;
-
-  .ant-menu-item {
-    margin: 2px 0;
-    border-radius: ${radius.md};
-  }
 `;
+
+
 
 const SidebarFooter = styled.div`
-  padding: ${spacing[3]} ${spacing[4]};
-  border-top: 1px solid ${colors.border.DEFAULT};
+  padding: ${spacing[3]};
+  border-top: 1px solid rgba(255,255,255,0.08);
   display: flex;
   justify-content: center;
 `;
@@ -131,7 +126,7 @@ const Content = styled.main`
   flex: 1;
   padding: ${spacing.layout.pagePadding};
   overflow-y: auto;
-  background: ${colors.neutral[950]};
+  background: #f5f5f5;
 `;
 
 const ContentInner = styled.div`
@@ -165,11 +160,6 @@ const menuItems: MenuProps['items'] = [
     label: '代理中心',
   },
   {
-    key: '/gateway',
-    icon: <ApiOutlined />,
-    label: 'Gateway',
-  },
-  {
     key: '/settings',
     icon: <SettingOutlined />,
     label: '设置',
@@ -184,7 +174,6 @@ export const MainLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Auto-collapse sidebar on small screens
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768 && !sidebarCollapsed) {
@@ -196,7 +185,39 @@ export const MainLayout = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [sidebarCollapsed, toggleSidebar]);
 
-  // Match sidebar selection for sub-routes (e.g. /agents/123 → /agents)
+  // Inject collapsed menu icon centering CSS
+  useEffect(() => {
+    const id = 'sidebar-collapsed-fix';
+    let style = document.getElementById(id) as HTMLStyleElement | null;
+    if (sidebarCollapsed) {
+      if (!style) {
+        style = document.createElement('style');
+        style.id = id;
+        document.head.appendChild(style);
+      }
+      style.textContent = `
+        .ant-menu-inline-collapsed > .ant-menu-item,
+        .ant-menu-inline-collapsed > .ant-menu-submenu > .ant-menu-submenu-title {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          padding: 0 !important;
+          padding-inline: 0 !important;
+          margin-inline: 0 !important;
+        }
+        .ant-menu-inline-collapsed > .ant-menu-item .ant-menu-title-content {
+          display: none !important;
+        }
+        .ant-menu-inline-collapsed > .ant-menu-item .ant-menu-item-icon {
+          margin-inline: 0 !important;
+          font-size: 18px !important;
+        }
+      `
+    } else if (style) {
+      style.remove();
+    }
+  }, [sidebarCollapsed]);
+
   const selectedKey = (menuItems?.find(
     (item) => item?.key !== undefined && item?.key !== null && item.key !== '/' && location.pathname.startsWith(String(item.key))
   )?.key ?? location.pathname) as string;
@@ -251,15 +272,22 @@ export const MainLayout = () => {
       </StyledHeader>
       <Body>
         <SidebarWrapper $collapsed={sidebarCollapsed}>
-          <SidebarMenu
-            mode="inline"
-            selectedKeys={[selectedKey]}
-            items={menuItems}
-            onClick={onMenuClick}
-            inlineCollapsed={sidebarCollapsed}
-          />
+          <SidebarMenu>
+            <Menu
+              mode="inline"
+              selectedKeys={[selectedKey]}
+              items={menuItems}
+              onClick={onMenuClick}
+              inlineCollapsed={sidebarCollapsed}
+              theme="dark"
+              style={{ background: 'transparent', border: 'none' }}
+            />
+          </SidebarMenu>
           <SidebarFooter>
-            <IconButton onClick={toggleSidebar}>
+            <IconButton
+              onClick={toggleSidebar}
+              style={{ color: 'rgba(255,255,255,0.5)' }}
+            >
               {sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             </IconButton>
           </SidebarFooter>

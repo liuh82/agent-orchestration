@@ -27,20 +27,36 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { ErrorBlock } from '@/components/common/ErrorBlock';
 import type { DashboardStats } from '@/types/stats';
-import type { ApiResponse } from '@/types/api';
 import type { ColumnsType } from 'antd/es/table';
 
 /* ── styled components ── */
+
+const StatRow = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: ${spacing[5]};
+  
+  @media (max-width: 992px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (max-width: 576px) {
+    grid-template-columns: 1fr;
+  }
+`;
 
 const StatCard = styled.div`
   background: ${colors.surface.DEFAULT};
   border: 1px solid ${colors.border.DEFAULT};
   border-radius: ${radius.xl};
   padding: ${spacing[6]};
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   transition: border-color ${animation.duration.normal} ${animation.easing.default};
 
   &:hover {
     border-color: ${colors.border.hover};
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   }
 `;
 
@@ -70,11 +86,17 @@ const StatLabel = styled.div`
   margin-top: ${spacing[1]};
 `;
 
-const SectionCard = styled.div`
+const SectionCard = styled.div<{ $scrollable?: boolean }>`
   background: ${colors.surface.DEFAULT};
   border: 1px solid ${colors.border.DEFAULT};
   border-radius: ${radius.xl};
   padding: ${spacing[6]};
+  ${({ $scrollable }) => $scrollable && `
+    height: 380px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  `}
 `;
 
 const SectionTitle = styled.h3`
@@ -223,7 +245,7 @@ export const DashboardPage = () => {
     isError,
     error,
     refetch,
-  } = useQuery<ApiResponse<DashboardStats>, Error>(
+  } = useQuery<{ data: DashboardStats }, Error>(
     ['dashboard'],
     statsApi.getDashboard,
   );
@@ -282,8 +304,8 @@ export const DashboardPage = () => {
       <PageHeader title="Dashboard" />
 
       {/* ── stat cards row ── */}
-      <Row gutter={[spacing[5], spacing[5]]}>
-        <Col xs={24} sm={12} lg={6}>
+      <StatRow>
+        
           <StatCard>
             <StatIconWrapper $color="rgba(34,197,94,0.12)">
               <RobotOutlined />
@@ -303,20 +325,16 @@ export const DashboardPage = () => {
             </StatValue>
             <StatLabel>Agent 在线</StatLabel>
           </StatCard>
-        </Col>
 
-        <Col xs={24} sm={12} lg={6}>
-          <StatCard>
+        <StatCard>
             <StatIconWrapper $color="rgba(99,102,241,0.12)">
               <ProjectOutlined />
             </StatIconWrapper>
             <StatValue>{stats?.project_count ?? 0}</StatValue>
             <StatLabel>项目数</StatLabel>
           </StatCard>
-        </Col>
 
-        <Col xs={24} sm={12} lg={6}>
-          <StatCard>
+        <StatCard>
             <StatIconWrapper $color="rgba(34,197,94,0.12)">
               <CheckCircleOutlined />
             </StatIconWrapper>
@@ -327,15 +345,13 @@ export const DashboardPage = () => {
                 percent={completionRate}
                 showInfo={false}
                 strokeColor={colors.success[500]}
-                trailColor={colors.neutral[800]}
+                trailColor={colors.neutral[200]}
                 size="small"
               />
             </ProgressWrapper>
           </StatCard>
-        </Col>
 
-        <Col xs={24} sm={12} lg={6}>
-          <StatCard>
+        <StatCard>
             <StatIconWrapper $color="rgba(99,102,241,0.12)">
               <ThunderboltOutlined />
             </StatIconWrapper>
@@ -348,14 +364,14 @@ export const DashboardPage = () => {
             </StatValue>
             <StatLabel>今日 Token 消耗</StatLabel>
           </StatCard>
-        </Col>
-      </Row>
+      </StatRow>
 
       {/* ── middle section: Agent status + Recent tasks ── */}
       <Row gutter={[spacing[5], spacing[5]]} style={{ marginTop: spacing[5] }}>
         <Col xs={24} lg={10}>
-          <SectionCard>
+          <SectionCard $scrollable>
             <SectionTitle>Agent 状态面板</SectionTitle>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
             {stats && stats.agent_count > 0 ? (
               // When we have real agent list data, this would show actual agents
               // For now show a summary view from dashboard stats
@@ -383,11 +399,12 @@ export const DashboardPage = () => {
             ) : (
               <NoDataText>暂无 Agent 数据</NoDataText>
             )}
+            </div>
           </SectionCard>
         </Col>
 
         <Col xs={24} lg={14}>
-          <SectionCard>
+          <SectionCard $scrollable>
             <SectionTitle>最近任务</SectionTitle>
             <Table<RecentTask>
               columns={recentTaskColumns}

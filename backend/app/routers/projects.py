@@ -27,7 +27,7 @@ def _to_project_out(p: Project) -> dict:
 # ── GET /projects ──────────────────────────────────────────
 
 
-@router.get("")
+@router.get("/")
 def list_projects(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -54,7 +54,7 @@ def list_projects(
 # ── POST /projects ─────────────────────────────────────────
 
 
-@router.post("")
+@router.post("/")
 def create_project(
     body: ProjectCreate,
     user: User = Depends(get_current_user),
@@ -82,7 +82,7 @@ def create_project(
 # ── GET /projects/:id ──────────────────────────────────────
 
 
-@router.get("/{project_id}")
+@router.get("/{project_id}/")
 def get_project(
     project_id: str,
     user: User = Depends(get_current_user),
@@ -100,7 +100,7 @@ def get_project(
 # ── PUT /projects/:id ──────────────────────────────────────
 
 
-@router.put("/{project_id}")
+@router.put("/{project_id}/")
 def update_project(
     project_id: str,
     body: ProjectUpdate,
@@ -130,7 +130,7 @@ def update_project(
 # ── DELETE /projects/:id (archive) ────────────────────────
 
 
-@router.delete("/{project_id}")
+@router.delete("/{project_id}/")
 def delete_project(
     project_id: str,
     user: User = Depends(get_current_user),

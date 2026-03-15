@@ -7,45 +7,42 @@ const api = axios.create({
   timeout: 30000,
 });
 
-// 请求拦截器
+// 请求拦截器 — JWT Bearer + API Key fallback
 api.interceptors.request.use(
   (config) => {
-    // X-API-Key 认证（与后端 auth.py 一致）
-    const apiKey = import.meta.env.VITE_API_KEY;
+    const accessToken = localStorage.getItem('access_token');
+    if (accessToken) {
+      config.headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    const apiKey = import.meta.env.VITE_API_KEY || localStorage.getItem('api_key');
     if (apiKey) {
       config.headers['X-API-Key'] = apiKey;
-    } else {
-      const storedKey = localStorage.getItem('api_key');
-      if (storedKey) {
-        config.headers['X-API-Key'] = storedKey;
-      }
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// 响应拦截器
+// 响应拦截器 — 自动解包 { code, data, message }
 api.interceptors.response.use(
   (response) => {
+    const data = response.data;
+    if (data && typeof data === 'object' && 'code' in data && 'data' in data) {
+      response.data = data.data;
+    }
     return response;
   },
   (error) => {
-    // 401: 认证失效，清除 key 并通知前端
     if (error.response?.status === 401) {
-      localStorage.removeItem('api_key');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
       window.dispatchEvent(new CustomEvent('auth:expired'));
     }
     if (error.response) {
-      // 处理 HTTP 错误
       console.error('API Error:', error.response.status, error.response.data);
     } else if (error.request) {
-      // 处理网络错误
       console.error('Network Error:', error.message);
     } else {
-      // 处理其他错误
       console.error('Error:', error.message);
     }
     return Promise.reject(error);

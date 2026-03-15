@@ -2,10 +2,10 @@
  * 颜色系统
  *
  * 设计原则：
- * 1. 暗色主题为默认（技术类产品偏好暗色）
+ * 1. 浅色主题（内容区）+ 深色主题（Sidebar/Header）
  * 2. 主色调：Indigo（专业、科技感、不刺眼）
  * 3. 语义色：绿=成功、红=错误、黄=警告、蓝=信息
- * 4. 中性色：从 #0a0a0a 到 #fafafa 的完整灰阶
+ * 4. 中性色：从 #f1f5f9 到 #0f172a 的完整灰阶
  */
 
 export const colors = {
@@ -54,53 +54,51 @@ export const colors = {
     700: '#1d4ed8',
   },
 
-  // === 中性色（暗色主题） ===
+  // === 中性色 ===
   neutral: {
-    50:   '#fafafa',
-    100:  '#f5f5f5',
-    200:  '#e5e5e5',
-    300:  '#d4d4d4',
-    400:  '#a3a3a3',
-    500:  '#737373',
-    600:  '#525252',
-    700:  '#404040',
-    800:  '#262626',
-    850:  '#1c1c1c',
-    900:  '#171717',
-    950:  '#0a0a0a',
+    50:   '#f8fafc',
+    100:  '#f1f5f9',
+    200:  '#e2e8f0',
+    300:  '#cbd5e1',
+    400:  '#94a3b8',
+    500:  '#64748b',
+    600:  '#475569',
+    700:  '#334155',
+    800:  '#1e293b',
+    850:  '#172033',
+    900:  '#0f172a',
+    950:  '#020617',
   },
 
-  // === 功能色 ===
+  // === 表面色（卡片/面板） ===
   surface: {
-    DEFAULT: '#141414',
-    raised:   '#1a1a1a',
-    overlay:  'rgba(0,0,0,0.6)',
+    DEFAULT: '#ffffff',
+    raised:   '#f8fafc',
+    overlay:  '#f1f5f9',
   },
 
-  // === 边框 ===
   border: {
-    DEFAULT: 'rgba(255,255,255,0.06)',
-    hover:    'rgba(255,255,255,0.10)',
-    focus:    'rgba(99,102,241,0.50)',
-    disabled: 'rgba(255,255,255,0.03)',
+    DEFAULT: '#e2e8f0',
+    hover:    '#cbd5e1',
+    focus:    '#6366f1',
   },
 
-  // === 文字 ===
+  // === 文字色 ===
   text: {
-    primary:   '#fafafa',
-    secondary: '#a3a3a3',
-    muted:     '#737373',
-    disabled:  '#525252',
-    brand:     '#818cf8',
-    success:   '#4ade80',
-    error:     '#f87171',
-    warning:   '#fbbf24',
+    primary:   '#0f172a',
+    secondary: '#64748b',
+    muted:     '#94a3b8',
+    disabled:  '#cbd5e1',
+    brand:     '#6366f1',
+    success:   '#16a34a',
+    error:     '#dc2626',
+    warning:   '#d97706',
   },
 
   // === 渐变 ===
   gradient: {
     brand:  'linear-gradient(135deg, #6366f1, #8b5cf6)',
     success: 'linear-gradient(135deg, #22c55e, #10b981)',
-    card:   'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%)',
+    card:   'linear-gradient(180deg, rgba(0,0,0,0.01) 0%, rgba(0,0,0,0) 100%)',
   },
 };

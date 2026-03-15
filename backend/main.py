@@ -56,11 +56,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
+    
     title="AI Agent Orchestrator API",
     description="AI Agent 编排可视化工具后端 API",
     version="1.0.0",
     lifespan=lifespan
 )
+
 
 # Rate limiting
 app.state.limiter = limiter
@@ -84,6 +86,7 @@ app.include_router(org.router, prefix="/api/org", tags=["organization"])
 app.include_router(heartbeats.router, prefix="/api/heartbeats", tags=["heartbeats"])
 app.include_router(gateway.router, prefix="/api/gateway", tags=["Gateway"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth-compat"])
 
 # v1 business routes
 app.include_router(agents_v1.router, prefix="/api/v1/agents", tags=["v1-agents"])
@@ -109,3 +112,11 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# ── API path compatibility: /api/* → /api/v1/* ──
+app.include_router(projects.router, prefix="/api/projects", tags=["projects-compat"])
+app.include_router(agents_v1.router, prefix="/api/agent-types", tags=["agent-types-compat"])
+app.include_router(tasks_v1.router, prefix="/api/projects/{project_id}/tasks", tags=["tasks-compat"])
+app.include_router(tasks_v1.router, prefix="/api/tasks", tags=["tasks-v1-compat"])
+app.include_router(agents_v1.router, prefix="/api/agents", tags=["agents-v1-compat"])
+app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs-compat"])

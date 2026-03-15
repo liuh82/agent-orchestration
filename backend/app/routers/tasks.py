@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 
-from ..models.task import TaskCreate, TaskUpdate, Task
+from ..models.task_legacy import TaskCreate, TaskUpdate, Task
 from ..services.task import TaskService
 from ..database import get_db
 

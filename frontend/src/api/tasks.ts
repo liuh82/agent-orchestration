@@ -12,10 +12,10 @@ interface TaskListParams {
 
 export const tasksApi = {
   // 获取任务列表
-  getTasks: (params?: TaskListParams) => api.get<Task[]>('/tasks', { params }),
+  getTasks: (params?: TaskListParams) => api.get<Task[]>('/tasks/', { params }),
 
   // 创建任务
-  createTask: (data: Partial<Task>) => api.post<Task>('/tasks', data),
+  createTask: (data: Partial<Task>) => api.post<Task>('/tasks/', data),
 
   // 获取单个任务
   getTask: (id: string) => api.get<Task>(`/tasks/${id}`),
