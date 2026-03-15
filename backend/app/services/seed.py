@@ -13,13 +13,15 @@ logger = logging.getLogger(__name__)
 
 PRESET_AGENT_TYPES = [
     {
+        "id": "type-cc",
         "name": "cc",
-        "display_name": "CC",
+        "display_name": "Claude Code",
         "protocol": "local_process",
         "capabilities": '["coding", "refactoring", "debugging"]',
         "default_models": '["opus", "sonnet"]',
     },
     {
+        "id": "6e2dcf6e-948e-4474-a493-34e35cd36f6b",
         "name": "codex",
         "display_name": "Codex",
         "protocol": "local_process",
@@ -27,6 +29,7 @@ PRESET_AGENT_TYPES = [
         "default_models": '["gpt-4", "gpt-3.5-turbo"]',
     },
     {
+        "id": "546aa350-15eb-43d2-851b-3cb4b3af7981",
         "name": "opencode",
         "display_name": "OpenCode",
         "protocol": "local_process",
@@ -34,6 +37,7 @@ PRESET_AGENT_TYPES = [
         "default_models": '["deepseek-coder", "qwen-coder"]',
     },
     {
+        "id": "517546fc-262c-4a38-a320-1016cbea1cb0",
         "name": "openclaw",
         "display_name": "OpenClaw",
         "protocol": "websocket",
