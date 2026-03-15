@@ -5,7 +5,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 
 from app.rate_limit import limiter
-from app.routers import agents, tasks, workflows, cost, org, heartbeats, gateway
+from app.routers import agents, tasks, workflows, cost, org, heartbeats, gateway, auth
 from app.services.scheduler import scheduler
 from app.services.heartbeat import HeartbeatService
 
@@ -76,6 +76,7 @@ app.include_router(cost.router, prefix="/api/cost", tags=["cost"])
 app.include_router(org.router, prefix="/api/org", tags=["organization"])
 app.include_router(heartbeats.router, prefix="/api/heartbeats", tags=["heartbeats"])
 app.include_router(gateway.router, prefix="/api/gateway", tags=["Gateway"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 
 
 @app.get("/")

@@ -11,6 +11,7 @@ from app.config import settings
 from app.database import Base
 from app.models.orm_models import *  # noqa: F401, F403 — register all ORM models
 from app.models.gateway import *  # noqa: F401, F403 — register gateway models
+from app.models.user import *  # noqa: F401, F403 — register user model
 
 # Alembic Config object
 config = context.config
