@@ -138,7 +138,12 @@ const ContentInner = styled.div`
   max-width: ${spacing.layout.contentMaxWidth};
   margin: 0 auto;
   width: 100%;
-  ${animation.slideUp}
+  animation: pageTransition 200ms cubic-bezier(0, 0, 0.2, 1);
+
+  @keyframes pageTransition {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 `;
 
 // === Menu Items ===
@@ -178,6 +183,18 @@ export const MainLayout = () => {
   const { sidebarCollapsed, toggleSidebar } = useUIStore();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Auto-collapse sidebar on small screens
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768 && !sidebarCollapsed) {
+        toggleSidebar();
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [sidebarCollapsed, toggleSidebar]);
 
   // Match sidebar selection for sub-routes (e.g. /agents/123 → /agents)
   const selectedKey = (menuItems?.find(
@@ -248,7 +265,7 @@ export const MainLayout = () => {
           </SidebarFooter>
         </SidebarWrapper>
         <Content>
-          <ContentInner>
+          <ContentInner key={location.pathname}>
             <Outlet />
           </ContentInner>
         </Content>

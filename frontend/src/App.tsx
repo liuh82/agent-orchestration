@@ -21,6 +21,18 @@ const AgentNewPage = React.lazy(() => import('@/pages/agents/AgentNewPage'));
 const AgentDetailPage = React.lazy(() => import('@/pages/agents/AgentDetailPage'));
 const TaskDetailPage = React.lazy(() => import('@/pages/tasks/TaskDetailPage'));
 
+// 懒加载页面 — Settings
+const SettingsPage = React.lazy(() => import('@/pages/settings/SettingsPage'));
+const NotificationPage = React.lazy(() => import('@/pages/settings/NotificationPage'));
+
+// 懒加载页面 — Admin
+const AdminDashboard = React.lazy(() => import('@/pages/admin/AdminDashboard'));
+const UserManagePage = React.lazy(() => import('@/pages/admin/UserManagePage'));
+const AgentTypePage = React.lazy(() => import('@/pages/admin/AgentTypePage'));
+const SystemSettingsPage = React.lazy(() => import('@/pages/admin/SystemSettingsPage'));
+const AdminNotificationPage = React.lazy(() => import('@/pages/admin/AdminNotificationPage'));
+const AdminStatsPage = React.lazy(() => import('@/pages/admin/AdminStatsPage'));
+
 function App() {
   return (
     <ConfigProvider theme={antdTheme}>
@@ -41,11 +53,18 @@ function App() {
               <Route path="agents/new" element={<AgentNewPage />} />
               <Route path="agents/:id" element={<AgentDetailPage />} />
               <Route path="tasks/:id" element={<TaskDetailPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings/notifications" element={<NotificationPage />} />
             </Route>
 
             {/* 已登录 - 后台 */}
             <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
-              {/* R4 添加 admin 子路由 */}
+              <Route index element={<AdminDashboard />} />
+              <Route path="users" element={<UserManagePage />} />
+              <Route path="agent-types" element={<AgentTypePage />} />
+              <Route path="settings" element={<SystemSettingsPage />} />
+              <Route path="notifications" element={<AdminNotificationPage />} />
+              <Route path="stats" element={<AdminStatsPage />} />
             </Route>
 
             {/* 404 */}

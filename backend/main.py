@@ -7,6 +7,7 @@ from slowapi import _rate_limit_exceeded_handler
 from app.rate_limit import limiter
 from app.routers import agents_legacy, tasks_legacy, workflows, cost, org, heartbeats, gateway, auth
 from app.routers import agents as agents_v1, projects, tasks as tasks_v1, jobs
+from app.routers import admin, settings as settings_router, notifications, stats
 from app.services.scheduler import scheduler
 from app.services.heartbeat import HeartbeatService
 
@@ -39,6 +40,11 @@ async def lifespan(app: FastAPI):
     # Initialize Gateway WebSocket Server
     gateway.init_gateway_services()
     print("Gateway WebSocket Server initialized")
+
+    # Run seed data
+    from app.services.seed import run_seed
+    run_seed(db)
+    print("Seed data initialized")
 
     yield
 
@@ -87,6 +93,12 @@ app.include_router(tasks_v1.router, prefix="/api/v1/projects/{project_id}/tasks"
 app.include_router(tasks_v1.router, prefix="/api/v1/tasks", tags=["v1-tasks"])
 app.include_router(jobs.router, prefix="/api/v1/tasks/{task_id}/jobs", tags=["v1-jobs"])
 app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["v1-jobs"])
+
+# v1 admin / settings / notifications / stats routes
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["v1-admin"])
+app.include_router(settings_router.router, prefix="/api/v1/admin/settings", tags=["v1-settings"])
+app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["v1-notifications"])
+app.include_router(stats.router, prefix="/api/v1/stats", tags=["v1-stats"])
 
 
 @app.get("/")

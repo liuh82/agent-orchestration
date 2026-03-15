@@ -17,6 +17,8 @@ from app.models.agent_instance import AgentInstance  # noqa: F401
 from app.models.project import Project  # noqa: F401
 from app.models.task import NexusTask  # noqa: F401
 from app.models.job import Job  # noqa: F401
+from app.models.system_setting import SystemSetting  # noqa: F401
+from app.models.notification import NotificationChannel  # noqa: F401
 
 # Gateway models — also managed by Alembic
 from app.models.gateway import BridgeRecord, TaskRecord  # noqa: F401
