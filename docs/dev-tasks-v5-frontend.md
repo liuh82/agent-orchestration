@@ -1,7 +1,7 @@
 # Agent Orchestrator 前端改造任务（第 5 轮）
 
 ## 项目路径
-/root/.openclaw/workspace/agent-orchestration/frontend
+/Users/lh8/projects/agent-orchestration/frontend
 
 ## 技术栈
 React 18 + TypeScript + Vite + Ant Design 5 + react-query v3 + zustand + styled-components

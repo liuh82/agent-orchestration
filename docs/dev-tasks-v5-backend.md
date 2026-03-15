@@ -1,7 +1,7 @@
 # Agent Orchestrator 后端改造任务（第 5 轮）
 
 ## 项目路径
-/root/.openclaw/workspace/agent-orchestration/backend
+/Users/lh8/projects/agent-orchestration/backend
 
 ## 技术栈
 Python 3 + FastAPI + SQLAlchemy + SQLite + Pydantic v2 + Alembic
@@ -43,7 +43,7 @@ Python 3 + FastAPI + SQLAlchemy + SQLite + Pydantic v2 + Alembic
 
 6. 创建 Alembic 迁移：
    ```bash
-   cd /root/.openclaw/workspace/agent-orchestration/backend
+   cd /Users/lh8/projects/agent-orchestration/backend
    alembic revision --autogenerate -m "add_workflow_id_to_tasks"
    alembic upgrade head
    ```
