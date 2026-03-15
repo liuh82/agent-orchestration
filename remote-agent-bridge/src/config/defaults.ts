@@ -128,20 +128,8 @@ export const TASK_STATUS_TRANSITIONS: Record<string, string[]> = {
 };
 
 /** Validate critical config values — call at startup */
-export function validateConfig(config: BridgeConfig): string[] {
-  const errors: string[] = [];
-
-  if (!config.gateway.token) {
-    errors.push('gateway.token is empty — set OC_GATEWAY_TOKEN env var');
+export function validateConfig(config: BridgeConfig): void {
+  if (!config.gateway.token && config.gateway.url) {
+    throw new Error('OC_GATEWAY_TOKEN must be set when gateway URL is configured');
   }
-
-  if (config.http.enabled && config.http.auth.enabled && !config.http.auth.apiKey) {
-    errors.push('http.auth.apiKey is empty while HTTP auth is enabled — set OC_HTTP_API_KEY env var');
-  }
-
-  if (process.env.NODE_ENV === 'production' && !config.http.auth.enabled) {
-    errors.push('HTTP auth must be enabled in production — set OC_HTTP_API_KEY env var');
-  }
-
-  return errors;
 }

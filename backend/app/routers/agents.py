@@ -53,7 +53,7 @@ def _to_agent_out(inst: AgentInstance, type_info: Optional[AgentTypeOut] = None)
 @router.get("")
 def list_agents(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(50, ge=1, le=100),
     sort_by: str = Query("created_at"),
     sort_order: str = Query("desc"),
     search: Optional[str] = Query(None),
