@@ -37,6 +37,9 @@ const StatCard = styled.div`
   border: 1px solid ${colors.border.DEFAULT};
   border-radius: ${radius.xl};
   padding: ${spacing[6]};
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   transition: border-color ${animation.duration.normal} ${animation.easing.default};
 
   &:hover {

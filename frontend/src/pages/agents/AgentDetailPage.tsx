@@ -107,13 +107,13 @@ const ConfigEditor = styled.div`
 `;
 
 const ConfigJsonViewer = styled.pre`
-  background: ${colors.neutral[950]};
+  background: #fafafa;
   border: 1px solid ${colors.border.DEFAULT};
   border-radius: ${radius.lg};
   padding: ${spacing[5]};
   font-family: ${typography.fontFamily.mono};
-  font-size: ${typography.fontSize.sm};
-  color: ${colors.text.primary};
+  font-size: 14px;
+  color: #1f2937;
   overflow-x: auto;
   line-height: ${typography.lineHeight.relaxed};
   white-space: pre-wrap;
@@ -552,9 +552,9 @@ export const AgentDetailPage = () => {
                 rows={16}
                 style={{
                   fontFamily: typography.fontFamily.mono,
-                  fontSize: typography.fontSize.sm,
-                  background: colors.neutral[950],
-                  color: colors.text.primary,
+                  fontSize: 14,
+                  background: '#fafafa',
+                  color: '#1f2937',
                   border: `1px solid ${colors.border.DEFAULT}`,
                   borderRadius: radius.lg,
                 }}

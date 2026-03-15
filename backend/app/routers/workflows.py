@@ -2,16 +2,14 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from ..models.workflow import WorkflowDefinition, WorkflowTemplate
 from ..services.workflow import WorkflowService
 from ..services.workflow_engine_registry import workflow_engine_registry
-from ..database import SessionLocal
+from ..database import get_db
 
 router = APIRouter()
-
-# 模块级 service 实例
-workflow_service = WorkflowService(SessionLocal())
 
 
 
@@ -25,14 +23,16 @@ class WorkflowResponse(BaseModel):
 
 
 @router.get("/templates", response_model=List[WorkflowTemplate])
-async def get_templates():
+async def get_templates(db: Session = Depends(get_db)):
     """获取工作流模板"""
+    workflow_service = WorkflowService(db)
     return workflow_service.get_templates()
 
 
 @router.get("/templates/{template_id}", response_model=WorkflowTemplate)
-async def get_template(template_id: str):
+async def get_template(template_id: str, db: Session = Depends(get_db)):
     """获取单个模板"""
+    workflow_service = WorkflowService(db)
     template = workflow_service.get_template(template_id)
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -41,14 +41,16 @@ async def get_template(template_id: str):
 
 
 @router.post("/templates/", response_model=WorkflowTemplate)
-async def create_template(template: WorkflowTemplate):
+async def create_template(template: WorkflowTemplate, db: Session = Depends(get_db)):
     """创建模板"""
+    workflow_service = WorkflowService(db)
     return workflow_service.create_template(template)
 
 
 @router.delete("/templates/{template_id}")
-async def delete_template(template_id: str):
+async def delete_template(template_id: str, db: Session = Depends(get_db)):
     """删除模板"""
+    workflow_service = WorkflowService(db)
     deleted = workflow_service.delete_template(template_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -60,14 +62,16 @@ async def delete_template(template_id: str):
 
 
 @router.get("/", response_model=List[WorkflowDefinition])
-async def get_workflows():
+async def get_workflows(db: Session = Depends(get_db)):
     """获取所有工作流"""
+    workflow_service = WorkflowService(db)
     return workflow_service.get_all_workflows()
 
 
 @router.post("/", response_model=WorkflowResponse)
-async def create_workflow(workflow: WorkflowDefinition):
+async def create_workflow(workflow: WorkflowDefinition, db: Session = Depends(get_db)):
     """创建新工作流"""
+    workflow_service = WorkflowService(db)
     try:
         db_workflow = workflow_service.create_workflow(workflow)
         return WorkflowResponse(
@@ -80,8 +84,9 @@ async def create_workflow(workflow: WorkflowDefinition):
 
 
 @router.get("/{workflow_id}", response_model=WorkflowResponse)
-async def get_workflow(workflow_id: str):
+async def get_workflow(workflow_id: str, db: Session = Depends(get_db)):
     """获取单个工作流"""
+    workflow_service = WorkflowService(db)
     workflow = workflow_service.get_workflow(workflow_id)
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -90,8 +95,9 @@ async def get_workflow(workflow_id: str):
 
 
 @router.put("/{workflow_id}", response_model=WorkflowResponse)
-async def update_workflow(workflow_id: str, workflow: WorkflowDefinition):
+async def update_workflow(workflow_id: str, workflow: WorkflowDefinition, db: Session = Depends(get_db)):
     """更新工作流"""
+    workflow_service = WorkflowService(db)
     updated_workflow = workflow_service.update_workflow(workflow_id, workflow)
     if not updated_workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -104,8 +110,9 @@ async def update_workflow(workflow_id: str, workflow: WorkflowDefinition):
 
 
 @router.delete("/{workflow_id}")
-async def delete_workflow(workflow_id: str):
+async def delete_workflow(workflow_id: str, db: Session = Depends(get_db)):
     """删除工作流"""
+    workflow_service = WorkflowService(db)
     deleted = workflow_service.delete_workflow(workflow_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -114,8 +121,9 @@ async def delete_workflow(workflow_id: str):
 
 
 @router.post("/{workflow_id}/execute")
-async def execute_workflow(workflow_id: str, context: dict = {}):
+async def execute_workflow(workflow_id: str, context: dict = {}, db: Session = Depends(get_db)):
     """执行工作流"""
+    workflow_service = WorkflowService(db)
     # 获取工作流定义
     workflow = workflow_service.get_workflow(workflow_id)
     if not workflow:
