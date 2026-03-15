@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Button,
   Tabs,
@@ -224,6 +224,8 @@ const logColumns: ColumnsType<LogEntry> = [
 export const AgentDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const agentsListPath = location.pathname.startsWith('/admin') ? '/admin/agents' : '/agents';
   const queryClient = useQueryClient();
   const [logPage, setLogPage] = useState(1);
   const [logPageSize, setLogPageSize] = useState(20);
@@ -322,7 +324,7 @@ export const AgentDetailPage = () => {
     {
       onSuccess: () => {
         void message.success('代理已删除');
-        navigate('/agents');
+        navigate(agentsListPath);
       },
       onError: () => { void message.error('删除失败'); },
     },
@@ -359,7 +361,7 @@ export const AgentDetailPage = () => {
         <PageHeader
           title="代理详情"
           actions={
-            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/agents')}>
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(agentsListPath)}>
               返回
             </Button>
           }
@@ -379,7 +381,7 @@ export const AgentDetailPage = () => {
         <PageHeader
           title="代理详情"
           actions={
-            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/agents')}>
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(agentsListPath)}>
               返回
             </Button>
           }
@@ -395,7 +397,7 @@ export const AgentDetailPage = () => {
         <PageHeader
           title="代理详情"
           actions={
-            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/agents')}>
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(agentsListPath)}>
               返回
             </Button>
           }
@@ -576,7 +578,7 @@ export const AgentDetailPage = () => {
           <div style={{ display: 'flex', gap: spacing[3], alignItems: 'center' }}>
             <Button
               icon={<ArrowLeftOutlined />}
-              onClick={() => navigate('/agents')}
+              onClick={() => navigate(agentsListPath)}
             >
               返回
             </Button>
