@@ -125,7 +125,7 @@ export const AgentTypePage = () => {
     refetch,
   } = useQuery(
     ['admin-agent-types'],
-    () => api.get('/admin/agent-types') as Promise<any>,
+    () => api.get('/v1/admin/agent-types') as Promise<any>,
   );
 
   const rawList: AgentType[] = response?.data?.items ?? response?.data ?? [];
@@ -137,7 +137,7 @@ export const AgentTypePage = () => {
 
   const createMutation = useMutation(
     (values: FormValues) =>
-      api.post('/admin/agent-types', values) as Promise<any>,
+      api.post('/v1/admin/agent-types', values) as Promise<any>,
     {
       onSuccess: () => {
         void message.success('Agent 类型已创建');

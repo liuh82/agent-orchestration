@@ -104,7 +104,7 @@ export const UserManagePage = () => {
   } = useQuery<ApiResponse<PagedData<UserRow>>, Error>(
     ['admin-users', { page, page_size: pageSize }],
     () =>
-      api.get('/admin/users', { params: { page, page_size: pageSize } }) as Promise<any>,
+      api.get('/v1/admin/users', { params: { page, page_size: pageSize } }) as Promise<any>,
     {
       keepPreviousData: true,
     },
@@ -117,7 +117,7 @@ export const UserManagePage = () => {
 
   const roleMutation = useMutation(
     ({ userId, role }: { userId: string; role: string }) =>
-      api.put(`/admin/users/${userId}`, { role }) as Promise<any>,
+      api.put(`/v1/admin/users/${userId}`, { role }) as Promise<any>,
     {
       onSuccess: () => {
         void message.success('角色已更新');
@@ -131,7 +131,7 @@ export const UserManagePage = () => {
 
   const statusMutation = useMutation(
     ({ userId, status }: { userId: string; status: string }) =>
-      api.put(`/admin/users/${userId}`, { status }) as Promise<any>,
+      api.put(`/v1/admin/users/${userId}`, { status }) as Promise<any>,
     {
       onSuccess: () => {
         void message.success('状态已更新');
