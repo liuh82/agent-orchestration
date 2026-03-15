@@ -148,7 +148,6 @@ interface AgentFormData {
   type_id: string;
   name: string;
   model?: string;
-  bridge_url?: string;
   timeout?: number;
   max_retries?: number;
   skills?: string[];
@@ -158,7 +157,6 @@ const initialFormData: AgentFormData = {
   type_id: '',
   name: '',
   model: '',
-  bridge_url: '',
   timeout: 60,
   max_retries: 3,
   skills: [],
@@ -190,7 +188,6 @@ export const AgentNewPage = () => {
         name: data.name,
         model: data.model,
         config: {
-          bridge_url: data.bridge_url,
           timeout: data.timeout,
           max_retries: data.max_retries,
           skills: data.skills,
@@ -201,9 +198,9 @@ export const AgentNewPage = () => {
         void message.success('代理创建成功');
         const agentId = response?.data?.id;
         if (agentId) {
-          navigate(`/agents/${agentId}`);
+          navigate(`/admin/agents/${agentId}`);
         } else {
-          navigate('/agents');
+          navigate('/admin/agents');
         }
       },
       onError: () => {
@@ -240,7 +237,6 @@ export const AgentNewPage = () => {
           ...prev,
           name: values.name,
           model: values.model || undefined,
-          bridge_url: values.bridge_url || undefined,
           timeout: values.timeout,
           max_retries: values.max_retries,
         }));
@@ -276,7 +272,7 @@ export const AgentNewPage = () => {
         actions={
           <Button
             icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/agents')}
+            onClick={() => navigate('/admin/agents')}
           >
             返回
           </Button>
@@ -335,7 +331,7 @@ export const AgentNewPage = () => {
                     onClick={() => handleSelectType(type)}
                   >
                     <TypeIcon>{type.icon || '🤖'}</TypeIcon>
-                    <TypeName>{type.display_name || type.name}</TypeName>
+                    <TypeName>{type.name}</TypeName>
                     <TypeDesc>{type.description}</TypeDesc>
                     <TypeCode>{type.code}</TypeCode>
                     {type.capabilities.length > 0 && (
@@ -362,7 +358,6 @@ export const AgentNewPage = () => {
                 initialValues={{
                   name: formData.name,
                   model: formData.model || '',
-                  bridge_url: formData.bridge_url || '',
                   timeout: formData.timeout,
                   max_retries: formData.max_retries,
                 }}
@@ -384,14 +379,6 @@ export const AgentNewPage = () => {
                   rules={[{ max: 100, message: '模型名称不超过 100 个字符' }]}
                 >
                   <Input placeholder="例如: gpt-4o（可选）" />
-                </Form.Item>
-
-                <Form.Item
-                  label="连接地址"
-                  name="bridge_url"
-                  rules={[{ max: 500, message: '地址不超过 500 个字符' }]}
-                >
-                  <Input placeholder="ws://localhost:8080（可选）" />
                 </Form.Item>
 
                 <Form.Item
@@ -449,12 +436,6 @@ export const AgentNewPage = () => {
                   <ConfirmItem>
                     <ConfirmLabel>模型</ConfirmLabel>
                     <ConfirmValue>{formData.model}</ConfirmValue>
-                  </ConfirmItem>
-                )}
-                {formData.bridge_url && (
-                  <ConfirmItem>
-                    <ConfirmLabel>连接地址</ConfirmLabel>
-                    <ConfirmValue>{formData.bridge_url}</ConfirmValue>
                   </ConfirmItem>
                 )}
                 <ConfirmItem>

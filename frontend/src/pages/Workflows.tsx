@@ -35,7 +35,6 @@ interface WorkflowConnection {
 
 const { Option } = Select;
 const { TextArea } = Input;
-const { TabPane } = Tabs;
 
 // 工作流节点类型
 const NODE_TYPES: Record<string, { name: string; color: string }> = {
@@ -325,41 +324,54 @@ export const WorkflowsPage = () => {
         </Button>
       </div>
 
-      <Tabs defaultActiveKey="1">
-        <TabPane tab="工作流" key="1">
-          <Card>
-            <Table
-              columns={columns}
-              dataSource={workflows}
-              rowKey="id"
-              pagination={{
-                pageSize: 10,
-                showTotal: (total) => `共 ${total} 条`,
-              }}
-            />
-          </Card>
-        </TabPane>
-
-        <TabPane tab="模板库" key="2">
-          <Card>
-            <Table
-              columns={templateColumns}
-              dataSource={templates}
-              rowKey="id"
-              pagination={{
-                pageSize: 10,
-                showTotal: (total) => `共 ${total} 条`,
-              }}
-            />
-          </Card>
-        </TabPane>
-
-        <TabPane tab="工作流编辑器" key="3">
-          <Card>
-            <WorkflowEditor />
-          </Card>
-        </TabPane>
-      </Tabs>
+      <Tabs
+        defaultActiveKey="1"
+        items={[
+          {
+            key: '1',
+            label: '工作流',
+            children: (
+              <Card>
+                <Table
+                  columns={columns}
+                  dataSource={workflows}
+                  rowKey="id"
+                  pagination={{
+                    pageSize: 10,
+                    showTotal: (total) => `共 ${total} 条`,
+                  }}
+                />
+              </Card>
+            ),
+          },
+          {
+            key: '2',
+            label: '模板库',
+            children: (
+              <Card>
+                <Table
+                  columns={templateColumns}
+                  dataSource={templates}
+                  rowKey="id"
+                  pagination={{
+                    pageSize: 10,
+                    showTotal: (total) => `共 ${total} 条`,
+                  }}
+                />
+              </Card>
+            ),
+          },
+          {
+            key: '3',
+            label: '工作流编辑器',
+            children: (
+              <Card>
+                <WorkflowEditor />
+              </Card>
+            ),
+          },
+        ]}
+      />
 
       <Modal
         title={editingWorkflow ? '编辑工作流' : '创建工作流'}
@@ -422,3 +434,5 @@ export const WorkflowsPage = () => {
     </div>
   );
 };
+
+export default WorkflowsPage;

@@ -23,6 +23,7 @@ class NexusTask(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     depends_on: Mapped[str | None] = mapped_column(Text)
     assigned_agent: Mapped[str | None] = mapped_column(String(36))
+    workflow_id: Mapped[str | None] = mapped_column(String(36))
 
     total_jobs: Mapped[int] = mapped_column(Integer, default=0)
     completed_jobs: Mapped[int] = mapped_column(Integer, default=0)

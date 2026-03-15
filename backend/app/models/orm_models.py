@@ -68,6 +68,7 @@ class Task(Base):
     priority: Mapped[str] = mapped_column(String(20), default="medium")
     assignee_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("agents.id"))
     agent_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("agents.id"))
+    workflow_id: Mapped[Optional[str]] = mapped_column(String(36))
     action_params: Mapped[Optional[str]] = mapped_column(Text)  # JSON
     result: Mapped[Optional[str]] = mapped_column(Text)  # JSON
     error_message: Mapped[Optional[str]] = mapped_column(Text)

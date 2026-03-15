@@ -1,9 +1,11 @@
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query
 from pydantic import BaseModel
+from sqlalchemy import select, func
 
 from ..models.task_legacy import TaskCreate, TaskUpdate, Task
+from ..models.orm_models import AgentLog, Task as TaskORM
 from ..services.task import TaskService
 from ..database import get_db
 
@@ -159,6 +161,72 @@ async def cancel_task(task_id: str, db = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Failed to cancel task")
 
     return {"success": True, "task_id": task_id, "status": "cancelled", "message": "Task cancelled"}
+
+
+@router.get("/{task_id}/logs")
+async def get_task_logs(
+    task_id: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db=Depends(get_db),
+):
+    """获取任务相关日志（通过任务关联的 Agent 查询 agent_logs）"""
+    # 查找任务，获取关联的 agent_id
+    task_result = db.execute(
+        select(TaskORM).where(TaskORM.id == task_id)
+    )
+    task_orm = task_result.scalar_one_or_none()
+    if not task_orm:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    agent_id = task_orm.assignee_id
+    if not agent_id:
+        # 没有关联 agent，返回空列表
+        return {
+            "success": True,
+            "data": {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size,
+            },
+        }
+
+    # 查询 agent_logs
+    total_result = db.execute(
+        select(func.count(AgentLog.id)).where(AgentLog.agent_id == agent_id)
+    )
+    total = total_result.scalar() or 0
+
+    offset = (page - 1) * page_size
+    logs_result = db.execute(
+        select(AgentLog)
+        .where(AgentLog.agent_id == agent_id)
+        .order_by(AgentLog.created_at.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    log_records = logs_result.scalars().all()
+
+    items = [
+        {
+            "id": log.id,
+            "level": log.level,
+            "message": log.message,
+            "timestamp": log.created_at,
+        }
+        for log in log_records
+    ]
+
+    return {
+        "success": True,
+        "data": {
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        },
+    }
 
 
 @router.post("/{task_id}/assign")

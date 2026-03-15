@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from 'react-query';
-import { Button, Table, Tag, Space, Tooltip, message } from 'antd';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { Button, Table, Tag, Space, Tooltip, message, Tabs, Modal, Form, Input, Select, Popconfirm } from 'antd';
 import {
   EditOutlined,
   DeleteOutlined,
@@ -17,6 +18,7 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorBlock } from '@/components/common/ErrorBlock';
 import api from '@/api/client';
+import { tasksApi } from '@/api/tasks';
 import type { ApiResponse } from '@/types/api';
 import type { Task } from '@/types/task';
 import type { Job } from '@/types/job';
@@ -58,6 +60,15 @@ const jobStatusToBadge: Record<
   cancelled: 'cancelled',
 };
 
+// --------------- Log types ---------------
+interface TaskLog {
+  id: string;
+  task_id: string;
+  level: 'info' | 'warn' | 'error';
+  message: string;
+  created_at: string;
+}
+
 // --------------- Styled components ---------------
 const InfoCard = styled.div`
   background: ${colors.surface.DEFAULT};
@@ -98,20 +109,6 @@ const TableWrapper = styled.div`
   padding: ${spacing[6]};
 `;
 
-const TableHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: ${spacing[4]};
-`;
-
-const TableTitle = styled.h3`
-  font-size: ${typography.fontSize.lg};
-  font-weight: ${typography.fontWeight.semibold};
-  color: ${colors.text.primary};
-  margin: 0;
-`;
-
 const DescriptionText = styled.p`
   font-size: ${typography.fontSize.base};
   color: ${colors.text.secondary};
@@ -128,6 +125,9 @@ const NoteBanner = styled.div`
   font-size: ${typography.fontSize.sm};
   color: ${colors.text.warning};
 `;
+
+const { Option } = Select;
+const { TextArea } = Input;
 
 // --------------- Helper ---------------
 function formatDuration(startedAt?: string, completedAt?: string): string {
@@ -154,16 +154,14 @@ function formatTokenCount(count?: number): string {
   return String(count);
 }
 
-// --------------- Minimal inline task API (until taskApi module is created) ---------------
-const taskApi = {
-  getById: (taskId: string) =>
-    api.get(`/tasks/${taskId}`) as Promise<ApiResponse<Task>>,
-};
-
 // --------------- Component ---------------
 export const TaskDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editForm] = Form.useForm();
 
   // Fetch task detail
   const {
@@ -174,14 +172,55 @@ export const TaskDetailPage: React.FC = () => {
     refetch,
   } = useQuery<ApiResponse<Task>>(
     ['task', id],
-    () => taskApi.getById(id!),
+    () => tasksApi.getTask(id!) as any,
     { enabled: !!id, refetchOnWindowFocus: false },
   );
 
   const task = taskRes?.data;
 
+  // Fetch task logs
+  const {
+    data: logsRes,
+    isLoading: logsLoading,
+  } = useQuery<ApiResponse<TaskLog[]>>(
+    ['task-logs', id],
+    () => api.get(`/tasks/${id}/logs`) as any,
+    { enabled: !!id, refetchOnWindowFocus: false },
+  );
+
+  const logs = Array.isArray(logsRes?.data) ? logsRes.data : [];
+
   // Jobs: placeholder until job API is available
   const jobs: Job[] = []; // TODO: replace with useQuery for job API
+
+  // Update mutation
+  const updateMutation = useMutation(
+    (data: Partial<Task>) => tasksApi.updateTask(id!, data),
+    {
+      onSuccess: () => {
+        void message.success('任务更新成功');
+        setEditModalVisible(false);
+        void queryClient.invalidateQueries(['task', id]);
+      },
+      onError: () => {
+        void message.error('任务更新失败');
+      },
+    },
+  );
+
+  // Delete mutation
+  const deleteMutation = useMutation(
+    () => tasksApi.deleteTask(id!),
+    {
+      onSuccess: () => {
+        void message.success('任务删除成功');
+        navigate('/tasks');
+      },
+      onError: () => {
+        void message.error('任务删除失败');
+      },
+    },
+  );
 
   // Handlers
   const handleRetryJob = (_jobId: string) => {
@@ -190,13 +229,41 @@ export const TaskDetailPage: React.FC = () => {
   };
 
   const handleEdit = () => {
-    // TODO: open edit modal once task update API is ready
-    message.info('任务编辑功能待完善');
+    if (!task) return;
+    editForm.setFieldsValue({
+      title: task.title,
+      description: task.description || '',
+      priority: task.priority,
+      input: task.input ? JSON.stringify(task.input, null, 2) : '',
+    });
+    setEditModalVisible(true);
+  };
+
+  const handleEditSubmit = async () => {
+    try {
+      const values = await editForm.validateFields();
+      let parsedInput = values.input;
+      if (typeof values.input === 'string' && values.input.trim()) {
+        try {
+          parsedInput = JSON.parse(values.input);
+        } catch {
+          void message.error('输入参数不是有效的 JSON');
+          return;
+        }
+      }
+      updateMutation.mutate({
+        title: values.title,
+        description: values.description,
+        priority: values.priority,
+        input: parsedInput || undefined,
+      });
+    } catch {
+      // form validation failed
+    }
   };
 
   const handleDelete = () => {
-    // TODO: implement delete via task API
-    message.info('任务删除功能待接入后端 API');
+    deleteMutation.mutate();
   };
 
   // ---- Loading ----
@@ -207,7 +274,7 @@ export const TaskDetailPage: React.FC = () => {
         <InfoCard>
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             {[1, 2, 3].map((i) => (
-              <div key={i} style={{ height: 20, background: colors.neutral[800], borderRadius: 4 }} />
+              <div key={i} style={{ height: 20, background: colors.neutral[200], borderRadius: 4 }} />
             ))}
           </Space>
         </InfoCard>
@@ -250,6 +317,37 @@ export const TaskDetailPage: React.FC = () => {
       </div>
     );
   }
+
+  // ---- Log table columns ----
+  const logColumns = [
+    {
+      title: '时间',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 180,
+      render: (val: string) => new Date(val).toLocaleString('zh-CN'),
+    },
+    {
+      title: '级别',
+      dataIndex: 'level',
+      key: 'level',
+      width: 80,
+      render: (level: string) => {
+        const colorMap: Record<string, string> = {
+          info: 'blue',
+          warn: 'orange',
+          error: 'red',
+        };
+        return <Tag color={colorMap[level] || 'default'}>{level.toUpperCase()}</Tag>;
+      },
+    },
+    {
+      title: '消息内容',
+      dataIndex: 'message',
+      key: 'message',
+      ellipsis: true,
+    },
+  ];
 
   // ---- Job table columns ----
   const jobColumns = [
@@ -330,9 +428,18 @@ export const TaskDetailPage: React.FC = () => {
             <Button icon={<EditOutlined />} onClick={handleEdit}>
               编辑
             </Button>
-            <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>
-              删除
-            </Button>
+            <Popconfirm
+              title="确认删除"
+              description="确定要删除这个任务吗？此操作不可撤销。"
+              onConfirm={handleDelete}
+              okText="确认"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+            >
+              <Button danger icon={<DeleteOutlined />}>
+                删除
+              </Button>
+            </Popconfirm>
           </Space>
         }
       />
@@ -390,25 +497,99 @@ export const TaskDetailPage: React.FC = () => {
         </InfoGrid>
       </InfoCard>
 
-      {/* Job list */}
-      <TableWrapper>
-        <TableHeader>
-          <TableTitle>Job 列表</TableTitle>
-        </TableHeader>
+      {/* Job list + Logs */}
+      <Tabs
+        defaultActiveKey="jobs"
+        items={[
+          {
+            key: 'jobs',
+            label: 'Job 列表',
+            children: (
+              <TableWrapper>
+                <NoteBanner>Job API 尚未接入，以下为占位展示。</NoteBanner>
 
-        <NoteBanner>Job API 尚未接入，以下为占位展示。</NoteBanner>
+                {jobs.length === 0 ? (
+                  <EmptyState description="暂无 Job 记录" />
+                ) : (
+                  <Table
+                    columns={jobColumns}
+                    dataSource={jobs}
+                    rowKey="id"
+                    pagination={false}
+                  />
+                )}
+              </TableWrapper>
+            ),
+          },
+          {
+            key: 'logs',
+            label: '日志',
+            children: (
+              <TableWrapper>
+                <Table<TaskLog>
+                  columns={logColumns}
+                  dataSource={logs}
+                  rowKey="id"
+                  loading={logsLoading}
+                  locale={{ emptyText: '暂无日志' }}
+                  pagination={{
+                    pageSize: 20,
+                    showSizeChanger: true,
+                    showTotal: (total) => `共 ${total} 条`,
+                  }}
+                />
+              </TableWrapper>
+            ),
+          },
+        ]}
+      />
 
-        {jobs.length === 0 ? (
-          <EmptyState description="暂无 Job 记录" />
-        ) : (
-          <Table
-            columns={jobColumns}
-            dataSource={jobs}
-            rowKey="id"
-            pagination={false}
-          />
-        )}
-      </TableWrapper>
+      {/* Edit Modal */}
+      <Modal
+        title="编辑任务"
+        open={editModalVisible}
+        onOk={handleEditSubmit}
+        onCancel={() => setEditModalVisible(false)}
+        confirmLoading={updateMutation.isLoading}
+        width={600}
+      >
+        <Form form={editForm} layout="vertical">
+          <Form.Item
+            label="任务名称"
+            name="title"
+            rules={[{ required: true, message: '请输入任务名称' }]}
+          >
+            <Input placeholder="输入任务名称" />
+          </Form.Item>
+          <Form.Item
+            label="任务描述"
+            name="description"
+          >
+            <TextArea rows={3} placeholder="输入任务描述" />
+          </Form.Item>
+          <Form.Item
+            label="优先级"
+            name="priority"
+            rules={[{ required: true, message: '请选择优先级' }]}
+          >
+            <Select placeholder="选择优先级">
+              <Option value="low">低</Option>
+              <Option value="medium">中</Option>
+              <Option value="high">高</Option>
+              <Option value="critical">紧急</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item
+            label="输入参数 (JSON)"
+            name="input"
+          >
+            <TextArea
+              rows={6}
+              placeholder='{"prompt": "编写一个Python脚本"}'
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

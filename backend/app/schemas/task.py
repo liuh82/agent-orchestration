@@ -11,6 +11,7 @@ class TaskCreate(BaseModel):
     priority: str = "medium"
     depends_on: Optional[list[str]] = None
     assigned_agent: Optional[str] = None
+    workflow_id: Optional[str] = None
 
 
 class TaskUpdate(BaseModel):
@@ -21,6 +22,7 @@ class TaskUpdate(BaseModel):
     status: Optional[str] = None
     depends_on: Optional[list[str]] = None
     assigned_agent: Optional[str] = None
+    workflow_id: Optional[str] = None
 
 
 class TaskOut(BaseModel):
@@ -35,6 +37,7 @@ class TaskOut(BaseModel):
     status: str = "pending"
     depends_on: Optional[list] = None
     assigned_agent: Optional[str] = None
+    workflow_id: Optional[str] = None
     total_jobs: int = 0
     completed_jobs: int = 0
     total_tokens: int = 0

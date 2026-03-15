@@ -5,6 +5,7 @@ import {
   ProjectOutlined,
   CheckCircleOutlined,
   ThunderboltOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
 import { useQuery } from 'react-query';
 import {
@@ -33,10 +34,13 @@ import type { ColumnsType } from 'antd/es/table';
 
 const StatRow = styled.div`
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: ${spacing[5]};
-  
-  @media (max-width: 992px) {
+
+  @media (max-width: 1200px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  @media (max-width: 768px) {
     grid-template-columns: repeat(2, 1fr);
   }
   @media (max-width: 576px) {
@@ -363,6 +367,22 @@ export const DashboardPage = () => {
                 : 0}
             </StatValue>
             <StatLabel>今日 Token 消耗</StatLabel>
+          </StatCard>
+
+        <StatCard>
+            <StatIconWrapper $color="rgba(245,158,11,0.12)">
+              <DollarOutlined />
+            </StatIconWrapper>
+            <StatValue>
+              {stats?.cost_this_month != null
+                ? `¥${stats.cost_this_month.toFixed(2)}`
+                : '--'}
+            </StatValue>
+            <StatLabel>
+              {stats?.cost_this_month != null
+                ? '本月成本'
+                : '本月成本（待接入）'}
+            </StatLabel>
           </StatCard>
       </StatRow>
 

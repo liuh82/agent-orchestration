@@ -4,7 +4,8 @@ import { Menu, Dropdown, Avatar } from 'antd';
 import {
   DashboardOutlined,
   ProjectOutlined,
-  RobotOutlined,
+  UnorderedListOutlined,
+  ApartmentOutlined,
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -155,9 +156,14 @@ const menuItems: MenuProps['items'] = [
     label: '项目',
   },
   {
-    key: '/agents',
-    icon: <RobotOutlined />,
-    label: '代理中心',
+    key: '/tasks',
+    icon: <UnorderedListOutlined />,
+    label: '任务中心',
+  },
+  {
+    key: '/workflows',
+    icon: <ApartmentOutlined />,
+    label: '工作流',
   },
   {
     key: '/settings',
@@ -284,6 +290,13 @@ export const MainLayout = () => {
             />
           </SidebarMenu>
           <SidebarFooter>
+            <IconButton
+              onClick={() => navigate('/admin')}
+              title="后台管理"
+              style={{ color: 'rgba(255,255,255,0.5)' }}
+            >
+              <SettingOutlined />
+            </IconButton>
             <IconButton
               onClick={toggleSidebar}
               style={{ color: 'rgba(255,255,255,0.5)' }}

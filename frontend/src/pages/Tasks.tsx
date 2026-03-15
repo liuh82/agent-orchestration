@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Card, Table, Button, Space, Tag, Modal, Form, Input, Select, message } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, PlayCircleOutlined, PauseCircleOutlined, RedoOutlined } from '@ant-design/icons';
+import { useQuery } from 'react-query';
 import { useTasksStore } from '../stores/tasks';
 import { Task } from '../types';
+import { agentApi } from '../api/agents';
+import { workflowsApi } from '../api/workflows';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
@@ -36,6 +39,32 @@ export const TasksPage = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
+  // 获取 Agent 列表用于关联选择
+  const { data: agentsData, isLoading: agentsLoading } = useQuery(
+    ['agents-list'],
+    () => agentApi.list(),
+    {
+      staleTime: 30000,
+    },
+  );
+
+  // 获取工作流列表用于关联选择
+  const { data: workflowsData, isLoading: workflowsLoading } = useQuery(
+    ['workflows-list'],
+    () => workflowsApi.getWorkflows().then((res: any) => res.data ?? []),
+    {
+      staleTime: 30000,
+    },
+  );
+
+  const agents = Array.isArray(agentsData?.data?.items)
+    ? agentsData.data.items
+    : Array.isArray(agentsData?.data)
+      ? agentsData.data
+      : [];
+
+  const workflows = Array.isArray(workflowsData) ? workflowsData : [];
+
   useEffect(() => {
     fetchTasks();
   }, []);
@@ -48,6 +77,8 @@ export const TasksPage = () => {
         description: task.description,
         priority: task.priority,
         input: task.input,
+        assigned_agent: task.assigned_agent_id || undefined,
+        workflow_id: undefined,
       });
     } else {
       setEditingTask(null);
@@ -291,6 +322,44 @@ export const TasksPage = () => {
           </Form.Item>
 
           <Form.Item
+            label="关联 Agent"
+            name="assigned_agent"
+          >
+            <Select
+              placeholder="选择分配的 Agent"
+              loading={agentsLoading}
+              allowClear
+              showSearch
+              optionFilterProp="children"
+            >
+              {agents.map((agent: any) => (
+                <Option key={agent.id} value={agent.id}>
+                  {agent.name}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            label="关联流程"
+            name="workflow_id"
+          >
+            <Select
+              placeholder="选择关联的工作流"
+              loading={workflowsLoading}
+              allowClear
+              showSearch
+              optionFilterProp="children"
+            >
+              {workflows.map((wf: any) => (
+                <Option key={wf.id} value={wf.id}>
+                  {wf.name}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
             label="输入参数"
             name="input"
           >
@@ -304,3 +373,5 @@ export const TasksPage = () => {
     </div>
   );
 };
+
+export default TasksPage;

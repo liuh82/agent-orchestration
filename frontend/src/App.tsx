@@ -16,9 +16,8 @@ const RegisterPage = React.lazy(() => import('@/pages/auth/RegisterPage'));
 const DashboardPage = React.lazy(() => import('@/pages/dashboard/DashboardPage'));
 const ProjectListPage = React.lazy(() => import('@/pages/projects/ProjectListPage'));
 const ProjectDetailPage = React.lazy(() => import('@/pages/projects/ProjectDetailPage'));
-const AgentListPage = React.lazy(() => import('@/pages/agents/AgentListPage'));
-const AgentNewPage = React.lazy(() => import('@/pages/agents/AgentNewPage'));
-const AgentDetailPage = React.lazy(() => import('@/pages/agents/AgentDetailPage'));
+const TasksPage = React.lazy(() => import('@/pages/Tasks'));
+const WorkflowsPage = React.lazy(() => import('@/pages/Workflows'));
 const TaskDetailPage = React.lazy(() => import('@/pages/tasks/TaskDetailPage'));
 
 // 懒加载页面 — Settings
@@ -27,6 +26,10 @@ const NotificationPage = React.lazy(() => import('@/pages/settings/NotificationP
 
 // 懒加载页面 — Admin
 const AdminDashboard = React.lazy(() => import('@/pages/admin/AdminDashboard'));
+const GatewayPage = React.lazy(() => import('@/pages/admin/GatewayPage'));
+const AgentListPage = React.lazy(() => import('@/pages/agents/AgentListPage'));
+const AgentNewPage = React.lazy(() => import('@/pages/agents/AgentNewPage'));
+const AgentDetailPage = React.lazy(() => import('@/pages/agents/AgentDetailPage'));
 const UserManagePage = React.lazy(() => import('@/pages/admin/UserManagePage'));
 const AgentTypePage = React.lazy(() => import('@/pages/admin/AgentTypePage'));
 const SystemSettingsPage = React.lazy(() => import('@/pages/admin/SystemSettingsPage'));
@@ -49,10 +52,9 @@ function App() {
               <Route index element={<DashboardPage />} />
               <Route path="projects" element={<ProjectListPage />} />
               <Route path="projects/:id" element={<ProjectDetailPage />} />
-              <Route path="agents" element={<AgentListPage />} />
-              <Route path="agents/new" element={<AgentNewPage />} />
-              <Route path="agents/:id" element={<AgentDetailPage />} />
+              <Route path="tasks" element={<TasksPage />} />
               <Route path="tasks/:id" element={<TaskDetailPage />} />
+              <Route path="workflows" element={<WorkflowsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/notifications" element={<NotificationPage />} />
             </Route>
@@ -60,6 +62,10 @@ function App() {
             {/* 已登录 - 后台 */}
             <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
               <Route index element={<AdminDashboard />} />
+              <Route path="gateway" element={<GatewayPage />} />
+              <Route path="agents" element={<AgentListPage />} />
+              <Route path="agents/new" element={<AgentNewPage />} />
+              <Route path="agents/:id" element={<AgentDetailPage />} />
               <Route path="users" element={<UserManagePage />} />
               <Route path="agent-types" element={<AgentTypePage />} />
               <Route path="settings" element={<SystemSettingsPage />} />

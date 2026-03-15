@@ -35,7 +35,7 @@ class TaskService:
                 created_at=datetime.fromisoformat(task_orm.created_at),
                 updated_at=datetime.fromisoformat(task_orm.updated_at),
                 completed_at=datetime.fromisoformat(task_orm.completed_at) if task_orm.completed_at else None,
-                workflow_id=None,  # TODO: Map from workflow_id
+                workflow_id=task_orm.workflow_id,
                 input=task_orm.action_params or {},
                 output=task_orm.result or {},
                 logs=[]
@@ -65,7 +65,7 @@ class TaskService:
             created_at=datetime.fromisoformat(task_orm.created_at),
             updated_at=datetime.fromisoformat(task_orm.updated_at),
             completed_at=datetime.fromisoformat(task_orm.completed_at) if task_orm.completed_at else None,
-            workflow_id=None,  # TODO: Map from workflow_id
+            workflow_id=task_orm.workflow_id,
             input=task_orm.action_params or {},
             output=task_orm.result or {},
             logs=[]
@@ -82,6 +82,7 @@ class TaskService:
             description=task.description,
             status='pending',
             priority=task.priority,
+            workflow_id=task.workflow_id,
             action_params=str(task.input) if task.input else None,
             created_at=created_at.isoformat(),
             updated_at=updated_at.isoformat()
@@ -116,6 +117,8 @@ class TaskService:
             task_orm.priority = task.priority
         if task.assigned_to is not None:
             task_orm.assignee_id = task.assigned_to
+        if task.workflow_id is not None:
+            task_orm.workflow_id = task.workflow_id
         if task.output is not None:
             task_orm.result = str(task.output) if task.output else None
 

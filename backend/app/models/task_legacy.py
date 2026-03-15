@@ -22,6 +22,7 @@ class TaskUpdate(BaseModel):
     priority: Optional[str] = None
     assigned_to: Optional[str] = None
     output: Optional[Any] = None
+    workflow_id: Optional[str] = None
 
 
 class Task(TaskBase):

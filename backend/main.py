@@ -81,6 +81,7 @@ app.add_middleware(
 app.include_router(agents_legacy.router, prefix="/api/agents", tags=["agents"])
 app.include_router(tasks_legacy.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"])
+app.include_router(workflows.router, prefix="/api/v1/workflows", tags=["v1-workflows"])
 app.include_router(cost.router, prefix="/api/cost", tags=["cost"])
 app.include_router(org.router, prefix="/api/org", tags=["organization"])
 app.include_router(heartbeats.router, prefix="/api/heartbeats", tags=["heartbeats"])
