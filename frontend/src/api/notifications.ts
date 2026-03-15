@@ -2,7 +2,7 @@ import api from './client';
 
 export const notificationApi = {
   list: () => api.get('/v1/notifications/channels') as Promise<any>,
-  create: (data: { channel_type: string; name: string; config: Record<string, unknown>; triggers?: unknown[] }) =>
+  create: (data: Record<string, unknown>) =>
     api.post('/v1/notifications/channels', data) as Promise<any>,
   update: (id: string, data: Record<string, unknown>) =>
     api.put(`/v1/notifications/channels/${id}`, data) as Promise<any>,

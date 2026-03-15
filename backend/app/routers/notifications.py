@@ -1,10 +1,9 @@
-"""Notification router — channel CRUD + test send."""
+"""Notification router — channel CRUD + config schemas + test send."""
 import json
 import logging
 
-import httpx
-
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -12,6 +11,7 @@ from app.deps import get_current_user, require_admin
 from app.models.notification import NotificationChannel
 from app.models.user import User
 from app.schemas.common import success_response, error_response
+from app.services.notification import get_adapter, get_all_config_schemas
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,17 @@ def _parse_json(val):
     return val
 
 
+# ── GET /channel-schemas ─────────────────────────────────
+
+
+@router.get("/channel-schemas")
+def get_channel_schemas(
+    user: User = Depends(get_current_user),
+):
+    """Return config schemas for all notification channels."""
+    return success_response(get_all_config_schemas())
+
+
 # ── User channels ─────────────────────────────────────────
 
 
@@ -57,18 +68,31 @@ def list_my_channels(
 
 
 @router.post("/channels")
-def create_channel(
+async def create_channel(
     body: dict,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Create a notification channel with config validation."""
+    channel_type = body.get("channel_type", "")
     config = body.get("config", {})
+
+    # Validate config via adapter
+    try:
+        adapter = get_adapter(channel_type)
+        valid, err = await adapter.validate_config(config)
+        if not valid:
+            return error_response(400, f"Config validation failed: {err}")
+    except ValueError as e:
+        return error_response(400, str(e))
+
     ch = NotificationChannel(
         user_id=user.id,
-        channel_type=body["channel_type"],
-        name=body["name"],
+        channel_type=channel_type,
+        name=body.get("name", channel_type),
         config=json.dumps(config),
         triggers=json.dumps(body.get("triggers")),
+        is_active=body.get("is_active", True),
     )
     db.add(ch)
     db.commit()
@@ -77,7 +101,7 @@ def create_channel(
 
 
 @router.put("/channels/{channel_id}")
-def update_channel(
+async def update_channel(
     channel_id: str,
     body: dict,
     user: User = Depends(get_current_user),
@@ -89,6 +113,18 @@ def update_channel(
     ).first()
     if not ch:
         return error_response(404, "Channel not found")
+
+    # Validate new config if provided
+    if "config" in body and "channel_type" in body:
+        try:
+            adapter = get_adapter(body["channel_type"])
+            valid, err = await adapter.validate_config(body["config"])
+            if not valid:
+                return error_response(400, f"Config validation failed: {err}")
+        except ValueError as e:
+            return error_response(400, str(e))
+        ch.channel_type = body["channel_type"]
+
     if "name" in body:
         ch.name = body["name"]
     if "config" in body:
@@ -119,12 +155,21 @@ def delete_channel(
     return success_response(None, "Channel deleted")
 
 
+# ── Test send (adapter-based) ────────────────────────────
+
+
+class TestMessage(BaseModel):
+    message: str = "Nexus 通知测试"
+
+
 @router.post("/channels/{channel_id}/test")
 async def test_channel(
     channel_id: str,
+    body: TestMessage = TestMessage(),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Send a test message through the channel's adapter."""
     ch = db.query(NotificationChannel).filter(
         NotificationChannel.id == channel_id,
         NotificationChannel.user_id == user.id,
@@ -133,28 +178,27 @@ async def test_channel(
         return error_response(404, "Channel not found")
 
     config = _parse_json(ch.config)
-    webhook_url = config.get("webhook_url") if isinstance(config, dict) else None
-    if not webhook_url:
-        return error_response(400, "No webhook_url in channel config")
-
-    # Build payload based on channel type
-    if ch.channel_type == "feishu":
-        payload = {"msg_type": "text", "content": {"text": "Nexus 通知测试"}}
-    elif ch.channel_type in ("dingtalk", "wecom"):
-        payload = {"msgtype": "text", "text": {"content": "Nexus 通知测试"}}
-    else:
-        payload = {"text": "Nexus 通知测试"}
+    if not isinstance(config, dict):
+        config = {}
 
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(webhook_url, json=payload)
-            if resp.status_code < 400:
-                return success_response({"status": "sent", "webhook_status": resp.status_code})
-            else:
-                return error_response(502, f"Webhook returned {resp.status_code}")
+        adapter = get_adapter(ch.channel_type)
+        from app.services.notification.base import NotificationMessage
+        msg = NotificationMessage(
+            title="Nexus 测试通知",
+            body=body.message,
+            level="info",
+        )
+        ok = await adapter.send(config, msg)
+        if ok:
+            return success_response({"status": "sent"})
+        else:
+            return error_response(502, "Send failed, check channel config")
+    except ValueError as e:
+        return error_response(400, str(e))
     except Exception as e:
         logger.warning("Notification test failed: %s", e)
-        return error_response(502, f"Webhook request failed: {str(e)}")
+        return error_response(502, f"Send failed: {str(e)}")
 
 
 # ── Admin: global channels ────────────────────────────────
