@@ -23,6 +23,7 @@ class Agent(Base):
     created_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
     updated_at: Mapped[str] = mapped_column(String, default=lambda: datetime.utcnow().isoformat())
     last_seen: Mapped[Optional[str]] = mapped_column(String)
+    bridge_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Statistics
     task_count: Mapped[int] = mapped_column(Integer, default=0)

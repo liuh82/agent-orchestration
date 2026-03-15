@@ -23,6 +23,7 @@ class BridgeRecord(Base):
     os_version: Mapped[Optional[str]] = mapped_column(String(100))
     node_version: Mapped[Optional[str]] = mapped_column(String(50))
     bridge_version: Mapped[Optional[str]] = mapped_column(String(50))
+    user_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default='offline')
     last_seen: Mapped[int] = mapped_column(Integer, nullable=False)
     available_adapters: Mapped[list] = mapped_column(JSON, nullable=False)

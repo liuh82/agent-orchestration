@@ -23,6 +23,15 @@ from app.models.notification import NotificationChannel  # noqa: F401
 # Gateway models — also managed by Alembic
 from app.models.gateway import BridgeRecord, TaskRecord  # noqa: F401
 
+# v3 pre-created tables
+from app.models.project_document import ProjectDocument  # noqa: F401
+from app.models.agent_config_file import AgentConfigFile  # noqa: F401
+from app.models.task_file import TaskFile  # noqa: F401
+from app.models.human_intervention import HumanIntervention  # noqa: F401
+from app.models.workflow_execution import WorkflowExecution, WorkflowNodeExecution  # noqa: F401
+from app.models.dashboard_layout import DashboardLayout  # noqa: F401
+from app.models.user_session_token import UserSessionToken  # noqa: F401
+
 # Note: legacy models in orm_models.py are NOT imported here;
 # they use Base.metadata.create_all() in main.py lifespan instead.
 
