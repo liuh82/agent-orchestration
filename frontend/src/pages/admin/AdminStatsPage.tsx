@@ -194,7 +194,7 @@ export const AdminStatsPage = () => {
     refetch,
   } = useQuery<ApiResponse<AdminGlobalStats>, Error>(
     ['admin-stats'],
-    () => api.get('/v1/admin/stats/global') as Promise<any>,
+    () => api.get('/v1/stats/global') as Promise<any>,
   );
 
   const stats = response?.data;

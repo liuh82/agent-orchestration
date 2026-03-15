@@ -21,17 +21,55 @@ class WorkflowResponse(BaseModel):
     message: str = ""
 
 
+# ── Template routes (MUST be before /{workflow_id}) ────────
+
+
+@router.get("/templates", response_model=List[WorkflowTemplate])
+async def get_templates():
+    """获取工作流模板"""
+    return workflow_service.get_templates()
+
+
+@router.get("/templates/{template_id}", response_model=WorkflowTemplate)
+async def get_template(template_id: str):
+    """获取单个模板"""
+    template = workflow_service.get_template(template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    return template
+
+
+@router.post("/templates/", response_model=WorkflowTemplate)
+async def create_template(template: WorkflowTemplate):
+    """创建模板"""
+    return workflow_service.create_template(template)
+
+
+@router.delete("/templates/{template_id}")
+async def delete_template(template_id: str):
+    """删除模板"""
+    deleted = workflow_service.delete_template(template_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    return {"success": True, "message": "Template deleted successfully"}
+
+
+# ── Workflow CRUD ──────────────────────────────────────────
+
+
 @router.get("/", response_model=List[WorkflowDefinition])
 async def get_workflows():
     """获取所有工作流"""
-    return await workflow_service.get_all_workflows()
+    return workflow_service.get_all_workflows()
 
 
 @router.post("/", response_model=WorkflowResponse)
 async def create_workflow(workflow: WorkflowDefinition):
     """创建新工作流"""
     try:
-        db_workflow = await workflow_service.create_workflow(workflow)
+        db_workflow = workflow_service.create_workflow(workflow)
         return WorkflowResponse(
             success=True,
             data=db_workflow,
@@ -44,7 +82,7 @@ async def create_workflow(workflow: WorkflowDefinition):
 @router.get("/{workflow_id}", response_model=WorkflowResponse)
 async def get_workflow(workflow_id: str):
     """获取单个工作流"""
-    workflow = await workflow_service.get_workflow(workflow_id)
+    workflow = workflow_service.get_workflow(workflow_id)
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
@@ -54,7 +92,7 @@ async def get_workflow(workflow_id: str):
 @router.put("/{workflow_id}", response_model=WorkflowResponse)
 async def update_workflow(workflow_id: str, workflow: WorkflowDefinition):
     """更新工作流"""
-    updated_workflow = await workflow_service.update_workflow(workflow_id, workflow)
+    updated_workflow = workflow_service.update_workflow(workflow_id, workflow)
     if not updated_workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
@@ -68,7 +106,7 @@ async def update_workflow(workflow_id: str, workflow: WorkflowDefinition):
 @router.delete("/{workflow_id}")
 async def delete_workflow(workflow_id: str):
     """删除工作流"""
-    deleted = await workflow_service.delete_workflow(workflow_id)
+    deleted = workflow_service.delete_workflow(workflow_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
@@ -79,7 +117,7 @@ async def delete_workflow(workflow_id: str):
 async def execute_workflow(workflow_id: str, context: dict = {}):
     """执行工作流"""
     # 获取工作流定义
-    workflow = await workflow_service.get_workflow(workflow_id)
+    workflow = workflow_service.get_workflow(workflow_id)
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
@@ -138,35 +176,3 @@ async def get_workflow_logs(execution_id: str):
             }
         ]
     }
-
-
-@router.get("/templates", response_model=List[WorkflowTemplate])
-async def get_templates():
-    """获取工作流模板"""
-    return await workflow_service.get_templates()
-
-
-@router.get("/templates/{template_id}", response_model=WorkflowTemplate)
-async def get_template(template_id: str):
-    """获取单个模板"""
-    template = await workflow_service.get_template(template_id)
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-
-    return template
-
-
-@router.post("/templates/", response_model=WorkflowTemplate)
-async def create_template(template: WorkflowTemplate):
-    """创建模板"""
-    return await workflow_service.create_template(template)
-
-
-@router.delete("/templates/{template_id}")
-async def delete_template(template_id: str):
-    """删除模板"""
-    deleted = await workflow_service.delete_template(template_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Template not found")
-
-    return {"success": True, "message": "Template deleted successfully"}

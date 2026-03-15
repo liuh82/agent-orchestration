@@ -3,7 +3,7 @@ import logging
 import os
 import secrets
 from typing import Optional
-from fastapi import Depends, Security, HTTPException, status
+from fastapi import Depends, Request, Security, HTTPException, status
 from fastapi.security import APIKeyHeader
 
 logger = logging.getLogger(__name__)
@@ -62,14 +62,31 @@ ADMIN_API_KEYS = _load_admin_api_keys()
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-async def verify_api_key(api_key: Optional[str] = Security(api_key_header)) -> str:
-    """Verify API Key from header."""
-    if api_key is None or api_key not in API_KEYS:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing API Key. Provide X-API-Key header.",
-        )
-    return api_key
+async def verify_api_key(
+    api_key: Optional[str] = Security(api_key_header),
+    request: Request = None,
+) -> str:
+    """Verify API Key from header or accept JWT Bearer token from web UI."""
+    if api_key and api_key in API_KEYS:
+        return api_key
+
+    # Fallback: accept JWT Bearer token for web UI requests
+    if request:
+        from app.services.auth import decode_token
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            try:
+                payload = decode_token(token)
+                if payload.get("type") == "access":
+                    return f"bearer:{payload['sub']}"
+            except Exception:
+                pass
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or missing API Key. Provide X-API-Key header or Bearer token.",
+    )
 
 
 async def verify_admin_key(

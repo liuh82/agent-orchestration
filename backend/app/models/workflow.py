@@ -29,11 +29,11 @@ class WorkflowDefinition(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: str = Field(..., min_length=1, max_length=1000)
     engine: str = Field(default='lobster')
-    definition: Any
+    definition: Any = None
     config: WorkflowConfig = Field(default_factory=WorkflowConfig)
-    created_by: str
-    created_at: datetime
-    updated_at: datetime
+    created_by: Optional[str] = 'system'
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
 

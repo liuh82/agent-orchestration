@@ -80,8 +80,12 @@ class Task(Base):
     # Relationships
     assignee: Mapped[Optional["Agent"]] = relationship("Agent", foreign_keys=[assignee_id])
     agent: Mapped[Optional["Agent"]] = relationship("Agent", foreign_keys=[agent_id])
-    assignments: Mapped[List["TaskAssignment"]] = relationship("TaskAssignment", back_populates="task")
-    costs: Mapped[List["CostEntry"]] = relationship("CostEntry", back_populates="task")
+    assignments: Mapped[List["TaskAssignment"]] = relationship(
+        "TaskAssignment", back_populates="task", foreign_keys=["TaskAssignment.task_id"],
+    )
+    costs: Mapped[List["CostEntry"]] = relationship(
+        "CostEntry", back_populates="task", foreign_keys=["CostEntry.task_id"],
+    )
 
 class TaskAssignment(Base):
     __tablename__ = "task_assignments"
