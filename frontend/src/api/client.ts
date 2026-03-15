@@ -1,44 +1,47 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  timeout: 30000,
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// 请求拦截器
-api.interceptors.request.use(
-  (config) => {
-    // 可以在这里添加认证 token
-    // const token = localStorage.getItem('token');
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+// 请求拦截：自动加 Authorization 头
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
 
-// 响应拦截器
+// 响应拦截：统一处理错误
 api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  (error) => {
-    if (error.response) {
-      // 处理 HTTP 错误
-      console.error('API Error:', error.response.status, error.response.data);
-    } else if (error.request) {
-      // 处理网络错误
-      console.error('Network Error:', error.message);
-    } else {
-      // 处理其他错误
-      console.error('Error:', error.message);
+  (response) => response.data,
+  async (error) => {
+    const status = error.response?.status;
+    const data = error.response?.data;
+
+    if (status === 401) {
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (refreshToken) {
+        try {
+          const res = await axios.post(`${api.defaults.baseURL}/auth/refresh`, { refresh_token: refreshToken });
+          localStorage.setItem('access_token', res.data.data.access_token);
+          localStorage.setItem('refresh_token', res.data.data.refresh_token);
+          error.config.headers.Authorization = `Bearer ${res.data.data.access_token}`;
+          return api(error.config);
+        } catch {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          window.location.href = '/login';
+        }
+      } else {
+        window.location.href = '/login';
+      }
     }
-    return Promise.reject(error);
+
+    return Promise.reject(data || { code: 50001, message: 'Network error' });
   }
 );
 

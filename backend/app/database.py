@@ -1,21 +1,20 @@
+"""Database engine and session configuration."""
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
 from typing import Generator
-import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tasks.db")
+from app.config import settings
 
-# SQLite 连接池配置
+# SQLite connect args
+connect_args = {"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
+
 engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
+    settings.DATABASE_URL,
+    connect_args=connect_args,
     echo=False,
-    pool_size=5,
-    max_overflow=10,
-    pool_timeout=30,
 )
 
-# SQLite WAL 模式：提升并发性能
+# SQLite WAL mode for better concurrency
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_conn, connection_record):
     cursor = dbapi_conn.cursor()
@@ -24,8 +23,10 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 class Base(DeclarativeBase):
     pass
+
 
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
