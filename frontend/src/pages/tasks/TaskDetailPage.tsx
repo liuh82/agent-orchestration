@@ -40,13 +40,15 @@ const priorityLabels: Record<Task['priority'], string> = {
 
 const statusToBadge: Record<
   Task['status'],
-  'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+  'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused' | 'pending_human'
 > = {
   pending: 'pending',
   running: 'running',
   completed: 'completed',
   failed: 'failed',
   cancelled: 'cancelled',
+  paused: 'paused',
+  pending_human: 'pending',
 };
 
 const jobStatusToBadge: Record<
@@ -172,7 +174,7 @@ export const TaskDetailPage: React.FC = () => {
     refetch,
   } = useQuery<ApiResponse<Task>>(
     ['task', id],
-    () => tasksApi.getTask(id!) as any,
+    () => tasksApi.getById(id!) as any,
     { enabled: !!id, refetchOnWindowFocus: false },
   );
 
@@ -195,7 +197,7 @@ export const TaskDetailPage: React.FC = () => {
 
   // Update mutation
   const updateMutation = useMutation(
-    (data: Partial<Task>) => tasksApi.updateTask(id!, data),
+    (data: Partial<Task>) => tasksApi.update(id!, data),
     {
       onSuccess: () => {
         void message.success('任务更新成功');
@@ -210,7 +212,7 @@ export const TaskDetailPage: React.FC = () => {
 
   // Delete mutation
   const deleteMutation = useMutation(
-    () => tasksApi.deleteTask(id!),
+    () => tasksApi.delete(id!),
     {
       onSuccess: () => {
         void message.success('任务删除成功');

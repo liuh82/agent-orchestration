@@ -16,7 +16,7 @@ const RegisterPage = React.lazy(() => import('@/pages/auth/RegisterPage'));
 const DashboardPage = React.lazy(() => import('@/pages/dashboard/DashboardPage'));
 const ProjectListPage = React.lazy(() => import('@/pages/projects/ProjectListPage'));
 const ProjectDetailPage = React.lazy(() => import('@/pages/projects/ProjectDetailPage'));
-const TasksPage = React.lazy(() => import('@/pages/Tasks'));
+const TaskCenterPage = React.lazy(() => import('@/pages/tasks/TaskCenterPage'));
 const WorkflowsPage = React.lazy(() => import('@/pages/Workflows'));
 const TaskDetailPage = React.lazy(() => import('@/pages/tasks/TaskDetailPage'));
 
@@ -52,7 +52,7 @@ function App() {
               <Route index element={<DashboardPage />} />
               <Route path="projects" element={<ProjectListPage />} />
               <Route path="projects/:id" element={<ProjectDetailPage />} />
-              <Route path="tasks" element={<TasksPage />} />
+              <Route path="tasks" element={<TaskCenterPage />} />
               <Route path="tasks/:id" element={<TaskDetailPage />} />
               <Route path="workflows" element={<WorkflowsPage />} />
               <Route path="settings" element={<SettingsPage />} />

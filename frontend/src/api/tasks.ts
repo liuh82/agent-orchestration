@@ -1,5 +1,5 @@
 import api from './client';
-import { Task } from '../types';
+import type { Task } from '@/types/task';
 
 interface TaskListParams {
   page?: number;
@@ -11,36 +11,52 @@ interface TaskListParams {
 }
 
 export const tasksApi = {
-  // 获取任务列表
-  getTasks: (params?: TaskListParams) => api.get<Task[]>('/tasks/', { params }),
+  list: (params?: TaskListParams) =>
+    api.get('/tasks/', { params }) as Promise<any>,
 
-  // 创建任务
-  createTask: (data: Partial<Task>) => api.post<Task>('/tasks/', data),
+  create: (data: Partial<Task>) =>
+    api.post('/tasks/', data) as Promise<any>,
 
-  // 获取单个任务
-  getTask: (id: string) => api.get<Task>(`/tasks/${id}`),
+  getById: (id: string) =>
+    api.get(`/tasks/${id}`) as Promise<any>,
 
-  // 更新任务
-  updateTask: (id: string, data: Partial<Task>) => api.put<Task>(`/tasks/${id}`, data),
+  update: (id: string, data: Partial<Task>) =>
+    api.put(`/tasks/${id}`, data) as Promise<any>,
 
-  // 删除任务
-  deleteTask: (id: string) => api.delete(`/tasks/${id}`),
+  delete: (id: string) =>
+    api.delete(`/tasks/${id}`) as Promise<any>,
 
-  // 执行任务
-  executeTask: (id: string) => api.post(`/tasks/${id}/execute`),
+  execute: (id: string) =>
+    api.post(`/tasks/${id}/execute`) as Promise<any>,
 
-  // 暂停任务
-  pauseTask: (id: string) => api.post(`/tasks/${id}/pause`),
+  pause: (id: string) =>
+    api.post(`/tasks/${id}/pause`) as Promise<any>,
 
-  // 恢复任务
-  resumeTask: (id: string) => api.post(`/tasks/${id}/resume`),
+  resume: (id: string) =>
+    api.post(`/tasks/${id}/resume`) as Promise<any>,
 
-  // 取消任务
-  cancelTask: (id: string) => api.post(`/tasks/${id}/cancel`),
+  cancel: (id: string) =>
+    api.post(`/tasks/${id}/cancel`) as Promise<any>,
 
-  // 获取任务日志
-  getTaskLogs: (id: string) => api.get(`/tasks/${id}/logs`),
+  logs: (id: string, params?: { page?: number; page_size?: number }) =>
+    api.get(`/tasks/${id}/logs`, { params }) as Promise<any>,
 
-  // 分配任务
-  assignTask: (id: string, agentId: string) => api.post(`/tasks/${id}/assign`, { agentId }),
+  assign: (id: string, agentId: string) =>
+    api.post(`/tasks/${id}/assign`, { agent_id: agentId }) as Promise<any>,
+
+  /** 三层级树数据 */
+  tree: () =>
+    api.get('/tasks/tree') as Promise<any>,
+
+  /** 人工干预 — 审批通过 */
+  approve: (id: string) =>
+    api.post(`/tasks/${id}/approve`) as Promise<any>,
+
+  /** 人工干预 — 驳回/修改意见 */
+  reject: (id: string, data: { comment?: string; attachments?: string[] }) =>
+    api.post(`/tasks/${id}/reject`, data) as Promise<any>,
+
+  /** 批量操作 */
+  batchAction: (taskIds: string[], action: 'pause' | 'cancel') =>
+    api.post('/tasks/batch-action', { task_ids: taskIds, action }) as Promise<any>,
 };

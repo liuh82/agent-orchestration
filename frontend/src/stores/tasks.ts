@@ -27,7 +27,7 @@ export const useTasksStore = create<TasksState>((set) => ({
   fetchTasks: async (params) => {
     set({ loading: true, error: null });
     try {
-      const response = await tasksApi.getTasks(params);
+      const response = await tasksApi.list(params);
       set({ tasks: response.data, loading: false });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to fetch tasks', loading: false });
@@ -37,7 +37,7 @@ export const useTasksStore = create<TasksState>((set) => ({
   createTask: async (taskData) => {
     set({ loading: true, error: null });
     try {
-      const response = await tasksApi.createTask(taskData);
+      const response = await tasksApi.create(taskData);
       set((state) => ({
         tasks: [...state.tasks, response.data],
         loading: false,
@@ -50,7 +50,7 @@ export const useTasksStore = create<TasksState>((set) => ({
   updateTask: async (id, taskData) => {
     set({ loading: true, error: null });
     try {
-      const response = await tasksApi.updateTask(id, taskData);
+      const response = await tasksApi.update(id, taskData);
       set((state) => ({
         tasks: state.tasks.map((task) =>
           task.id === id ? response.data : task
@@ -65,7 +65,7 @@ export const useTasksStore = create<TasksState>((set) => ({
   deleteTask: async (id) => {
     set({ loading: true, error: null });
     try {
-      await tasksApi.deleteTask(id);
+      await tasksApi.delete(id);
       set((state) => ({
         tasks: state.tasks.filter((task) => task.id !== id),
         loading: false,
@@ -78,7 +78,7 @@ export const useTasksStore = create<TasksState>((set) => ({
   getTask: async (id) => {
     set({ loading: true, error: null });
     try {
-      const response = await tasksApi.getTask(id);
+      const response = await tasksApi.getById(id);
       set({ loading: false });
       return response.data;
     } catch (error) {
@@ -90,7 +90,7 @@ export const useTasksStore = create<TasksState>((set) => ({
   executeTask: async (id) => {
     set({ loading: true, error: null });
     try {
-      await tasksApi.executeTask(id);
+      await tasksApi.execute(id);
       set((state) => ({
         tasks: state.tasks.map((task) =>
           task.id === id
@@ -107,7 +107,7 @@ export const useTasksStore = create<TasksState>((set) => ({
   pauseTask: async (id) => {
     set({ loading: true, error: null });
     try {
-      await tasksApi.pauseTask(id);
+      await tasksApi.pause(id);
       set((state) => ({
         tasks: state.tasks.map((task) =>
           task.id === id
@@ -124,7 +124,7 @@ export const useTasksStore = create<TasksState>((set) => ({
   resumeTask: async (id) => {
     set({ loading: true, error: null });
     try {
-      await tasksApi.resumeTask(id);
+      await tasksApi.resume(id);
       set((state) => ({
         tasks: state.tasks.map((task) =>
           task.id === id
@@ -141,7 +141,7 @@ export const useTasksStore = create<TasksState>((set) => ({
   cancelTask: async (id) => {
     set({ loading: true, error: null });
     try {
-      await tasksApi.cancelTask(id);
+      await tasksApi.cancel(id);
       set((state) => ({
         tasks: state.tasks.map((task) =>
           task.id === id
@@ -158,11 +158,11 @@ export const useTasksStore = create<TasksState>((set) => ({
   assignTask: async (id, agentId) => {
     set({ loading: true, error: null });
     try {
-      await tasksApi.assignTask(id, agentId);
+      await tasksApi.assign(id, agentId);
       set((state) => ({
         tasks: state.tasks.map((task) =>
           task.id === id
-            ? { ...task, assignedTo: agentId }
+            ? { ...task, assigned_agent_id: agentId }
             : task
         ),
         loading: false,

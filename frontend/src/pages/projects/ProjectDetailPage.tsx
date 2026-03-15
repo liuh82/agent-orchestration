@@ -40,12 +40,14 @@ const priorityLabels: Record<Task['priority'], string> = {
   critical: '紧急',
 };
 
-const statusToBadge: Record<Task['status'], 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'> = {
+const statusToBadge: Record<Task['status'], 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused' | 'pending_human'> = {
   pending: 'pending',
   running: 'running',
   completed: 'completed',
   failed: 'failed',
   cancelled: 'cancelled',
+  paused: 'paused',
+  pending_human: 'pending',
 };
 
 // --------------- Styled components ---------------
