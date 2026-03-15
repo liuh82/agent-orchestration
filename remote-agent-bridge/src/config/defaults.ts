@@ -10,7 +10,7 @@ export const DEFAULT_CONFIG: BridgeConfig = {
     hostname: HOSTNAME,
   },
   gateway: {
-    url: 'wss://81.70.98.45:18789',
+    url: process.env.OC_GATEWAY_URL || '',
     token: process.env.OC_GATEWAY_TOKEN || '',
     heartbeatInterval: 30000,
     reconnect: {

@@ -28,6 +28,8 @@ api.interceptors.response.use(
     const data = error.response?.data;
 
     if (status === 401) {
+      localStorage.removeItem('api_key');
+      window.dispatchEvent(new CustomEvent('auth:expired'));
       const refreshToken = localStorage.getItem('refresh_token');
       if (refreshToken) {
         try {
