@@ -87,7 +87,7 @@ def store_refresh_token(db: Session, user_id: str, raw_token: str,
         jti=payload.get("jti"),
         device_info=device_info,
         ip_address=ip_address,
-        expires_at=payload["exp"].isoformat() + "Z",
+        expires_at=datetime.fromtimestamp(payload["exp"], tz=timezone.utc).isoformat() + "Z",
     )
     db.add(token_record)
     db.commit()
