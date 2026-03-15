@@ -22,10 +22,6 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class RefreshRequest(BaseModel):
-    refresh_token: str
-
-
 class UserOut(BaseModel):
     id: str
     email: str
@@ -62,11 +58,15 @@ class ChangePasswordRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
+    expires_in: int
     token_type: str = "bearer"
 
 
 class LoginResponse(BaseModel):
     user: UserOut
     access_token: str
-    refresh_token: str
+    expires_in: int
+
+
+class RegisterResponse(BaseModel):
+    user: UserOut

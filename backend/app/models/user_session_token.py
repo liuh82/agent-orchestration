@@ -19,6 +19,7 @@ class UserSessionToken(Base):
     user_id: Mapped[str] = mapped_column(String(36), nullable=False)
     token_type: Mapped[str] = mapped_column(String(20), nullable=False)
     token_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    jti: Mapped[Optional[str]] = mapped_column(String(36))
     device_info: Mapped[Optional[str]] = mapped_column(String(255))
     ip_address: Mapped[Optional[str]] = mapped_column(String(45))
     expires_at: Mapped[Optional[str]] = mapped_column(String)

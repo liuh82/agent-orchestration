@@ -1,30 +1,45 @@
 import axios from 'axios';
+import { useAuthStore } from '@/stores/auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
-const api = axios.create({
+const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
+  withCredentials: true, // 携带 httpOnly cookie（refresh_token）
 });
 
-// 请求拦截器 — JWT Bearer + API Key fallback
-api.interceptors.request.use(
+// 请求拦截 — 注入 Access Token
+apiClient.interceptors.request.use(
   (config) => {
-    const accessToken = localStorage.getItem('access_token');
+    const accessToken = useAuthStore.getState().accessToken;
     if (accessToken) {
-      config.headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-    const apiKey = import.meta.env.VITE_API_KEY || localStorage.getItem('api_key');
-    if (apiKey) {
-      config.headers['X-API-Key'] = apiKey;
+      config.headers.Authorization = `Bearer ${accessToken}`;
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
-// 响应拦截器 — 自动解包 { code, data, message }
-api.interceptors.response.use(
+// 响应拦截 — 解包 { code, data, message } + 401 自动刷新
+let isRefreshing = false;
+let pendingRequests: Array<{
+  resolve: (token: string) => void;
+  reject: (err: unknown) => void;
+}> = [];
+
+function processPendingRequests(token: string | null, error?: unknown) {
+  pendingRequests.forEach(({ resolve, reject }) => {
+    if (token) {
+      resolve(token);
+    } else {
+      reject(error);
+    }
+  });
+  pendingRequests = [];
+}
+
+apiClient.interceptors.response.use(
   (response) => {
     const data = response.data;
     if (data && typeof data === 'object' && 'code' in data && 'data' in data) {
@@ -32,21 +47,43 @@ api.interceptors.response.use(
     }
     return response;
   },
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      window.dispatchEvent(new CustomEvent('auth:expired'));
+  async (error) => {
+    const originalRequest = error.config;
+
+    // 401: 尝试用 refresh_token 刷新 access_token
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      if (isRefreshing) {
+        // 其他请求排队等待刷新完成
+        return new Promise((resolve, reject) => {
+          pendingRequests.push({
+            resolve: (token) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              resolve(apiClient(originalRequest));
+            },
+            reject,
+          });
+        });
+      }
+
+      isRefreshing = true;
+      try {
+        const newToken = await useAuthStore.getState().refreshAccessToken();
+        processPendingRequests(newToken.access_token);
+        originalRequest.headers.Authorization = `Bearer ${newToken.access_token}`;
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        processPendingRequests(null, refreshError);
+        useAuthStore.getState().logout();
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
-    if (error.response) {
-      console.error('API Error:', error.response.status, error.response.data);
-    } else if (error.request) {
-      console.error('Network Error:', error.message);
-    } else {
-      console.error('Error:', error.message);
-    }
-    return Promise.reject(error);
-  }
+
+    return Promise.reject(error.response?.data || error);
+  },
 );
 
-export default api;
+export default apiClient;

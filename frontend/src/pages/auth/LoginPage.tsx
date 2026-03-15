@@ -14,7 +14,7 @@ const Wrapper = styled.div`
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: ${colors.neutral[950]};
+  background: #f5f5f5;
 `;
 
 const Card = styled.div`

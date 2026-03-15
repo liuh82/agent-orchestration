@@ -9,8 +9,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./data/nexus.db"
 
     # JWT
-    JWT_SECRET: str = "change-this-to-a-random-string"
-    JWT_ACCESS_EXPIRE_HOURS: int = 24
+    JWT_SECRET: str = "change-this-to-a-random-string"  # TODO: read from env in production
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_EXPIRE_MINUTES: int = 30
     JWT_REFRESH_EXPIRE_DAYS: int = 7
 
     # First-run admin

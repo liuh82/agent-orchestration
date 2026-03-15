@@ -15,6 +15,10 @@ export const authApi = {
   changePassword: (old_password: string, new_password: string) =>
     api.put('/auth/password', { old_password, new_password }),
 
-  refresh: (refresh_token: string) =>
-    api.post('/auth/refresh', { refresh_token }),
+  refresh: () =>
+    // refresh_token 通过 httpOnly cookie 自动发送，无需传参
+    api.post('/auth/refresh'),
+
+  logout: () =>
+    api.post('/auth/logout'),
 };

@@ -1,4 +1,6 @@
 """User ORM model."""
+from typing import Optional
+
 from sqlalchemy import String, Integer, Boolean, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,8 +19,8 @@ class User(Base, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")  # admin / user
-    avatar: Mapped[str | None] = mapped_column(String(500))
-    settings: Mapped[str | None] = mapped_column(Text)  # JSON string
+    avatar: Mapped[Optional[str]] = mapped_column(String(500))
+    settings: Mapped[Optional[str]] = mapped_column(Text)  # JSON string
 
     # Quotas
     max_agents: Mapped[int] = mapped_column(Integer, default=10)
@@ -26,4 +28,4 @@ class User(Base, TimestampMixin):
     max_tasks: Mapped[int] = mapped_column(Integer, default=100)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    last_login_at: Mapped[str | None] = mapped_column(String)
+    last_login_at: Mapped[Optional[str]] = mapped_column(String)
