@@ -37,7 +37,7 @@ const StatRow = styled.div`
   grid-template-columns: repeat(6, 1fr);
   gap: ${spacing[5]};
 
-  @media (max-width: 1200px) {
+  @media (max-width: 1400px) {
     grid-template-columns: repeat(3, 1fr);
   }
   @media (max-width: 768px) {

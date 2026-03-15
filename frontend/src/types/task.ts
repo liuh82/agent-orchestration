@@ -6,6 +6,7 @@ export interface Task {
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'critical';
   assigned_agent_id?: string;
+  workflow_id?: string;
   created_by: string;
   input?: Record<string, unknown>;
   output?: Record<string, unknown>;

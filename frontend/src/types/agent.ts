@@ -1,6 +1,7 @@
 export interface AgentType {
   id: string;
   name: string;
+  display_name?: string;
   code: string;
   description: string;
   icon: string;

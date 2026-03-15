@@ -182,13 +182,13 @@ export const TaskDetailPage: React.FC = () => {
   const {
     data: logsRes,
     isLoading: logsLoading,
-  } = useQuery<ApiResponse<TaskLog[]>>(
+  } = useQuery<ApiResponse<{ items: TaskLog[]; total: number }>>(
     ['task-logs', id],
     () => api.get(`/tasks/${id}/logs`) as any,
     { enabled: !!id, refetchOnWindowFocus: false },
   );
 
-  const logs = Array.isArray(logsRes?.data) ? logsRes.data : [];
+  const logs = Array.isArray(logsRes?.data?.items) ? logsRes.data.items : [];
 
   // Jobs: placeholder until job API is available
   const jobs: Job[] = []; // TODO: replace with useQuery for job API
@@ -274,7 +274,7 @@ export const TaskDetailPage: React.FC = () => {
         <InfoCard>
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             {[1, 2, 3].map((i) => (
-              <div key={i} style={{ height: 20, background: colors.neutral[200], borderRadius: 4 }} />
+              <div key={i} style={{ height: 20, background: colors.surface.raised, borderRadius: 4 }} />
             ))}
           </Space>
         </InfoCard>

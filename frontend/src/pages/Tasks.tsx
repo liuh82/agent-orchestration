@@ -78,7 +78,7 @@ export const TasksPage = () => {
         priority: task.priority,
         input: task.input,
         assigned_agent: task.assigned_agent_id || undefined,
-        workflow_id: undefined,
+        workflow_id: task.workflow_id || undefined,
       });
     } else {
       setEditingTask(null);

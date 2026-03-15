@@ -153,3 +153,6 @@ frontend/.vite/
 # Database files (SQLite)
 backend/tasks.db
 backend/tasks.db.backup.*
+backend/data/nexus.db
+backend/data/nexus.db-shm
+backend/data/nexus.db-wal

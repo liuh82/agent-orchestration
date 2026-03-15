@@ -165,6 +165,9 @@ async def cancel_task(task_id: str, db = Depends(get_db)):
 
 @router.get("/{task_id}/logs")
 async def get_task_logs(
+    # NOTE: 同组其他接口（get_tasks, create_task 等）也无显式认证依赖，
+    # 认证由上层中间件统一处理，保持一致。
+
     task_id: str,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -183,13 +186,14 @@ async def get_task_logs(
     if not agent_id:
         # 没有关联 agent，返回空列表
         return {
-            "success": True,
+            "code": 0,
             "data": {
                 "items": [],
                 "total": 0,
                 "page": page,
                 "page_size": page_size,
             },
+            "message": "success",
         }
 
     # 查询 agent_logs
@@ -219,13 +223,14 @@ async def get_task_logs(
     ]
 
     return {
-        "success": True,
+        "code": 0,
         "data": {
             "items": items,
             "total": total,
             "page": page,
             "page_size": page_size,
         },
+        "message": "success",
     }
 
 
