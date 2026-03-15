@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { Button, Input, Segmented, Table, Skeleton, Popconfirm, message } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { colors } from '@/styles/tokens/color';
 import { spacing } from '@/styles/tokens/spacing';
@@ -117,53 +117,9 @@ const formatToken = (value?: number): string => {
   return String(value);
 };
 
-const columns: ColumnsType<AgentTableRow> = [
-  {
-    title: '名称',
-    dataIndex: 'name',
-    key: 'name',
-    ellipsis: true,
-  },
-  {
-    title: '状态',
-    dataIndex: 'status',
-    key: 'status',
-    width: 120,
-    render: (status: AgentInstance['status']) => (
-      <StatusBadge status={status} />
-    ),
-  },
-  {
-    title: '模型',
-    dataIndex: ['config', 'model'],
-    key: 'model',
-    width: 160,
-    render: (model?: string) => (
-      <span style={{ color: colors.text.secondary }}>
-        {model || '-'}
-      </span>
-    ),
-  },
-  {
-    title: '今日 Token',
-    dataIndex: 'token_usage_today',
-    key: 'token_usage_today',
-    width: 120,
-    render: (value?: number) => formatToken(value),
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 180,
-    render: (_: unknown, record: AgentTableRow) => (
-      <AgentActions agent={record} />
-    ),
-  },
-];
-
 /* ── agent actions sub-component ── */
 
-const AgentActions = ({ agent }: { agent: AgentInstance }) => {
+const AgentActions = ({ agent, basePath }: { agent: AgentInstance; basePath: string }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -204,7 +160,7 @@ const AgentActions = ({ agent }: { agent: AgentInstance }) => {
         size="small"
         onClick={(e) => {
           e.stopPropagation();
-          navigate(`/agents/${agent.id}`);
+          navigate(`${basePath}/${agent.id}`);
         }}
       >
         详情
@@ -264,6 +220,52 @@ const AgentActions = ({ agent }: { agent: AgentInstance }) => {
 
 export const AgentListPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/admin') ? '/admin/agents' : '/agents';
+
+  const columns: ColumnsType<AgentTableRow> = [
+    {
+      title: '名称',
+      dataIndex: 'name',
+      key: 'name',
+      ellipsis: true,
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status: AgentInstance['status']) => (
+        <StatusBadge status={status} />
+      ),
+    },
+    {
+      title: '模型',
+      dataIndex: ['config', 'model'],
+      key: 'model',
+      width: 160,
+      render: (model?: string) => (
+        <span style={{ color: colors.text.secondary }}>
+          {model || '-'}
+        </span>
+      ),
+    },
+    {
+      title: '今日 Token',
+      dataIndex: 'token_usage_today',
+      key: 'token_usage_today',
+      width: 120,
+      render: (value?: number) => formatToken(value),
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 180,
+      render: (_: unknown, record: AgentTableRow) => (
+        <AgentActions agent={record} basePath={basePath} />
+      ),
+    },
+  ];
 
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [search, setSearch] = useState('');
@@ -310,7 +312,7 @@ export const AgentListPage = () => {
   const total = response?.data?.total ?? 0;
 
   const handleCardClick = (agent: AgentInstance) => {
-    navigate(`/agents/${agent.id}`);
+    navigate(`${basePath}/${agent.id}`);
   };
 
   /* ── error state ── */
@@ -334,7 +336,7 @@ export const AgentListPage = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => navigate('/agents/new')}
+            onClick={() => navigate(`${basePath}/new`)}
           >
             创建代理
           </Button>
@@ -377,7 +379,7 @@ export const AgentListPage = () => {
             <Button
               type="primary"
               icon={<PlusOutlined />}
-              onClick={() => navigate('/agents/new')}
+              onClick={() => navigate(`${basePath}/new`)}
             >
               创建代理
             </Button>
@@ -398,7 +400,7 @@ export const AgentListPage = () => {
             dataSource={agents.map((a) => ({ ...a, key: a.id }))}
             rowKey="key"
             onRow={(record) => ({
-              onClick: () => navigate(`/agents/${record.id}`),
+              onClick: () => navigate(`${basePath}/${record.id}`),
               style: { cursor: 'pointer' },
             })}
             pagination={{
