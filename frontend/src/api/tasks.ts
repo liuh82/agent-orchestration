@@ -1,9 +1,18 @@
 import api from './client';
 import { Task } from '../types';
 
+interface TaskListParams {
+  page?: number;
+  page_size?: number;
+  status?: Task['status'];
+  priority?: Task['priority'];
+  project_id?: string;
+  assigned_agent_id?: string;
+}
+
 export const tasksApi = {
   // 获取任务列表
-  getTasks: (params?: any) => api.get<Task[]>('/tasks', { params }),
+  getTasks: (params?: TaskListParams) => api.get<Task[]>('/tasks', { params }),
 
   // 创建任务
   createTask: (data: Partial<Task>) => api.post<Task>('/tasks', data),

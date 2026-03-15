@@ -56,13 +56,19 @@ export const WorkflowsPage = () => {
   const { refetch: refetchWorkflows } = useQuery(
     'workflows',
     () => workflowsApi.getWorkflows().then(res => res.data),
-    { onSuccess: (data: WorkflowDefinition[]) => setWorkflows(data) }
+    {
+      onSuccess: (data: WorkflowDefinition[]) => setWorkflows(data),
+      onError: (error: Error) => { message.error(`加载工作流失败: ${error.message}`); },
+    }
   );
 
   useQuery(
     'templates',
     () => workflowsApi.getTemplates().then(res => res.data),
-    { onSuccess: (data: WorkflowTemplate[]) => setTemplates(data) }
+    {
+      onSuccess: (data: WorkflowTemplate[]) => setTemplates(data),
+      onError: (error: Error) => { message.error(`加载模板失败: ${error.message}`); },
+    }
   );
 
   const showModal = (workflow: WorkflowDefinition | null = null) => {

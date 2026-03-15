@@ -78,29 +78,53 @@ async def delete_task(task_id: str, db = Depends(get_db)):
 @router.post("/{task_id}/execute")
 async def execute_task(task_id: str, db = Depends(get_db)):
     """执行任务"""
-    # TODO: 实现任务执行逻辑
-    return {"success": True, "message": "Task execution started"}
+    task_service = TaskService(db)
+    try:
+        task = task_service.execute_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return TaskResponse(success=True, data=task, message="Task execution started")
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.post("/{task_id}/pause")
 async def pause_task(task_id: str, db = Depends(get_db)):
     """暂停任务"""
-    # TODO: 实现任务暂停逻辑
-    return {"success": True, "message": "Task paused"}
+    task_service = TaskService(db)
+    try:
+        task = task_service.pause_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return TaskResponse(success=True, data=task, message="Task paused")
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.post("/{task_id}/resume")
 async def resume_task(task_id: str, db = Depends(get_db)):
     """恢复任务"""
-    # TODO: 实现任务恢复逻辑
-    return {"success": True, "message": "Task resumed"}
+    task_service = TaskService(db)
+    try:
+        task = task_service.resume_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return TaskResponse(success=True, data=task, message="Task resumed")
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.post("/{task_id}/cancel")
 async def cancel_task(task_id: str, db = Depends(get_db)):
     """取消任务"""
-    # TODO: 实现任务取消逻辑
-    return {"success": True, "message": "Task cancelled"}
+    task_service = TaskService(db)
+    try:
+        task = task_service.cancel_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return TaskResponse(success=True, data=task, message="Task cancelled")
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.post("/{task_id}/assign")

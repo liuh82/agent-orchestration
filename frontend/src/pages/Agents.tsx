@@ -142,7 +142,7 @@ export const AgentsPage = () => {
           >
             编辑
           </Button>
-          {record.status === 'online' && (
+          {record.status === 'offline' && (
             <Button
               type="link"
               icon={<PlayCircleOutlined />}
@@ -151,7 +151,7 @@ export const AgentsPage = () => {
               启动
             </Button>
           )}
-          {record.status === 'busy' && (
+          {(record.status === 'online' || record.status === 'busy') && (
             <Button
               type="link"
               icon={<PauseCircleOutlined />}

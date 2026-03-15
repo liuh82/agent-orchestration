@@ -6,8 +6,13 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// 请求拦截：自动加 Authorization 头
+// 请求拦截：X-API-Key + JWT Bearer 双认证
 api.interceptors.request.use((config) => {
+  const apiKey = import.meta.env.VITE_API_KEY;
+  if (apiKey) {
+    config.headers['X-API-Key'] = apiKey;
+  }
+
   const token = localStorage.getItem('access_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

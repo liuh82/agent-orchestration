@@ -11,7 +11,7 @@ export const DEFAULT_CONFIG: BridgeConfig = {
   },
   gateway: {
     url: 'wss://81.70.98.45:18789',
-    token: '',
+    token: process.env.OC_GATEWAY_TOKEN || '',
     heartbeatInterval: 30000,
     reconnect: {
       maxRetries: Infinity,
@@ -61,8 +61,8 @@ export const DEFAULT_CONFIG: BridgeConfig = {
       origin: '*',
     },
     auth: {
-      enabled: false,
-      apiKey: '',
+      enabled: process.env.NODE_ENV === 'production',
+      apiKey: process.env.OC_HTTP_API_KEY || '',
     },
   },
   database: {
@@ -92,7 +92,7 @@ export const DEFAULT_CONFIG: BridgeConfig = {
   security: {
     sandbox: {
       enabled: true,
-      allowedCommands: ['codex', 'pi', 'openclaw', 'npx', 'npm', 'python', 'python3'],
+      allowedCommands: ['codex', 'pi', 'openclaw'],
       blockedPatterns: [
         'rm -rf',
         'sudo',
@@ -126,3 +126,22 @@ export const TASK_STATUS_TRANSITIONS: Record<string, string[]> = {
   failed: ['queued'],
   cancelled: [],
 };
+
+/** Validate critical config values — call at startup */
+export function validateConfig(config: BridgeConfig): string[] {
+  const errors: string[] = [];
+
+  if (!config.gateway.token) {
+    errors.push('gateway.token is empty — set OC_GATEWAY_TOKEN env var');
+  }
+
+  if (config.http.enabled && config.http.auth.enabled && !config.http.auth.apiKey) {
+    errors.push('http.auth.apiKey is empty while HTTP auth is enabled — set OC_HTTP_API_KEY env var');
+  }
+
+  if (process.env.NODE_ENV === 'production' && !config.http.auth.enabled) {
+    errors.push('HTTP auth must be enabled in production — set OC_HTTP_API_KEY env var');
+  }
+
+  return errors;
+}

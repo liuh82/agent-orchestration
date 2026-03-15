@@ -222,22 +222,22 @@ class HeartbeatService:
 
     async def update_log(
         self, log_id: str, status: HeartbeatLogStatus,
-        result: Optional[dict] = None, error_message: Optional[str] = None,
+        log_result: Optional[dict] = None, error_message: Optional[str] = None,
         completed_at: Optional[datetime] = None
     ) -> Optional[HeartbeatLog]:
         """Update heartbeat log with field whitelist for SQL injection prevention"""
         # Get the ORM object
-        result = self.db.execute(
+        db_result = self.db.execute(
             select(HeartbeatLogORM).where(HeartbeatLogORM.id == log_id)
         )
-        log_orm = result.scalar_one_or_none()
+        log_orm = db_result.scalar_one_or_none()
 
         if not log_orm:
             return None
 
         # Update fields safely
-        if result is not None:
-            log_orm.result = result
+        if log_result is not None:
+            log_orm.result = log_result
         if error_message is not None:
             log_orm.error_message = error_message
         if completed_at is not None:

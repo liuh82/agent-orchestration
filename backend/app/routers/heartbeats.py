@@ -223,7 +223,7 @@ async def disable_heartbeat(heartbeat_id: str, _auth=Depends(get_auth_dependency
 async def trigger_heartbeat(
     heartbeat_id: str,
     background_tasks: BackgroundTasks,
-    _auth=Depends(lambda: None)
+    _auth=Depends(get_auth_dependency)
 ):
     """Manually trigger a heartbeat execution"""
     try:

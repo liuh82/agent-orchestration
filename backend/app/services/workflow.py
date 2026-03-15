@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 from typing import List, Optional
 from uuid import uuid4
 
@@ -70,8 +71,8 @@ class WorkflowService:
             name=workflow.name,
             description=workflow.description,
             engine=workflow.engine,
-            definition=str(workflow.definition),
-            config=str(workflow.config),
+            definition=json.dumps(workflow.definition),
+            config=json.dumps(workflow.config),
             created_by='system',
             created_at=created_at.isoformat(),
             updated_at=updated_at.isoformat()
@@ -98,8 +99,8 @@ class WorkflowService:
         workflow_orm.name = workflow.name
         workflow_orm.description = workflow.description
         workflow_orm.engine = workflow.engine
-        workflow_orm.definition = str(workflow.definition)
-        workflow_orm.config = str(workflow.config)
+        workflow_orm.definition = json.dumps(workflow.definition)
+        workflow_orm.config = json.dumps(workflow.config)
         workflow_orm.updated_at = updated_at.isoformat()
 
         self.db.commit()
@@ -178,7 +179,7 @@ class WorkflowService:
             description=template.description,
             engine=template.engine,
             category=template.category,
-            definition=str(template.definition),
+            definition=json.dumps(template.definition),
             created_at=created_at.isoformat(),
             updated_at=updated_at.isoformat()
         )

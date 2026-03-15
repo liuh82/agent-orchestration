@@ -144,6 +144,90 @@ class TaskService:
         self.db.commit()
         return True
 
+    # Valid status transitions
+    VALID_TRANSITIONS = {
+        "pending": {"running", "cancelled"},
+        "running": {"completed", "failed", "paused", "cancelled"},
+        "paused": {"running", "cancelled"},
+    }
+
+    def _validate_transition(self, current_status: str, new_status: str) -> bool:
+        """Check if a status transition is allowed."""
+        allowed = self.VALID_TRANSITIONS.get(current_status, set())
+        return new_status in allowed
+
+    def execute_task(self, task_id: str) -> Optional[Task]:
+        """Start executing a task (pending → running)."""
+        result = self.db.execute(
+            select(TaskORM).where(TaskORM.id == task_id)
+        )
+        task_orm = result.scalar_one_or_none()
+        if not task_orm:
+            return None
+        if not self._validate_transition(task_orm.status, "running"):
+            raise ValueError(f"Cannot execute task in '{task_orm.status}' status")
+
+        updated_at = datetime.now()
+        task_orm.status = "running"
+        task_orm.updated_at = updated_at.isoformat()
+        self.db.commit()
+        self.db.refresh(task_orm)
+        return self.get_task(task_id)
+
+    def pause_task(self, task_id: str) -> Optional[Task]:
+        """Pause a running task (running → paused)."""
+        result = self.db.execute(
+            select(TaskORM).where(TaskORM.id == task_id)
+        )
+        task_orm = result.scalar_one_or_none()
+        if not task_orm:
+            return None
+        if not self._validate_transition(task_orm.status, "paused"):
+            raise ValueError(f"Cannot pause task in '{task_orm.status}' status")
+
+        updated_at = datetime.now()
+        task_orm.status = "paused"
+        task_orm.updated_at = updated_at.isoformat()
+        self.db.commit()
+        self.db.refresh(task_orm)
+        return self.get_task(task_id)
+
+    def resume_task(self, task_id: str) -> Optional[Task]:
+        """Resume a paused task (paused → running)."""
+        result = self.db.execute(
+            select(TaskORM).where(TaskORM.id == task_id)
+        )
+        task_orm = result.scalar_one_or_none()
+        if not task_orm:
+            return None
+        if not self._validate_transition(task_orm.status, "running"):
+            raise ValueError(f"Cannot resume task in '{task_orm.status}' status")
+
+        updated_at = datetime.now()
+        task_orm.status = "running"
+        task_orm.updated_at = updated_at.isoformat()
+        self.db.commit()
+        self.db.refresh(task_orm)
+        return self.get_task(task_id)
+
+    def cancel_task(self, task_id: str) -> Optional[Task]:
+        """Cancel a task (pending/running/paused → cancelled)."""
+        result = self.db.execute(
+            select(TaskORM).where(TaskORM.id == task_id)
+        )
+        task_orm = result.scalar_one_or_none()
+        if not task_orm:
+            return None
+        if not self._validate_transition(task_orm.status, "cancelled"):
+            raise ValueError(f"Cannot cancel task in '{task_orm.status}' status")
+
+        updated_at = datetime.now()
+        task_orm.status = "cancelled"
+        task_orm.updated_at = updated_at.isoformat()
+        self.db.commit()
+        self.db.refresh(task_orm)
+        return self.get_task(task_id)
+
     async def assign_task(self, task_id: str, agent_id: str) -> Optional[Task]:
         """分配任务"""
         # Check if agent exists and is running
