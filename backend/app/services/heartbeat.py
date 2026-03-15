@@ -166,7 +166,7 @@ class HeartbeatService:
         self, heartbeat_id: str, last_run: datetime, next_run: datetime
     ) -> bool:
         """Update last_run_at and next_run_at"""
-        result = self.db.execute(
+        db_result = self.db.execute(
             update(HeartbeatORM)
             .where(HeartbeatORM.id == heartbeat_id)
             .values(
@@ -176,7 +176,7 @@ class HeartbeatService:
             )
         )
         self.db.commit()
-        return result.rowcount > 0
+        return db_result.rowcount > 0
 
     async def create_log(self, data: HeartbeatLogCreate) -> HeartbeatLog:
         """Create heartbeat log entry"""
@@ -235,7 +235,7 @@ class HeartbeatService:
         if not log_orm:
             return None
 
-        # Update fields safely
+        # Update fields safely — log_result is the caller's data, db_result is the query result
         if log_result is not None:
             log_orm.result = log_result
         if error_message is not None:

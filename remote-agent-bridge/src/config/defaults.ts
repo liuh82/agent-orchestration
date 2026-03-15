@@ -127,7 +127,7 @@ export const TASK_STATUS_TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 };
 
-/** Validate critical config values — call at startup */
+/** 验证关键配置项 */
 export function validateConfig(config: BridgeConfig): void {
   if (!config.gateway.token && config.gateway.url) {
     throw new Error('OC_GATEWAY_TOKEN must be set when gateway URL is configured');
