@@ -11,6 +11,8 @@ from app.routers import admin, settings as settings_router, notifications, stats
 from app.routers import bridges, agent_types, project_documents, task_files, tasks_v3
 from app.services.scheduler import scheduler
 from app.services.heartbeat import HeartbeatService
+# Import workflow engine to register node types
+from app.services.workflow_engine import workflow_engine  # noqa: F401
 
 
 @asynccontextmanager

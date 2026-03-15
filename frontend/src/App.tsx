@@ -17,7 +17,9 @@ const DashboardPage = React.lazy(() => import('@/pages/dashboard/DashboardPage')
 const ProjectListPage = React.lazy(() => import('@/pages/projects/ProjectListPage'));
 const ProjectDetailPage = React.lazy(() => import('@/pages/projects/ProjectDetailPage'));
 const TaskCenterPage = React.lazy(() => import('@/pages/tasks/TaskCenterPage'));
-const WorkflowsPage = React.lazy(() => import('@/pages/Workflows'));
+const WorkflowListPage = React.lazy(() => import('@/pages/workflows/WorkflowListPage'));
+const WorkflowEditorPage = React.lazy(() => import('@/pages/workflows/WorkflowEditorPage'));
+const WorkflowMonitorPage = React.lazy(() => import('@/pages/workflows/WorkflowMonitorPage'));
 const TaskDetailPage = React.lazy(() => import('@/pages/tasks/TaskDetailPage'));
 
 // 懒加载页面 — Settings
@@ -54,7 +56,9 @@ function App() {
               <Route path="projects/:id" element={<ProjectDetailPage />} />
               <Route path="tasks" element={<TaskCenterPage />} />
               <Route path="tasks/:id" element={<TaskDetailPage />} />
-              <Route path="workflows" element={<WorkflowsPage />} />
+              <Route path="workflows" element={<WorkflowListPage />} />
+              <Route path="workflows/new" element={<WorkflowEditorPage />} />
+              <Route path="workflows/monitor/:executionId" element={<WorkflowMonitorPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/notifications" element={<NotificationPage />} />
             </Route>
