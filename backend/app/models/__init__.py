@@ -1,6 +1,6 @@
-# Agent Models
-from .agent import AgentCreate, AgentUpdate, Agent, AgentStats, AgentLogsRequest
-from .task import TaskCreate, TaskUpdate, Task
+# Agent Models (legacy)
+from .agent_legacy import AgentCreate, AgentUpdate, Agent, AgentStats, AgentLogsRequest
+from .task_legacy import TaskCreate, TaskUpdate, Task
 from .workflow import WorkflowDefinition, WorkflowTemplate, ExecutionStatus
 # Cost models are now part of budget module
 from .log import LogCreate, Log

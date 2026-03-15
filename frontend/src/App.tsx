@@ -8,10 +8,18 @@ import { ProtectedRoute, AdminRoute, GuestRoute } from '@/components/Auth/Protec
 import { MainLayout } from '@/components/Layout/MainLayout';
 import { AdminLayout } from '@/components/Layout/AdminLayout';
 
-// 懒加载页面
+// 懒加载页面 — Auth
 const LoginPage = React.lazy(() => import('@/pages/auth/LoginPage'));
 const RegisterPage = React.lazy(() => import('@/pages/auth/RegisterPage'));
+
+// 懒加载页面 — Core
 const DashboardPage = React.lazy(() => import('@/pages/dashboard/DashboardPage'));
+const ProjectListPage = React.lazy(() => import('@/pages/projects/ProjectListPage'));
+const ProjectDetailPage = React.lazy(() => import('@/pages/projects/ProjectDetailPage'));
+const AgentListPage = React.lazy(() => import('@/pages/agents/AgentListPage'));
+const AgentNewPage = React.lazy(() => import('@/pages/agents/AgentNewPage'));
+const AgentDetailPage = React.lazy(() => import('@/pages/agents/AgentDetailPage'));
+const TaskDetailPage = React.lazy(() => import('@/pages/tasks/TaskDetailPage'));
 
 function App() {
   return (
@@ -27,7 +35,12 @@ function App() {
             {/* 已登录 - 前台 */}
             <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
               <Route index element={<DashboardPage />} />
-              {/* R3 添加更多子路由 */}
+              <Route path="projects" element={<ProjectListPage />} />
+              <Route path="projects/:id" element={<ProjectDetailPage />} />
+              <Route path="agents" element={<AgentListPage />} />
+              <Route path="agents/new" element={<AgentNewPage />} />
+              <Route path="agents/:id" element={<AgentDetailPage />} />
+              <Route path="tasks/:id" element={<TaskDetailPage />} />
             </Route>
 
             {/* 已登录 - 后台 */}

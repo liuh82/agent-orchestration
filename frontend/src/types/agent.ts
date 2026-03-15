@@ -30,4 +30,10 @@ export interface AgentInstance {
   token_usage_month?: number;
   created_at: string;
   updated_at: string;
+  // Legacy backward-compat fields (old pages expect these directly)
+  type?: string;
+  model?: string;
+  timeout?: number;
+  skills?: string[];
+  capabilities?: string[];
 }

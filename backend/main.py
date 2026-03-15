@@ -5,7 +5,8 @@ from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 
 from app.rate_limit import limiter
-from app.routers import agents, tasks, workflows, cost, org, heartbeats, gateway, auth
+from app.routers import agents_legacy, tasks_legacy, workflows, cost, org, heartbeats, gateway, auth
+from app.routers import agents as agents_v1, projects, tasks as tasks_v1, jobs
 from app.services.scheduler import scheduler
 from app.services.heartbeat import HeartbeatService
 
@@ -69,14 +70,23 @@ app.add_middleware(
 )
 
 # 注册路由
-app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
-app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(agents_legacy.router, prefix="/api/agents", tags=["agents"])
+app.include_router(tasks_legacy.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"])
 app.include_router(cost.router, prefix="/api/cost", tags=["cost"])
 app.include_router(org.router, prefix="/api/org", tags=["organization"])
 app.include_router(heartbeats.router, prefix="/api/heartbeats", tags=["heartbeats"])
 app.include_router(gateway.router, prefix="/api/gateway", tags=["Gateway"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+
+# v1 business routes
+app.include_router(agents_v1.router, prefix="/api/v1/agents", tags=["v1-agents"])
+app.include_router(agents_v1.router, prefix="/api/v1/agent-types", tags=["v1-agent-types"])
+app.include_router(projects.router, prefix="/api/v1/projects", tags=["v1-projects"])
+app.include_router(tasks_v1.router, prefix="/api/v1/projects/{project_id}/tasks", tags=["v1-tasks"])
+app.include_router(tasks_v1.router, prefix="/api/v1/tasks", tags=["v1-tasks"])
+app.include_router(jobs.router, prefix="/api/v1/tasks/{task_id}/jobs", tags=["v1-jobs"])
+app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["v1-jobs"])
 
 
 @app.get("/")

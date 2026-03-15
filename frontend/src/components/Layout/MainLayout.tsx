@@ -5,6 +5,7 @@ import {
   DashboardOutlined,
   ProjectOutlined,
   RobotOutlined,
+  ApiOutlined,
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -159,6 +160,11 @@ const menuItems: MenuProps['items'] = [
     label: '代理中心',
   },
   {
+    key: '/gateway',
+    icon: <ApiOutlined />,
+    label: 'Gateway',
+  },
+  {
     key: '/settings',
     icon: <SettingOutlined />,
     label: '设置',
@@ -172,6 +178,11 @@ export const MainLayout = () => {
   const { sidebarCollapsed, toggleSidebar } = useUIStore();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Match sidebar selection for sub-routes (e.g. /agents/123 → /agents)
+  const selectedKey = (menuItems?.find(
+    (item) => item?.key !== undefined && item?.key !== null && item.key !== '/' && location.pathname.startsWith(String(item.key))
+  )?.key ?? location.pathname) as string;
 
   useEffect(() => {
     if (isAuthenticated && !user) {
@@ -225,7 +236,7 @@ export const MainLayout = () => {
         <SidebarWrapper $collapsed={sidebarCollapsed}>
           <SidebarMenu
             mode="inline"
-            selectedKeys={[location.pathname]}
+            selectedKeys={[selectedKey]}
             items={menuItems}
             onClick={onMenuClick}
             inlineCollapsed={sidebarCollapsed}

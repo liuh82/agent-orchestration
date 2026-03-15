@@ -1,188 +1,20 @@
-// API 响应格式
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  message?: string;
-  error?: {
-    code: string;
-    message: string;
-  };
-}
+// Barrel export — 新类型系统
 
-// 分页数据格式
-export interface PaginatedData<T> {
-  data: T[];
-  pagination: {
-    page: number;
-    pageSize: number;
-    total: number;
-    totalPages: number;
-  };
-}
+export type { ApiResponse, PagedData } from './api';
+export type { User, LoginRequest, RegisterRequest, TokenResponse } from './auth';
+export type { AgentType, AgentConfig, AgentInstance } from './agent';
+export type { Project } from './project';
+export type { Task } from './task';
+export type { Job } from './job';
+export type { DashboardStats } from './stats';
 
-// Agent 相关类型
-export interface Agent {
-  id: string;
-  name: string;
-  type: 'claude-code' | 'custom' | 'lobster';
-  status: 'online' | 'offline' | 'busy';
-  model: string;
-  timeout: number;
-  skills: string[];
-  capabilities: string[];
-  createdAt: string;
-  updatedAt: string;
-  lastSeen?: string;
-}
+// Legacy: PaginatedData alias
+export type { PagedData as PaginatedData } from './api';
 
-// 工作流相关类型
-export interface WorkflowDefinition {
-  id: string;
-  name: string;
-  description: string;
-  engine: 'lobster' | 'openviking' | 'temporal' | 'custom';
-  definition: any;
-  config: {
-    timeout: number;
-    retryPolicy: RetryPolicy;
-    approvalGates: ApprovalGate[];
-  };
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-}
+// Legacy: Agent alias (old pages use `Agent` instead of `AgentInstance`)
+export type { AgentInstance as Agent } from './agent';
 
-// 工作流模板
-export interface WorkflowTemplate {
-  id: string;
-  name: string;
-  description: string;
-  engine: WorkflowEngineType;
-  category: 'development' | 'deployment' | 'custom';
-  definition: any;
-}
-
-// 任务相关类型
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  assignedTo: string | null;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  completedAt?: string;
-  workflowId?: string;
-  input: any;
-  output: any;
-  logs: LogEntry[];
-}
-
-// 重试策略
-export interface RetryPolicy {
-  maxAttempts: number;
-  delay: number;
-  backoff: 'linear' | 'exponential';
-}
-
-// 审批门禁
-export interface ApprovalGate {
-  id: string;
-  name: string;
-  description: string;
-  approvers: string[];
-  condition: string;
-  type: 'automatic' | 'manual';
-}
-
-// 工作流引擎类型
-export type WorkflowEngineType = 'lobster' | 'openviking' | 'temporal' | 'custom';
-
-// 日志条目
-export interface LogEntry {
-  id: string;
-  timestamp: string;
-  level: 'info' | 'warn' | 'error' | 'debug';
-  message: string;
-  data?: any;
-}
-
-// 执行上下文
-export interface ExecutionContext {
-  projectId: string;
-  variables: Record<string, any>;
-  inputData: any;
-  metadata: {
-    userId: string;
-    requestId: string;
-    startTime: string;
-  };
-}
-
-// 执行结果
-export interface ExecutionResult {
-  success: boolean;
-  output: any;
-  logs: LogEntry[];
-  executionTime: number;
-  status: 'completed' | 'failed' | 'cancelled' | 'paused';
-}
-
-// 执行状态
-export interface ExecutionStatus {
-  id: string;
-  status: 'running' | 'completed' | 'failed' | 'cancelled' | 'paused';
-  startTime: string;
-  endTime?: string;
-  progress: number;
-  currentStep: string;
-  logs: LogEntry[];
-}
-
-// ==================== Org 相关类型 ====================
-export interface OrgNode {
-  id: string;
-  name: string;
-  title: string;
-  department: string;
-  level: number;
-  parentId: string | null;
-  childrenIds: string[];
-  children?: OrgNode[];
-  email?: string;
-  phone?: string;
-  avatar?: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Role {
-  id: string;
-  name: string;
-  code: string;
-  description: string | null;
-  permissions: string[];
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Member {
-  id: string;
-  name: string;
-  email: string;
-  phone: string | null;
-  avatar: string | null;
-  departmentId: string;
-  position: string;
-  roleIds: string[];
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+// Legacy types for old pages that haven't been migrated yet
 
 export interface Goal {
   id: string;
@@ -248,13 +80,12 @@ export interface AuditLog {
   createdAt: string;
 }
 
-// ==================== Heartbeats 相关类型 ====================
 export interface Heartbeat {
   id: string;
   name: string;
   description: string | null;
   actionType: string;
-  actionParams: Record<string, any> | null;
+  actionParams: Record<string, unknown> | null;
   intervalSeconds: number;
   isActive: boolean;
   lastRunAt: string | null;
@@ -267,7 +98,7 @@ export interface HeartbeatLog {
   id: string;
   heartbeatId: string;
   status: 'running' | 'success' | 'failed';
-  result: Record<string, any> | null;
+  result: Record<string, unknown> | null;
   errorMessage: string | null;
   startedAt: string;
   completedAt: string | null;
@@ -278,4 +109,86 @@ export interface HeartbeatStats {
   active: number;
   inactive: number;
   failed24h: number;
+}
+
+export interface OrgNode {
+  id: string;
+  name: string;
+  title: string;
+  department: string;
+  level: number;
+  parentId: string | null;
+  childrenIds: string[];
+  children?: OrgNode[];
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  permissions: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Member {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  avatar: string | null;
+  departmentId: string;
+  position: string;
+  roleIds: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowDefinition {
+  id: string;
+  name: string;
+  description: string;
+  engine: 'lobster' | 'openviking' | 'temporal' | 'custom';
+  definition: unknown;
+  config: {
+    timeout: number;
+    retryPolicy: RetryPolicy;
+    approvalGates: ApprovalGate[];
+  };
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description: string;
+  engine: 'lobster' | 'openviking' | 'temporal' | 'custom';
+  category: 'development' | 'deployment' | 'custom';
+  definition: unknown;
+}
+
+export interface RetryPolicy {
+  maxAttempts: number;
+  delay: number;
+  backoff: 'linear' | 'exponential';
+}
+
+export interface ApprovalGate {
+  id: string;
+  name: string;
+  description: string;
+  approvers: string[];
+  condition: string;
+  type: 'automatic' | 'manual';
 }

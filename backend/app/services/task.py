@@ -5,7 +5,7 @@ from uuid import uuid4
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import Session
 
-from ..models.task import TaskCreate, TaskUpdate, Task
+from ..models.task_legacy import TaskCreate, TaskUpdate, Task
 from ..models.orm_models import Task as TaskORM, TaskAssignment
 from ..services.agent_service import AgentService
 

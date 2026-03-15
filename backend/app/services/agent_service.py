@@ -5,7 +5,7 @@ from uuid import uuid4
 from sqlalchemy import select, update, delete, func
 from sqlalchemy.orm import Session
 from app.models.orm_models import Agent as AgentORM, AgentLog, TaskAssignment
-from app.models.agent import AgentCreate, AgentUpdate, Agent, AgentStats
+from app.models.agent_legacy import AgentCreate, AgentUpdate, Agent, AgentStats
 from app.models.log import LogCreate
 
 

@@ -9,9 +9,20 @@ from alembic import context
 # Import application config and models
 from app.config import settings
 from app.database import Base
-from app.models.orm_models import *  # noqa: F401, F403 — register all ORM models
-from app.models.gateway import *  # noqa: F401, F403 — register gateway models
-from app.models.user import *  # noqa: F401, F403 — register user model
+
+# New v1 models — these are managed by Alembic
+from app.models.user import User  # noqa: F401
+from app.models.agent_type import AgentType  # noqa: F401
+from app.models.agent_instance import AgentInstance  # noqa: F401
+from app.models.project import Project  # noqa: F401
+from app.models.task import NexusTask  # noqa: F401
+from app.models.job import Job  # noqa: F401
+
+# Gateway models — also managed by Alembic
+from app.models.gateway import BridgeRecord, TaskRecord  # noqa: F401
+
+# Note: legacy models in orm_models.py are NOT imported here;
+# they use Base.metadata.create_all() in main.py lifespan instead.
 
 # Alembic Config object
 config = context.config

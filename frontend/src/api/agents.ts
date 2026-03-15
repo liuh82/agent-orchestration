@@ -1,28 +1,33 @@
 import api from './client';
-import { Agent } from '../types';
 
-export const agentsApi = {
-  // 获取所有 Agent
-  getAgents: () => api.get<Agent[]>('/agents'),
+export const agentApi = {
+  list: (params?: { page?: number; page_size?: number; search?: string }) =>
+    api.get('/agents', { params }) as Promise<any>,
 
-  // 创建 Agent
-  createAgent: (data: Partial<Agent>) => api.post<Agent>('/agents', data),
+  getById: (id: string) =>
+    api.get(`/agents/${id}`) as Promise<any>,
 
-  // 获取单个 Agent
-  getAgent: (id: string) => api.get<Agent>(`/agents/${id}`),
+  create: (data: { type_id: string; name: string; model?: string; config?: Record<string, unknown> }) =>
+    api.post('/agents', data) as Promise<any>,
 
-  // 更新 Agent
-  updateAgent: (id: string, data: Partial<Agent>) => api.put<Agent>(`/agents/${id}`, data),
+  update: (id: string, data: Record<string, unknown>) =>
+    api.put(`/agents/${id}`, data) as Promise<any>,
 
-  // 删除 Agent
-  deleteAgent: (id: string) => api.delete(`/agents/${id}`),
+  delete: (id: string) =>
+    api.delete(`/agents/${id}`) as Promise<any>,
 
-  // 获取 Agent 状态
-  getAgentStatus: (id: string) => api.get(`/agents/${id}/status`),
+  test: (id: string) =>
+    api.post(`/agents/${id}/test`) as Promise<any>,
 
-  // 启动 Agent
-  startAgent: (id: string) => api.post(`/agents/${id}/start`),
+  start: (id: string) =>
+    api.post(`/agents/${id}/start`) as Promise<any>,
 
-  // 停止 Agent
-  stopAgent: (id: string) => api.post(`/agents/${id}/stop`),
+  stop: (id: string) =>
+    api.post(`/agents/${id}/stop`) as Promise<any>,
+
+  getLogs: (id: string, params?: Record<string, unknown>) =>
+    api.get(`/agents/${id}/logs`, { params }) as Promise<any>,
+
+  getTypes: () =>
+    api.get('/agent-types') as Promise<any>,
 };

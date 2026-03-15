@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Agent } from '../types';
-import { agentsApi } from '../api/agents';
+import { agentApi } from '../api/agents';
 
 interface AgentsState {
   agents: Agent[];
@@ -24,8 +24,8 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   fetchAgents: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await agentsApi.getAgents();
-      set({ agents: response.data, loading: false });
+      const response: any = await agentApi.list();
+      set({ agents: response?.data?.items ?? response?.data ?? [], loading: false });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to fetch agents', loading: false });
     }
@@ -34,9 +34,9 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   createAgent: async (agentData) => {
     set({ loading: true, error: null });
     try {
-      const response = await agentsApi.createAgent(agentData);
+      const response: any = await agentApi.create(agentData as any);
       set((state) => ({
-        agents: [...state.agents, response.data],
+        agents: [...state.agents, response?.data ?? response],
         loading: false,
       }));
     } catch (error) {
@@ -47,10 +47,10 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   updateAgent: async (id, agentData) => {
     set({ loading: true, error: null });
     try {
-      const response = await agentsApi.updateAgent(id, agentData);
+      const response: any = await agentApi.update(id, agentData as Record<string, unknown>);
       set((state) => ({
         agents: state.agents.map((agent) =>
-          agent.id === id ? response.data : agent
+          agent.id === id ? (response?.data ?? agent) : agent
         ),
         loading: false,
       }));
@@ -62,7 +62,7 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   deleteAgent: async (id) => {
     set({ loading: true, error: null });
     try {
-      await agentsApi.deleteAgent(id);
+      await agentApi.delete(id);
       set((state) => ({
         agents: state.agents.filter((agent) => agent.id !== id),
         loading: false,
@@ -75,9 +75,9 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   getAgent: async (id) => {
     set({ loading: true, error: null });
     try {
-      const response = await agentsApi.getAgent(id);
+      const response: any = await agentApi.getById(id);
       set({ loading: false });
-      return response.data;
+      return response?.data ?? response;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to fetch agent', loading: false });
       throw error;
@@ -87,7 +87,7 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   startAgent: async (id) => {
     set({ loading: true, error: null });
     try {
-      await agentsApi.startAgent(id);
+      await agentApi.start(id);
       set((state) => ({
         agents: state.agents.map((agent) =>
           agent.id === id
@@ -104,7 +104,7 @@ export const useAgentsStore = create<AgentsState>((set) => ({
   stopAgent: async (id) => {
     set({ loading: true, error: null });
     try {
-      await agentsApi.stopAgent(id);
+      await agentApi.stop(id);
       set((state) => ({
         agents: state.agents.map((agent) =>
           agent.id === id
