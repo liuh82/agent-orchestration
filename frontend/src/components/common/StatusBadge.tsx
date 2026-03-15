@@ -17,9 +17,9 @@ const statusColors = {
   draft:     { bg: 'rgba(245,158,11,0.12)',  text: '#fbbf24', dot: '#f59e0b' },
 } as const;
 
-type Status = keyof typeof statusColors;
+const defaultColor = { bg: 'rgba(163,163,163,0.12)', text: '#a3a3a3', dot: '#737373' };
 
-const StyledBadge = styled.span<{ $status: Status }>`
+const StyledBadge = styled.span<{ $status: string }>`
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -27,8 +27,8 @@ const StyledBadge = styled.span<{ $status: Status }>`
   border-radius: ${radius.sm};
   font-size: ${typography.fontSize.sm};
   font-weight: ${typography.fontWeight.medium};
-  background: ${({ $status }) => statusColors[$status].bg};
-  color: ${({ $status }) => statusColors[$status].text};
+  background: ${({ $status }) => (statusColors as Record<string, typeof defaultColor>)[$status]?.bg ?? defaultColor.bg};
+  color: ${({ $status }) => (statusColors as Record<string, typeof defaultColor>)[$status]?.text ?? defaultColor.text};
   text-transform: capitalize;
 
   &::before {
@@ -36,7 +36,7 @@ const StyledBadge = styled.span<{ $status: Status }>`
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: ${({ $status }) => statusColors[$status].dot};
+    background: ${({ $status }) => (statusColors as Record<string, typeof defaultColor>)[$status]?.dot ?? defaultColor.dot};
     flex-shrink: 0;
 
     ${({ $status }) => ($status === 'running' || $status === 'busy') && `
@@ -46,10 +46,10 @@ const StyledBadge = styled.span<{ $status: Status }>`
 `;
 
 interface StatusBadgeProps {
-  status: Status;
+  status: string;
   label?: string;
 }
 
 export const StatusBadge = ({ status, label }: StatusBadgeProps) => (
-  <StyledBadge $status={status}>{label ?? status}</StyledBadge>
+  <StyledBadge $status={status ?? 'offline'}>{label ?? status ?? 'unknown'}</StyledBadge>
 );
