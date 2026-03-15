@@ -1,9 +1,11 @@
+import json
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query
 from pydantic import BaseModel
 
-from ..models.agent import AgentCreate, AgentUpdate, Agent, AgentStats, AgentLogsRequest
+from ..models.agent_legacy import AgentCreate, AgentUpdate, Agent, AgentStats, AgentLogsRequest
+from ..models.agent_type import AgentType
 from ..services.agent_service import AgentService
 from ..database import get_db
 
@@ -14,6 +16,42 @@ class AgentResponse(BaseModel):
     success: bool
     data: Optional[Agent] = None
     message: str = ""
+
+
+def _parse_json(val: Optional[str]) -> Optional:
+    if val:
+        try:
+            return json.loads(val)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return None
+
+
+# ── Agent Types (public — all authenticated users) ─────────
+
+
+@router.get("/types/")
+async def list_agent_types(db=Depends(get_db)):
+    """获取所有代理类型（公开接口，所有已认证用户可访问）"""
+    types = db.query(AgentType).order_by(AgentType.created_at.asc()).all()
+    items = []
+    for t in types:
+        items.append({
+            "id": t.id,
+            "name": t.name,
+            "display_name": t.display_name,
+            "protocol": t.protocol,
+            "config_schema": _parse_json(t.config_schema),
+            "capabilities": _parse_json(t.capabilities) or [],
+            "default_models": _parse_json(t.default_models) or [],
+            "is_system": t.is_system,
+            "created_by": t.created_by,
+            "created_at": t.created_at or "",
+        })
+    return {"success": True, "data": items}
+
+
+# ── Agent CRUD ─────────────────────────────────────────────
 
 
 @router.get("/", response_model=List[Agent])

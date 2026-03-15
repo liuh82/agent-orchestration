@@ -335,7 +335,7 @@ export const AgentNewPage = () => {
                     onClick={() => handleSelectType(type)}
                   >
                     <TypeIcon>{type.icon || '🤖'}</TypeIcon>
-                    <TypeName>{type.name}</TypeName>
+                    <TypeName>{type.display_name || type.name}</TypeName>
                     <TypeDesc>{type.description}</TypeDesc>
                     <TypeCode>{type.code}</TypeCode>
                     {type.capabilities.length > 0 && (
