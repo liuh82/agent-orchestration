@@ -1,9 +1,9 @@
-"""Data transform node — maps, filters, and extracts data."""
-import json
+"""Data transform node — maps variables using Schema v1 mappings format."""
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from ..registry import NodeRegistry
+from ..variable_resolver import resolve_variable
 from .base import BaseNodeExecutor, NodeContext, NodeResult, NodeStatus
 
 logger = logging.getLogger(__name__)
@@ -12,80 +12,108 @@ logger = logging.getLogger(__name__)
 @NodeRegistry.register(
     "transform",
     label="Transform",
-    description="Transform, map, or filter data between nodes",
+    description="Transform and map data between nodes",
     category="data",
-    icon="repeat",
+    icon="swap",
 )
 class TransformNodeExecutor(BaseNodeExecutor):
-    """Simple data transformation node.
+    """Data transformation node following Schema v1 format.
 
-    Supports:
-    - JSONPath-like extraction: extract a field from upstream output
-    - Static mapping: define output fields with values
-    - Template rendering: use {{node_id.output.field}} syntax
+    Schema v1 mappings: [{ targetVar, sourceExpression }, ...]
+    Also supports legacy format (static/extract/mappings) for backward compatibility.
     """
 
     CONFIG_SCHEMA = {
         "type": "object",
         "properties": {
+            "label": {"type": "string", "title": "Label", "default": "Transform"},
             "mappings": {
                 "type": "array",
-                "title": "Field Mappings",
-                "description": "List of {source, target} pairs for data mapping",
+                "title": "Variable Mappings",
+                "description": "List of { targetVar, sourceExpression } pairs",
                 "items": {
                     "type": "object",
+                    "required": ["targetVar"],
                     "properties": {
-                        "source": {"type": "string", "title": "Source"},
-                        "target": {"type": "string", "title": "Target"},
-                        "default": {"type": "string", "title": "Default Value"},
+                        "targetVar": {"type": "string", "title": "Target Variable"},
+                        "sourceExpression": {
+                            "type": "string",
+                            "title": "Source Expression",
+                            "description": "e.g. {{ node_1.output.result }}",
+                        },
                     },
                 },
+            },
+            # Legacy fields (backward compatibility)
+            "static": {
+                "type": "object",
+                "title": "Static Values",
+                "additionalProperties": {},
             },
             "extract": {
                 "type": "object",
                 "title": "Direct Extraction",
-                "description": "Map of output_field: source_path",
                 "additionalProperties": {"type": "string"},
-            },
-            "static": {
-                "type": "object",
-                "title": "Static Values",
-                "description": "Static key-value pairs to include in output",
-                "additionalProperties": {},
             },
         },
     }
 
     async def execute(self, context: NodeContext) -> NodeResult:
         try:
-            output = {}
+            output: Dict[str, Any] = {}
 
-            # Static values
+            # Build resolver context
+            node_outputs = context.upstream_outputs
+            workflow_vars = context.input_data.get("_workflow_variables", {})
+            loop_ctx = context.input_data.get("_loop_context")
+            exec_ctx = context.input_data.get("_execution_context", {})
+
+            # Schema v1 format: mappings with targetVar/sourceExpression
+            mappings = context.node_config.get("mappings", [])
+            if mappings and isinstance(mappings, list):
+                for mapping in mappings:
+                    target_var = mapping.get("targetVar", "")
+                    source_expr = mapping.get("sourceExpression", "")
+
+                    if not target_var:
+                        continue
+
+                    if source_expr:
+                        # Strip {{ }} if present
+                        if source_expr.startswith("{{") and source_expr.endswith("}}"):
+                            source_expr = source_expr[2:-2].strip()
+                        value = resolve_variable(
+                            source_expr, node_outputs,
+                            workflow_variables=workflow_vars,
+                            loop_context=loop_ctx,
+                            execution_context=exec_ctx,
+                        )
+                    else:
+                        value = None
+
+                    output[target_var] = value
+
+            # Legacy: static values
             static = context.node_config.get("static", {})
             if isinstance(static, dict):
                 output.update(static)
 
-            # Direct extraction
+            # Legacy: direct extraction
             extract = context.node_config.get("extract", {})
-            if isinstance(extract, dict):
+            if isinstance(extract, dict) and not mappings:
                 for target_path, source_expr in extract.items():
-                    value = self._resolve_path(source_expr, context)
-                    self._set_nested(output, target_path, value)
-
-            # Field mappings
-            mappings = context.node_config.get("mappings", [])
-            if isinstance(mappings, list):
-                for mapping in mappings:
-                    source = mapping.get("source", "")
-                    target = mapping.get("target", source)
-                    default = mapping.get("default")
-                    value = self._resolve_path(source, context)
-                    if value is None and default is not None:
-                        value = default
-                    self._set_nested(output, target, value)
+                    if source_expr.startswith("{{") and source_expr.endswith("}}"):
+                        source_expr = source_expr[2:-2].strip()
+                    value = resolve_variable(
+                        source_expr, node_outputs,
+                        workflow_variables=workflow_vars,
+                        loop_context=loop_ctx,
+                        execution_context=exec_ctx,
+                    )
+                    output[target_path] = value
 
             # Pass through input if no transform rules
-            if not static and not extract and not mappings:
+            if not mappings and not static and not extract:
                 output = dict(context.input_data)
 
             return NodeResult(
@@ -98,45 +126,3 @@ class TransformNodeExecutor(BaseNodeExecutor):
                 status=NodeStatus.FAILED,
                 error_message=str(e),
             )
-
-    def _resolve_path(self, path: str, context: NodeContext) -> Any:
-        """Resolve a dot-notation path against upstream outputs.
-
-        Format: node_id.output.field.subfield
-        """
-        if not path:
-            return None
-
-        parts = path.split(".")
-        if len(parts) >= 3 and parts[1] == "output":
-            node_id = parts[0]
-            data = context.upstream_outputs.get(node_id, {})
-            for field in parts[2:]:
-                if isinstance(data, dict):
-                    data = data.get(field)
-                else:
-                    return None
-                if data is None:
-                    return None
-            return data
-
-        # Try from input_data
-        data = context.input_data
-        for part in parts:
-            if isinstance(data, dict):
-                data = data.get(part)
-            else:
-                return None
-            if data is None:
-                return None
-        return data
-
-    def _set_nested(self, data: dict, path: str, value: Any):
-        """Set a value at a dot-notation path."""
-        parts = path.split(".")
-        current = data
-        for part in parts[:-1]:
-            if part not in current or not isinstance(current[part], dict):
-                current[part] = {}
-            current = current[part]
-        current[parts[-1]] = value

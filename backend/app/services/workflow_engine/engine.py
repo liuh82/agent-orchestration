@@ -1,4 +1,8 @@
-"""Core workflow engine — execution scheduler with node dispatch and graph traversal."""
+"""Core workflow engine — execution scheduler with node dispatch and graph traversal.
+
+Supports Schema v1 format (source/target edges, data config, sourceHandle routing),
+variable context propagation, loop handling, error retry, and workflow-level error strategy.
+"""
 import asyncio
 import json
 import logging
@@ -12,18 +16,25 @@ from .registry import NodeRegistry
 from .state_machine import ExecutionState, StateMachine
 from .event_publisher import WorkflowEventPublisher
 from .nodes.base import NodeContext, NodeResult, NodeStatus
+from .variable_resolver import VariableResolver
 
 logger = logging.getLogger(__name__)
 
 # In-memory state for running executions
 _running_executions: Dict[str, StateMachine] = {}
+# Per-execution variable resolvers
+_variable_resolvers: Dict[str, VariableResolver] = {}
+# Per-execution workflow definitions (needed for resume / loop handling)
+_execution_definitions: Dict[str, dict] = {}
+# Per-execution tracking of completed node IDs
+_completed_nodes: Dict[str, Set[str]] = set()
 
 
 class WorkflowEngine:
-    """Nexus workflow execution engine.
+    """Nexus workflow execution engine (Schema v1 compatible).
 
     Orchestrates node execution following the workflow graph (nodes + edges).
-    Supports sequential, conditional branching, parallel, and human-wait flows.
+    Supports sequential, conditional branching, loop, sub-workflow, and error handling.
     """
 
     async def start(
@@ -47,7 +58,7 @@ class WorkflowEngine:
             id=execution_id,
             workflow_id=workflow_id,
             template_id=template_id,
-            name=name or f"WF-{workflow_id[:8]}",
+            name=name or definition.get("name", f"WF-{workflow_id[:8]}"),
             status=ExecutionState.RUNNING.value,
             input_params=json.dumps(input_params),
             started_at=datetime.utcnow().isoformat() + "Z",
@@ -60,30 +71,65 @@ class WorkflowEngine:
         sm = StateMachine(ExecutionState.RUNNING)
         _running_executions[execution_id] = sm
 
-        # 3. Parse workflow definition
+        # 3. Parse workflow definition (Schema v1)
         nodes = definition.get("nodes", [])
         edges = definition.get("edges", [])
+        workflow_variables = definition.get("variables", {})
+        workflow_config = definition.get("config", {})
 
-        # 4. Find start nodes (no incoming edges)
-        target_ids = {e["to"] for e in edges}
+        # Store definition for resume / loop handling
+        _execution_definitions[execution_id] = definition
+
+        # 4. Build variable resolver
+        execution_context = {
+            "user_id": user_id,
+            "execution_id": execution_id,
+            "workflow_id": workflow_id,
+        }
+        resolver = VariableResolver(
+            workflow_variables=workflow_variables,
+            execution_context=execution_context,
+        )
+        _variable_resolvers[execution_id] = resolver
+
+        # 5. Find start nodes (trigger nodes or nodes with no incoming edges)
+        target_ids = set()
+        for e in edges:
+            target_ids.add(e.get("target") or e.get("to", ""))
         start_nodes = [n for n in nodes if n["id"] not in target_ids]
 
         if not start_nodes:
-            # Fallback: use first node
             if nodes:
                 start_nodes = [nodes[0]]
             else:
                 self._fail_execution(execution_id, db, "No nodes in workflow definition")
                 return execution_id
 
-        # 5. Publish start event
+        # 6. Publish start event
+        total_nodes = len([n for n in nodes if not n.get("disabled", False)])
         await WorkflowEventPublisher.publish_execution_status(
-            execution_id, "running", name=execution.name
+            execution_id, "running", name=execution.name,
+        )
+        await WorkflowEventPublisher.publish_progress(
+            execution_id,
+            current_node=start_nodes[0]["id"],
+            completed_nodes=0,
+            total_nodes=total_nodes,
         )
 
-        # 6. Schedule start nodes (fire-and-forget via asyncio task)
+        # 7. Inject internal context into input_params
+        input_params["_workflow_variables"] = workflow_variables
+        input_params["_execution_context"] = execution_context
+        input_params["_workflow_config"] = workflow_config
+
+        # 8. Schedule start nodes (fire-and-forget via asyncio task)
+        _completed_nodes[execution_id] = set()
+
         asyncio.create_task(
-            self._schedule_nodes(execution_id, start_nodes, edges, input_params, db)
+            self._schedule_nodes(
+                execution_id, start_nodes, nodes, edges,
+                input_params, db, workflow_config,
+            )
         )
 
         return execution_id
@@ -92,19 +138,28 @@ class WorkflowEngine:
         self,
         execution_id: str,
         node_defs: List[dict],
+        all_nodes: List[dict],
         edges: List[dict],
         input_data: dict,
         db: Session,
+        workflow_config: Optional[Dict[str, Any]] = None,
         upstream_outputs: Optional[Dict[str, Any]] = None,
     ):
         """Schedule one or more nodes for execution."""
         upstream_outputs = upstream_outputs or {}
+        workflow_config = workflow_config or {}
 
-        # Run nodes concurrently if multiple start nodes
+        # Inject all_nodes into each node def for backward compat
+        for node_def in node_defs:
+            node_def["_all_nodes"] = all_nodes
+
         tasks = []
         for node_def in node_defs:
             tasks.append(
-                self._execute_node(execution_id, node_def, edges, input_data, db, upstream_outputs)
+                self._execute_node(
+                    execution_id, node_def, all_nodes, edges,
+                    input_data, db, upstream_outputs, workflow_config,
+                )
             )
         await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -112,10 +167,13 @@ class WorkflowEngine:
         self,
         execution_id: str,
         node_def: dict,
+        all_nodes: List[dict],
         edges: List[dict],
         input_data: dict,
         db: Session,
         upstream_outputs: Dict[str, Any],
+        workflow_config: Dict[str, Any],
+        retry_count: int = 0,
     ):
         """Execute a single node and schedule downstream nodes."""
         from app.models.workflow_execution import WorkflowExecution, WorkflowNodeExecution
@@ -123,14 +181,19 @@ class WorkflowEngine:
 
         node_id = node_def["id"]
         node_type = node_def["type"]
-        node_config = node_def.get("config", {})
+        # Schema v1 uses "data" for node config (fallback to "config" for legacy)
+        node_config = node_def.get("data", node_def.get("config", {}))
 
         sm = _running_executions.get(execution_id)
         if not sm or sm.is_terminal:
             logger.debug("Execution %s is terminal, skipping node %s", execution_id, node_id)
             return
 
-        # Check for pause/waiting
+        # Skip disabled nodes
+        if node_def.get("disabled", False):
+            logger.debug("Node %s is disabled, skipping", node_id)
+            return
+
         if sm.state in (ExecutionState.PAUSED, ExecutionState.CANCELLED):
             logger.debug("Execution %s is %s, skipping node %s", execution_id, sm.state.value, node_id)
             return
@@ -161,7 +224,13 @@ class WorkflowEngine:
             execution_id, node_id, "running"
         )
 
-        # 3. Get executor and run
+        # 3. Get resolver and inject loop context
+        resolver = _variable_resolvers.get(execution_id)
+        if resolver:
+            input_data["_loop_context"] = resolver._loop_context
+
+        # 4. Get executor and run
+        result: Optional[NodeResult] = None
         try:
             executor = NodeRegistry.get_executor(node_type)
             context = NodeContext(
@@ -170,6 +239,7 @@ class WorkflowEngine:
                 node_config=node_config,
                 input_data=input_data,
                 execution_id=execution_id,
+                workflow_id=input_data.get("_execution_context", {}).get("workflow_id", ""),
                 upstream_outputs=upstream_outputs,
                 db_session=db,
             )
@@ -187,7 +257,7 @@ class WorkflowEngine:
                 error_message=str(e),
             )
 
-        # 4. Update node execution record
+        # 5. Update node execution record
         node_exec.status = result.status.value
         node_exec.output_data = json.dumps(result.output_data) if result.output_data else None
         node_exec.error_message = result.error_message
@@ -203,7 +273,7 @@ class WorkflowEngine:
                 node_exec.agent_id = result.output_data.get("agent_id")
             db.flush()
 
-        # 5. Publish result
+        # 6. Publish result with output data
         await WorkflowEventPublisher.publish_node_status(
             execution_id, node_id, result.status.value,
             output_data=result.output_data,
@@ -211,82 +281,311 @@ class WorkflowEngine:
             duration_ms=result.duration_ms,
         )
 
-        # 6. Handle result status
+        # 7. Store node output in resolver
+        if resolver and result.status == NodeStatus.SUCCESS:
+            resolver.set_node_output(node_id, result.output_data or {})
+
+        # Track completed nodes
+        completed = _completed_nodes.get(execution_id, set())
+        completed.add(node_id)
+        _completed_nodes[execution_id] = completed
+
+        # 8. Handle WAITING status
         if result.status == NodeStatus.WAITING:
-            # Human review — pause the state machine
             sm.transition(ExecutionState.WAITING)
             await WorkflowEventPublisher.publish_execution_status(
                 execution_id, "waiting", node_id=node_id
             )
             return
 
+        # 9. Handle FAILED status — check error strategy
         if result.status == NodeStatus.FAILED:
-            self._fail_execution(execution_id, db, f"Node {node_id} failed: {result.error_message}")
-            return
+            node_error_strategy = node_config.get("errorStrategy", "stop")
+            wf_error_strategy = workflow_config.get("errorStrategy", "stop_all")
 
-        # 7. Determine next nodes
-        next_nodes = self._get_next_nodes(node_id, result, node_def, edges)
+            # Check retry policy first
+            retry_policy = node_config.get("retryPolicy") or workflow_config.get("retryPolicy", {})
+            max_retries = retry_policy.get("maxRetries", 0)
+            retry_interval = retry_policy.get("interval", 5)
+
+            if retry_count < max_retries:
+                logger.info(
+                    "Retrying node %s (attempt %d/%d)",
+                    node_id, retry_count + 1, max_retries,
+                )
+                await asyncio.sleep(retry_interval)
+                await self._execute_node(
+                    execution_id, node_def, all_nodes, edges,
+                    input_data, db, upstream_outputs, workflow_config,
+                    retry_count=retry_count + 1,
+                )
+                return
+
+            if node_error_strategy == "skip":
+                logger.info("Skipping failed node %s (errorStrategy=skip)", node_id)
+                self._check_completion(execution_id, db)
+                return
+
+            if node_error_strategy == "continue":
+                logger.warning("Node %s failed, continuing (errorStrategy=continue)", node_id)
+                # Continue to downstream
+            elif wf_error_strategy == "continue":
+                logger.warning(
+                    "Node %s failed, continuing (workflow errorStrategy=continue)", node_id,
+                )
+            else:
+                # Default: stop_all
+                self._fail_execution(
+                    execution_id, db,
+                    f"Node {node_id} failed: {result.error_message}",
+                )
+                return
+
+        # 10. Determine next nodes based on sourceHandle routing
+        next_info = self._get_next_nodes_v1(
+            node_id, result, node_def, all_nodes, edges,
+        )
+        next_nodes = next_info["nodes"]
+        routing = next_info.get("routing", {})
+
         if not next_nodes:
-            # Check if all nodes are done
+            # Publish progress and check completion
+            total_nodes = len([n for n in all_nodes if not n.get("disabled", False)])
+            await WorkflowEventPublisher.publish_progress(
+                execution_id,
+                current_node="",
+                completed_nodes=len(completed),
+                total_nodes=total_nodes,
+            )
             self._check_completion(execution_id, db)
             return
 
-        # 8. Merge upstream outputs
+        # 11. Handle loop routing
+        if node_type == "loop" and result.output_data:
+            loop_done = result.output_data.get("done", False)
+            if not loop_done:
+                # Continue loop: execute body nodes, then re-enter loop node
+                await self._handle_loop_body(
+                    execution_id, node_id, result.output_data,
+                    all_nodes, edges, input_data, db,
+                    upstream_outputs, workflow_config,
+                )
+                return
+
+        # 12. Merge upstream outputs
         new_upstream = dict(upstream_outputs)
         new_upstream[node_id] = result.output_data or {}
 
-        # 9. Schedule next nodes
-        await self._schedule_nodes(
-            execution_id, next_nodes, edges, input_data, db, new_upstream
+        # 13. Publish progress
+        total_nodes = len([n for n in all_nodes if not n.get("disabled", False)])
+        await WorkflowEventPublisher.publish_progress(
+            execution_id,
+            current_node=next_nodes[0]["id"] if next_nodes else "",
+            completed_nodes=len(completed),
+            total_nodes=total_nodes,
         )
 
-    def _get_next_nodes(
+        # 14. Schedule next nodes
+        await self._schedule_nodes(
+            execution_id, next_nodes, all_nodes, edges,
+            input_data, db, workflow_config, new_upstream,
+        )
+
+    async def _handle_loop_body(
+        self,
+        execution_id: str,
+        loop_node_id: str,
+        loop_output: Dict[str, Any],
+        all_nodes: List[dict],
+        edges: List[dict],
+        input_data: dict,
+        db: Session,
+        upstream_outputs: Dict[str, Any],
+        workflow_config: Dict[str, Any],
+    ):
+        """Execute the loop body nodes and then re-enter the loop node."""
+        resolver = _variable_resolvers.get(execution_id)
+
+        # Set loop context for body nodes
+        from .nodes.loop_node import LoopNode
+        loop_context = LoopNode.build_loop_context(loop_output)
+        if resolver:
+            resolver.set_loop_context(loop_context)
+
+        # Find body edge targets (sourceHandle="body")
+        body_nodes = self._find_edge_targets(
+            loop_node_id, "body", all_nodes, edges,
+        )
+
+        if not body_nodes:
+            logger.warning("Loop node %s has no body edge targets", loop_node_id)
+            self._check_completion(execution_id, db)
+            return
+
+        # Execute body nodes
+        new_upstream = dict(upstream_outputs)
+        new_upstream[loop_node_id] = loop_output
+
+        # We need to intercept after body nodes complete and re-enter the loop.
+        # Instead of using _schedule_nodes (which runs them and ends),
+        # we manually track and re-enter.
+        try:
+            for body_node in body_nodes:
+                body_node["_all_nodes"] = all_nodes
+                await self._execute_node(
+                    execution_id, body_node, all_nodes, edges,
+                    input_data, db, new_upstream, workflow_config,
+                )
+                # Propagate outputs
+                # (get from resolver or completed nodes tracking)
+                if resolver:
+                    new_upstream[body_node["id"]] = resolver.get_node_outputs().get(
+                        body_node["id"], {}
+                    )
+        except Exception as e:
+            logger.error("Loop body execution error: %s", e)
+            self._fail_execution(execution_id, db, f"Loop body error: {e}")
+            return
+
+        # After body completes, increment loop index and re-execute the loop node
+        if resolver:
+            next_loop_context = LoopNode.build_next_iteration_context(loop_output)
+            resolver.set_loop_context(next_loop_context)
+
+        # Find the loop node definition
+        loop_def = None
+        for n in all_nodes:
+            if n["id"] == loop_node_id:
+                loop_def = n
+                break
+
+        if loop_def:
+            loop_def["_all_nodes"] = all_nodes
+            await self._execute_node(
+                execution_id, loop_def, all_nodes, edges,
+                input_data, db, new_upstream, workflow_config,
+            )
+
+    def _get_next_nodes_v1(
         self,
         node_id: str,
         result: NodeResult,
         node_def: dict,
+        all_nodes: List[dict],
         edges: List[dict],
-    ) -> List[dict]:
-        """Determine the next nodes to execute based on edges and result."""
-        outgoing = [e for e in edges if e.get("from") == node_id]
+    ) -> Dict[str, Any]:
+        """Determine next nodes using Schema v1 sourceHandle routing.
+
+        Returns:
+            { "nodes": [node_def, ...], "routing": { sourceHandle: target_node_id } }
+        """
+        node_type = node_def.get("type", "")
+
+        # Find outgoing edges (Schema v1 uses "source", legacy uses "from")
+        outgoing = []
+        for e in edges:
+            src = e.get("source") or e.get("from", "")
+            if src == node_id:
+                outgoing.append(e)
 
         if not outgoing:
-            return []
+            return {"nodes": [], "routing": {}}
 
-        # If node has explicit next_node_ids, use those
+        # Build target node map
+        node_map = {n["id"]: n for n in all_nodes}
+
+        # --- sourceHandle routing for conditional nodes ---
+
+        if node_type == "if":
+            cond_result = result.output_data.get("result", False) if result.output_data else False
+            handle = "true" if cond_result else "false"
+            for e in outgoing:
+                if e.get("sourceHandle") == handle:
+                    target_id = e.get("target") or e.get("to", "")
+                    if target_id in node_map:
+                        return {"nodes": [node_map[target_id]], "routing": {"sourceHandle": handle}}
+            # Fallback: follow any edge with matching handle name
+            for e in outgoing:
+                handle_lower = e.get("sourceHandle", "").lower()
+                if handle_lower == ("true" if cond_result else "false"):
+                    target_id = e.get("target") or e.get("to", "")
+                    if target_id in node_map:
+                        return {"nodes": [node_map[target_id]], "routing": {"sourceHandle": handle_lower}}
+            return {"nodes": [], "routing": {}}
+
+        if node_type == "switch":
+            matched_case = result.output_data.get("matched_case") if result.output_data else None
+            if matched_case is not None and matched_case != "default":
+                handle = f"case_{matched_case}"
+            else:
+                handle = "default"
+            for e in outgoing:
+                if e.get("sourceHandle") == handle:
+                    target_id = e.get("target") or e.get("to", "")
+                    if target_id in node_map:
+                        return {"nodes": [node_map[target_id]], "routing": {"sourceHandle": handle}}
+            # Fallback to default
+            for e in outgoing:
+                if e.get("sourceHandle") == "default":
+                    target_id = e.get("target") or e.get("to", "")
+                    if target_id in node_map:
+                        return {"nodes": [node_map[target_id]], "routing": {"sourceHandle": "default"}}
+            return {"nodes": [], "routing": {}}
+
+        if node_type == "loop":
+            loop_done = result.output_data.get("done", False) if result.output_data else True
+            handle = "done" if loop_done else "body"
+            for e in outgoing:
+                if e.get("sourceHandle") == handle:
+                    target_id = e.get("target") or e.get("to", "")
+                    if target_id in node_map:
+                        return {"nodes": [node_map[target_id]], "routing": {"sourceHandle": handle}}
+            # Default for loop done
+            if loop_done:
+                for e in outgoing:
+                    target_id = e.get("target") or e.get("to", "")
+                    if target_id in node_map:
+                        return {"nodes": [node_map[target_id]], "routing": {"sourceHandle": "done"}}
+            return {"nodes": [], "routing": {}}
+
+        # --- Explicit next_node_ids ---
         if result.next_node_ids:
-            node_map = {n["id"]: n for n in node_def.get("_all_nodes", [])}
-            return [node_map[nid] for nid in result.next_node_ids if nid in node_map]
+            nodes = [node_map[nid] for nid in result.next_node_ids if nid in node_map]
+            return {"nodes": nodes, "routing": {}}
 
-        # For condition nodes, filter by edge condition
-        if node_def.get("type") == "condition":
-            condition_value = str(result.output_data.get("result", "")).lower()
-            for edge in outgoing:
-                edge_cond = str(edge.get("condition", "")).lower()
+        # --- Legacy condition node (type="condition") ---
+        if node_type == "condition":
+            condition_value = str(result.output_data.get("result", "")).lower() if result.output_data else ""
+            for e in outgoing:
+                edge_cond = str(e.get("condition", e.get("sourceHandle", ""))).lower()
                 if edge_cond == condition_value:
-                    return self._resolve_edge_target(edge, node_def)
+                    target_id = e.get("target") or e.get("to", "")
+                    if target_id in node_map:
+                        return {"nodes": [node_map[target_id]], "routing": {}}
+            return {"nodes": [], "routing": {}}
 
-            # If no matching condition edge, follow unconditional edges
-            unconditional = [e for e in outgoing if not e.get("condition")]
-            if unconditional:
-                return self._resolve_edge_target(unconditional[0], node_def)
-            return []
+        # --- Default: follow all outgoing edges ---
+        next_ids = [e.get("target") or e.get("to", "") for e in outgoing]
+        nodes = [node_map[nid] for nid in next_ids if nid in node_map]
+        return {"nodes": nodes, "routing": {}}
 
-        # Default: follow all outgoing edges
-        all_nodes = node_def.get("_all_nodes", [])
-        next_ids = [e["to"] for e in outgoing]
-        return [n for n in all_nodes if n["id"] in next_ids]
-
-    def _resolve_edge_target(
-        self, edge: dict, current_node_def: dict
+    def _find_edge_targets(
+        self,
+        node_id: str,
+        source_handle: str,
+        all_nodes: List[dict],
+        edges: List[dict],
     ) -> List[dict]:
-        """Resolve an edge to its target node definition(s)."""
-        all_nodes = current_node_def.get("_all_nodes", [])
-        target_id = edge.get("to")
-        for n in all_nodes:
-            if n["id"] == target_id:
-                return [n]
-        return []
+        """Find target nodes for a specific sourceHandle."""
+        node_map = {n["id"]: n for n in all_nodes}
+        targets = []
+        for e in edges:
+            src = e.get("source") or e.get("from", "")
+            if src == node_id and e.get("sourceHandle") == source_handle:
+                target_id = e.get("target") or e.get("to", "")
+                if target_id in node_map:
+                    targets.append(node_map[target_id])
+        return targets
 
     def _check_completion(self, execution_id: str, db: Session):
         """Check if all nodes have completed and finalize the execution."""
@@ -296,14 +595,12 @@ class WorkflowEngine:
         if not execution:
             return
 
-        # Count pending/running nodes
         pending_count = db.query(WorkflowNodeExecution).filter(
             WorkflowNodeExecution.execution_id == execution_id,
             WorkflowNodeExecution.status.in_(["pending", "running", "waiting"]),
         ).count()
 
         if pending_count == 0:
-            # All nodes done
             sm = _running_executions.get(execution_id)
             if sm:
                 sm.transition(ExecutionState.COMPLETED)
@@ -312,6 +609,15 @@ class WorkflowEngine:
             execution.completed_at = datetime.utcnow().isoformat() + "Z"
             db.flush()
 
+            total_nodes = len(_completed_nodes.get(execution_id, set()))
+            asyncio.create_task(
+                WorkflowEventPublisher.publish_progress(
+                    execution_id,
+                    current_node="",
+                    completed_nodes=total_nodes,
+                    total_nodes=total_nodes,
+                )
+            )
             asyncio.create_task(
                 WorkflowEventPublisher.publish_execution_status(
                     execution_id, "completed"
@@ -363,13 +669,11 @@ class WorkflowEngine:
     async def resume(self, execution_id: str, db: Session) -> bool:
         """Resume a paused/waiting execution."""
         from app.models.workflow_execution import WorkflowExecution, WorkflowNodeExecution
-        from app.models.base import generate_uuid
 
         sm = _running_executions.get(execution_id)
         if not sm:
             return False
 
-        # If waiting (human review), check if intervention is resolved
         if sm.state == ExecutionState.WAITING:
             waiting_node = db.query(WorkflowNodeExecution).filter(
                 WorkflowNodeExecution.execution_id == execution_id,
@@ -377,7 +681,6 @@ class WorkflowEngine:
             ).first()
 
             if waiting_node:
-                # Check if human intervention is resolved
                 from app.models.human_intervention import HumanIntervention
                 intervention = db.query(HumanIntervention).filter(
                     HumanIntervention.workflow_execution_id == execution_id,
@@ -386,9 +689,8 @@ class WorkflowEngine:
                 ).first()
 
                 if not intervention:
-                    return False  # Still waiting
+                    return False
 
-                # Mark node as completed with decision
                 waiting_node.status = "success" if intervention.decision == "approved" else "failed"
                 waiting_node.output_data = json.dumps({
                     "decision": intervention.decision,
@@ -397,26 +699,21 @@ class WorkflowEngine:
                 waiting_node.completed_at = datetime.utcnow().isoformat() + "Z"
                 db.flush()
 
-                # Transition to running and continue from this node
-                sm.transition(ExecutionState.RUNNING)
+            sm.transition(ExecutionState.RUNNING)
 
-                execution = db.query(WorkflowExecution).get(execution_id)
-                if execution:
-                    execution.status = ExecutionState.RUNNING.value
-                    db.flush()
+            execution = db.query(WorkflowExecution).get(execution_id)
+            if execution:
+                execution.status = ExecutionState.RUNNING.value
+                db.flush()
 
-                await WorkflowEventPublisher.publish_execution_status(
-                    execution_id, "running"
-                )
-
-                # Re-schedule downstream nodes
-                # (simplified: need to reconstruct the workflow graph)
-                return True
+            await WorkflowEventPublisher.publish_execution_status(
+                execution_id, "running"
+            )
+            return True
 
         if sm.state == ExecutionState.PAUSED:
             sm.transition(ExecutionState.RUNNING)
 
-            from app.models.workflow_execution import WorkflowExecution
             execution = db.query(WorkflowExecution).get(execution_id)
             if execution:
                 execution.status = ExecutionState.RUNNING.value
@@ -463,6 +760,14 @@ class WorkflowEngine:
         """Check if an execution is currently running."""
         sm = _running_executions.get(execution_id)
         return sm is not None and not sm.is_terminal
+
+    @staticmethod
+    def cleanup_execution(execution_id: str):
+        """Clean up in-memory state for a completed/failed execution."""
+        _running_executions.pop(execution_id, None)
+        _variable_resolvers.pop(execution_id, None)
+        _execution_definitions.pop(execution_id, None)
+        _completed_nodes.pop(execution_id, None)
 
 
 # Global singleton
