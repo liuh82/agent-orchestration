@@ -13,7 +13,6 @@ import {
 } from 'antd';
 import {
   ArrowLeftOutlined,
-  PlayCircleOutlined,
   PauseCircleOutlined,
   ExperimentOutlined,
   EditOutlined,
@@ -277,17 +276,6 @@ export const AgentDetailPage = () => {
     (Array.isArray(logsData) ? logsData.length : 0);
 
   // Mutations
-  const startMutation = useMutation(
-    () => agentApi.start(id!),
-    {
-      onSuccess: () => {
-        void message.success('代理已启动');
-        queryClient.invalidateQueries(['agent', id]);
-      },
-      onError: () => { void message.error('启动失败'); },
-    },
-  );
-
   const stopMutation = useMutation(
     () => agentApi.stop(id!),
     {
@@ -351,8 +339,6 @@ export const AgentDetailPage = () => {
   const handleCancelEditingConfig = () => {
     setEditingConfig(false);
   };
-
-  const isOnline = agent?.status === 'online' || agent?.status === 'busy';
 
   /* ── error state ── */
   if (agentError) {
@@ -583,28 +569,18 @@ export const AgentDetailPage = () => {
               返回
             </Button>
 
-            {isOnline ? (
-              <Popconfirm
-                title="确认停止"
-                description={`确定要停止代理「${agent.name}」吗？`}
-                onConfirm={() => stopMutation.mutate()}
-                okText="停止"
-                cancelText="取消"
-                okButtonProps={{ danger: true }}
-              >
-                <Button danger loading={stopMutation.isLoading}>
-                  <PauseCircleOutlined /> 停止
-                </Button>
-              </Popconfirm>
-            ) : (
-              <Button
-                type="primary"
-                loading={startMutation.isLoading}
-                onClick={() => startMutation.mutate()}
-              >
-                <PlayCircleOutlined /> 启动
+            <Popconfirm
+              title="确认停止"
+              description={`确定要停止代理「${agent.name}」吗？`}
+              onConfirm={() => stopMutation.mutate()}
+              okText="停止"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+            >
+              <Button danger loading={stopMutation.isLoading}>
+                <PauseCircleOutlined /> 停止
               </Button>
-            )}
+            </Popconfirm>
 
             <Button
               loading={testMutation.isLoading}

@@ -33,10 +33,8 @@ const AgentListPage = React.lazy(() => import('@/pages/agents/AgentListPage'));
 const AgentNewPage = React.lazy(() => import('@/pages/agents/AgentNewPage'));
 const AgentDetailPage = React.lazy(() => import('@/pages/agents/AgentDetailPage'));
 const UserManagePage = React.lazy(() => import('@/pages/admin/UserManagePage'));
-const AgentTypePage = React.lazy(() => import('@/pages/admin/AgentTypePage'));
 const SystemSettingsPage = React.lazy(() => import('@/pages/admin/SystemSettingsPage'));
 const AdminNotificationPage = React.lazy(() => import('@/pages/admin/AdminNotificationPage'));
-const AdminStatsPage = React.lazy(() => import('@/pages/admin/AdminStatsPage'));
 
 function App() {
   return (
@@ -71,10 +69,8 @@ function App() {
               <Route path="agents/new" element={<AgentNewPage />} />
               <Route path="agents/:id" element={<AgentDetailPage />} />
               <Route path="users" element={<UserManagePage />} />
-              <Route path="agent-types" element={<AgentTypePage />} />
               <Route path="settings" element={<SystemSettingsPage />} />
               <Route path="notifications" element={<AdminNotificationPage />} />
-              <Route path="stats" element={<AdminStatsPage />} />
             </Route>
 
             {/* 404 */}

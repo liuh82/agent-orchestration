@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Table, Tag, Avatar, Switch, Popconfirm, Dropdown, message, Skeleton } from 'antd';
-import { DownOutlined, UserOutlined } from '@ant-design/icons';
+import { Table, Tag, Avatar, Switch, Popconfirm, Dropdown, message, Skeleton, Modal, Form, Input, Button } from 'antd';
+import { DownOutlined, UserOutlined, KeyOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import styled from 'styled-components';
 import { colors } from '@/styles/tokens/color';
@@ -78,7 +78,7 @@ const SkeletonTable = styled.div`
 
 interface UserRow {
   id: string;
-  username: string;
+  name: string;
   email: string;
   avatar?: string;
   role: 'admin' | 'user';
@@ -94,6 +94,10 @@ export const UserManagePage = () => {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [resetPwdModalOpen, setResetPwdModalOpen] = useState(false);
+  const [resetPwdUserId, setResetPwdUserId] = useState<string | null>(null);
+  const [resetPwdUserName, setResetPwdUserName] = useState<string>('');
+  const [form] = Form.useForm();
 
   const {
     data: response,
@@ -143,6 +147,39 @@ export const UserManagePage = () => {
     },
   );
 
+  const resetPwdMutation = useMutation(
+    ({ userId, password }: { userId: string; password: string }) =>
+      api.post(`/v1/admin/users/${userId}/reset-password`, { password }) as Promise<any>,
+    {
+      onSuccess: () => {
+        void message.success('密码已重置');
+        setResetPwdModalOpen(false);
+        form.resetFields();
+      },
+      onError: () => {
+        void message.error('重置密码失败');
+      },
+    },
+  );
+
+  const handleOpenResetPwd = (user: UserRow) => {
+    setResetPwdUserId(user.id);
+    setResetPwdUserName(user.name);
+    form.resetFields();
+    setResetPwdModalOpen(true);
+  };
+
+  const handleResetPwdSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      if (resetPwdUserId) {
+        void resetPwdMutation.mutate({ userId: resetPwdUserId, password: values.password });
+      }
+    } catch {
+      // form validation failed
+    }
+  };
+
   /* ── role menu items ── */
 
   const getRoleMenuItems = (user: UserRow) => [
@@ -172,14 +209,14 @@ export const UserManagePage = () => {
           icon={!avatar ? <UserOutlined /> : undefined}
           style={{ backgroundColor: colors.primary[600] }}
         >
-          {record?.username?.charAt(0)?.toUpperCase()}
+          {record?.name?.charAt(0)?.toUpperCase()}
         </Avatar>
       ),
     },
     {
       title: '用户名',
-      dataIndex: 'username',
-      key: 'username',
+      dataIndex: 'name',
+      key: 'name',
       ellipsis: true,
     },
     {
@@ -238,9 +275,17 @@ export const UserManagePage = () => {
     {
       title: '操作',
       key: 'actions',
-      width: 160,
+      width: 200,
       render: (_: unknown, record: UserRow) => (
         <ActionButtons>
+          <Button
+            type="link"
+            size="small"
+            icon={<KeyOutlined />}
+            onClick={() => handleOpenResetPwd(record)}
+          >
+            重置密码
+          </Button>
           <Dropdown
             menu={{
               items: getRoleMenuItems(record),
@@ -258,8 +303,8 @@ export const UserManagePage = () => {
             title={record.status === 'active' ? '确认禁用' : '确认启用'}
             description={
               record.status === 'active'
-                ? `确定要禁用用户「${record.username}」吗？`
-                : `确定要启用用户「${record.username}」吗？`
+                ? `确定要禁用用户「${record.name}」吗？`
+                : `确定要启用用户「${record.name}」吗？`
             }
             onConfirm={() => {
               void statusMutation.mutate({
@@ -333,6 +378,53 @@ export const UserManagePage = () => {
           />
         </TableWrapper>
       )}
+
+      <Modal
+        title="重置密码"
+        open={resetPwdModalOpen}
+        onOk={handleResetPwdSubmit}
+        onCancel={() => {
+          setResetPwdModalOpen(false);
+          form.resetFields();
+        }}
+        confirmLoading={resetPwdMutation.isLoading}
+        okText="确认重置"
+        cancelText="取消"
+      >
+        <p style={{ marginBottom: spacing[4], color: colors.text.secondary }}>
+          为用户「<strong style={{ color: colors.text.primary }}>{resetPwdUserName}</strong>」设置新密码
+        </p>
+        <Form form={form} layout="vertical">
+          <Form.Item
+            name="password"
+            label="新密码"
+            rules={[
+              { required: true, message: '请输入新密码' },
+              { min: 6, message: '密码至少 6 个字符' },
+            ]}
+          >
+            <Input.Password placeholder="请输入新密码" />
+          </Form.Item>
+          <Form.Item
+            name="confirmPassword"
+            label="确认密码"
+            dependencies={['password']}
+            rules={[
+              { required: true, message: '请确认密码' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('password') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('两次输入的密码不一致'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="请再次输入新密码" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

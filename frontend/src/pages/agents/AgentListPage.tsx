@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { Button, Input, Segmented, Table, Skeleton, Popconfirm, message } from 'antd';
+import { Button, Input, Segmented, Table, Skeleton, Popconfirm, message, Tabs, Modal, Form, Select, Tag } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -14,6 +14,7 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorBlock } from '@/components/common/ErrorBlock';
 import { AgentCard } from './AgentCard';
+import api from '@/api/client';
 import type { AgentInstance } from '@/types/agent';
 import type { ApiResponse, PagedData } from '@/types/api';
 import type { ColumnsType } from 'antd/es/table';
@@ -105,11 +106,64 @@ const ActionButtons = styled.div`
   gap: ${spacing[2]};
 `;
 
-/* ── table columns ── */
+const TagList = styled.span`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${spacing[1]};
+`;
+
+const DisplayName = styled.span`
+  color: ${colors.text.primary};
+  font-weight: ${typography.fontWeight.medium};
+`;
+
+const SkeletonTable = styled.div`
+  background: ${colors.surface.DEFAULT};
+  border: 1px solid ${colors.border.DEFAULT};
+  border-radius: ${radius.xl};
+  padding: ${spacing[6]};
+`;
+
+/* ── interfaces ── */
 
 interface AgentTableRow extends AgentInstance {
   key: string;
 }
+
+interface AgentType {
+  id: string;
+  name: string;
+  display_name: string;
+  protocol: string;
+  capabilities: string[];
+  preset_models: string[];
+  is_system: boolean;
+  config_schema?: Record<string, unknown>;
+}
+
+interface AgentTypeRow extends AgentType {
+  key: string;
+}
+
+interface AgentTypeFormValues {
+  name: string;
+  display_name: string;
+  protocol: string;
+  capabilities: string[];
+  preset_models: string[];
+  config_schema: string;
+}
+
+/* ── protocol options ── */
+
+const protocolOptions = [
+  { label: 'WebSocket', value: 'websocket' },
+  { label: 'HTTP', value: 'http' },
+  { label: 'gRPC', value: 'grpc' },
+  { label: 'Stdio', value: 'stdio' },
+];
+
+/* ── helper functions ── */
 
 const formatToken = (value?: number): string => {
   if (value == null) return '-';
@@ -133,26 +187,6 @@ const AgentActions = ({ agent, basePath }: { agent: AgentInstance; basePath: str
     },
   });
 
-  const startMutation = useMutation(() => agentApi.start(agent.id), {
-    onSuccess: () => {
-      void message.success('代理已启动');
-      queryClient.invalidateQueries(['agents']);
-    },
-    onError: () => {
-      void message.error('启动失败');
-    },
-  });
-
-  const stopMutation = useMutation(() => agentApi.stop(agent.id), {
-    onSuccess: () => {
-      void message.success('代理已停止');
-      queryClient.invalidateQueries(['agents']);
-    },
-    onError: () => {
-      void message.error('停止失败');
-    },
-  });
-
   return (
     <ActionButtons>
       <Button
@@ -165,32 +199,6 @@ const AgentActions = ({ agent, basePath }: { agent: AgentInstance; basePath: str
       >
         详情
       </Button>
-      {agent.status === 'online' || agent.status === 'busy' ? (
-        <Button
-          type="link"
-          size="small"
-          danger
-          loading={stopMutation.isLoading}
-          onClick={(e) => {
-            e.stopPropagation();
-            stopMutation.mutate();
-          }}
-        >
-          停止
-        </Button>
-      ) : (
-        <Button
-          type="link"
-          size="small"
-          loading={startMutation.isLoading}
-          onClick={(e) => {
-            e.stopPropagation();
-            startMutation.mutate();
-          }}
-        >
-          启动
-        </Button>
-      )}
       <Popconfirm
         title="确认删除"
         description={`确定要删除代理「${agent.name}」吗？`}
@@ -216,12 +224,14 @@ const AgentActions = ({ agent, basePath }: { agent: AgentInstance; basePath: str
   );
 };
 
-/* ── main component ── */
+/* ── Agent List Tab Content ── */
 
-export const AgentListPage = () => {
+interface AgentListTabProps {
+  basePath: string;
+}
+
+const AgentListTab = ({ basePath }: AgentListTabProps) => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const basePath = location.pathname.startsWith('/admin') ? '/admin/agents' : '/agents';
 
   const columns: ColumnsType<AgentTableRow> = [
     {
@@ -260,7 +270,7 @@ export const AgentListPage = () => {
     {
       title: '操作',
       key: 'actions',
-      width: 180,
+      width: 140,
       render: (_: unknown, record: AgentTableRow) => (
         <AgentActions agent={record} basePath={basePath} />
       ),
@@ -275,7 +285,6 @@ export const AgentListPage = () => {
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Debounce search input
   const handleSearch = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
@@ -315,34 +324,17 @@ export const AgentListPage = () => {
     navigate(`${basePath}/${agent.id}`);
   };
 
-  /* ── error state ── */
   if (isError) {
     return (
-      <div>
-        <PageHeader title="代理中心" />
-        <ErrorBlock
-          message={error?.message || '加载代理列表失败'}
-          onRetry={() => refetch()}
-        />
-      </div>
+      <ErrorBlock
+        message={error?.message || '加载代理列表失败'}
+        onRetry={() => refetch()}
+      />
     );
   }
 
   return (
-    <div>
-      <PageHeader
-        title="代理中心"
-        actions={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => navigate(`${basePath}/new`)}
-          >
-            创建代理
-          </Button>
-        }
-      />
-
+    <>
       <Toolbar>
         <SearchWrapper>
           <Input
@@ -364,7 +356,6 @@ export const AgentListPage = () => {
         />
       </Toolbar>
 
-      {/* ── loading state ── */}
       {isLoading ? (
         <SkeletonGrid>
           {Array.from({ length: 6 }).map((_, i) => (
@@ -372,7 +363,6 @@ export const AgentListPage = () => {
           ))}
         </SkeletonGrid>
       ) : agents.length === 0 ? (
-        /* ── empty state ── */
         <EmptyState
           description="还没有代理，点击创建开始使用"
           action={
@@ -386,14 +376,12 @@ export const AgentListPage = () => {
           }
         />
       ) : viewMode === 'cards' ? (
-        /* ── card grid view ── */
         <CardGrid>
           {agents.map((agent) => (
             <AgentCard key={agent.id} agent={agent} onClick={handleCardClick} />
           ))}
         </CardGrid>
       ) : (
-        /* ── table view ── */
         <TableWrapper>
           <Table<AgentTableRow>
             columns={columns}
@@ -417,6 +405,402 @@ export const AgentListPage = () => {
           />
         </TableWrapper>
       )}
+    </>
+  );
+};
+
+/* ── Agent Type Tab Content ── */
+
+const AgentTypeTab = () => {
+  const queryClient = useQueryClient();
+  const [form] = Form.useForm<AgentTypeFormValues>();
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const {
+    data: response,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery(
+    ['admin-agent-types'],
+    () => api.get('/v1/admin/agent-types') as Promise<any>,
+  );
+
+  const rawList: AgentType[] = response?.data?.items ?? response?.data ?? [];
+  const agentTypes: AgentTypeRow[] = (Array.isArray(rawList) ? rawList : []).map(
+    (item: AgentType) => ({ ...item, key: item.id }),
+  );
+
+  const createMutation = useMutation(
+    (values: AgentTypeFormValues) =>
+      api.post('/v1/admin/agent-types', values) as Promise<any>,
+    {
+      onSuccess: () => {
+        void message.success('Agent 类型已创建');
+        handleModalClose();
+        queryClient.invalidateQueries(['admin-agent-types']);
+      },
+      onError: () => {
+        void message.error('创建失败');
+      },
+    },
+  );
+
+  const updateMutation = useMutation(
+    ({ id, values }: { id: string; values: AgentTypeFormValues }) =>
+      api.put(`/v1/admin/agent-types/${id}`, values) as Promise<any>,
+    {
+      onSuccess: () => {
+        void message.success('Agent 类型已更新');
+        handleModalClose();
+        queryClient.invalidateQueries(['admin-agent-types']);
+      },
+      onError: () => {
+        void message.error('更新失败');
+      },
+    },
+  );
+
+  const deleteMutation = useMutation(
+    (id: string) =>
+      api.delete(`/v1/admin/agent-types/${id}`) as Promise<any>,
+    {
+      onSuccess: () => {
+        void message.success('Agent 类型已删除');
+        queryClient.invalidateQueries(['admin-agent-types']);
+      },
+      onError: () => {
+        void message.error('删除失败');
+      },
+    },
+  );
+
+  const handleOpenCreate = () => {
+    setEditingId(null);
+    form.resetFields();
+    setModalOpen(true);
+  };
+
+  const handleOpenEdit = (record: AgentTypeRow) => {
+    setEditingId(record.id);
+    form.setFieldsValue({
+      name: record.name,
+      display_name: record.display_name,
+      protocol: record.protocol,
+      capabilities: record.capabilities ?? [],
+      preset_models: record.preset_models ?? [],
+      config_schema:
+        record.config_schema != null
+          ? JSON.stringify(record.config_schema, null, 2)
+          : '',
+    });
+    setModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    setEditingId(null);
+    form.resetFields();
+  };
+
+  const handleFormSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      if (editingId) {
+        void updateMutation.mutate({ id: editingId, values });
+      } else {
+        void createMutation.mutate(values);
+      }
+    } catch {
+      // form validation failed
+    }
+  };
+
+  const columns: ColumnsType<AgentTypeRow> = [
+    {
+      title: '名称',
+      dataIndex: 'name',
+      key: 'name',
+      width: 140,
+      ellipsis: true,
+    },
+    {
+      title: '显示名',
+      dataIndex: 'display_name',
+      key: 'display_name',
+      width: 160,
+      ellipsis: true,
+      render: (name: string) => <DisplayName>{name}</DisplayName>,
+    },
+    {
+      title: '协议',
+      dataIndex: 'protocol',
+      key: 'protocol',
+      width: 100,
+      render: (protocol: string) => (
+        <Tag>{protocol?.toUpperCase() ?? '-'}</Tag>
+      ),
+    },
+    {
+      title: '能力标签',
+      dataIndex: 'capabilities',
+      key: 'capabilities',
+      width: 220,
+      render: (caps?: string[]) =>
+        caps?.length ? (
+          <TagList>
+            {caps.map((cap) => (
+              <Tag key={cap} color="blue">{cap}</Tag>
+            ))}
+          </TagList>
+        ) : (
+          <span style={{ color: colors.text.muted }}>-</span>
+        ),
+    },
+    {
+      title: '预置模型',
+      dataIndex: 'preset_models',
+      key: 'preset_models',
+      width: 220,
+      render: (models?: string[]) =>
+        models?.length ? (
+          <TagList>
+            {models.map((m) => (
+              <Tag key={m} color="geekblue">{m}</Tag>
+            ))}
+          </TagList>
+        ) : (
+          <span style={{ color: colors.text.muted }}>-</span>
+        ),
+    },
+    {
+      title: '系统预置',
+      dataIndex: 'is_system',
+      key: 'is_system',
+      width: 100,
+      render: (isSystem: boolean) => (
+        <Tag color={isSystem ? 'green' : 'default'}>
+          {isSystem ? '是' : '否'}
+        </Tag>
+      ),
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 140,
+      render: (_: unknown, record: AgentTypeRow) => (
+        <ActionButtons>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => handleOpenEdit(record)}
+          >
+            编辑
+          </Button>
+          {!record.is_system && (
+            <Popconfirm
+              title="确认删除"
+              description={`确定要删除 Agent 类型「${record.display_name || record.name}」吗？`}
+              onConfirm={() => {
+                void deleteMutation.mutate(record.id);
+              }}
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+            >
+              <Button type="link" size="small" danger>
+                删除
+              </Button>
+            </Popconfirm>
+          )}
+        </ActionButtons>
+      ),
+    },
+  ];
+
+  if (isError) {
+    return (
+      <ErrorBlock
+        message={(error as Error)?.message || '加载 Agent 类型列表失败'}
+        onRetry={() => refetch()}
+      />
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div>
+        <div style={{ marginBottom: spacing[5] }}>
+          <Button type="primary" icon={<PlusOutlined />}>
+            新增类型
+          </Button>
+        </div>
+        <SkeletonTable>
+          <Skeleton active paragraph={{ rows: 6 }} title={false} />
+        </SkeletonTable>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div style={{ marginBottom: spacing[5] }}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>
+          新增类型
+        </Button>
+      </div>
+
+      {agentTypes.length === 0 ? (
+        <EmptyState
+          description="暂无 Agent 类型"
+          action={
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>
+              新增类型
+            </Button>
+          }
+        />
+      ) : (
+        <TableWrapper>
+          <Table<AgentTypeRow>
+            columns={columns}
+            dataSource={agentTypes}
+            rowKey="key"
+            pagination={false}
+          />
+        </TableWrapper>
+      )}
+
+      <Modal
+        title={editingId ? '编辑 Agent 类型' : '新增 Agent 类型'}
+        open={modalOpen}
+        onOk={handleFormSubmit}
+        onCancel={handleModalClose}
+        confirmLoading={createMutation.isLoading || updateMutation.isLoading}
+        okText={editingId ? '保存' : '创建'}
+        cancelText="取消"
+        destroyOnClose
+        width={600}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          style={{ marginTop: spacing[4] }}
+        >
+          <Form.Item
+            name="name"
+            label="名称"
+            rules={[{ required: true, message: '请输入名称' }]}
+          >
+            <Input placeholder="例如: cc-agent" />
+          </Form.Item>
+
+          <Form.Item
+            name="display_name"
+            label="显示名"
+            rules={[{ required: true, message: '请输入显示名' }]}
+          >
+            <Input placeholder="例如: CC Agent" />
+          </Form.Item>
+
+          <Form.Item
+            name="protocol"
+            label="协议"
+            rules={[{ required: true, message: '请选择协议' }]}
+          >
+            <Select
+              placeholder="请选择协议"
+              options={protocolOptions}
+              allowClear
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="capabilities"
+            label="能力标签"
+          >
+            <Select
+              mode="tags"
+              placeholder="输入后按 Enter 添加"
+              tokenSeparators={[',']}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="preset_models"
+            label="预置模型"
+          >
+            <Select
+              mode="tags"
+              placeholder="输入后按 Enter 添加"
+              tokenSeparators={[',']}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="config_schema"
+            label="配置 Schema (JSON)"
+          >
+            <Input.TextArea
+              rows={5}
+              placeholder='{"type": "object", "properties": {}}'
+              style={{
+                fontFamily: typography.fontFamily.mono,
+                fontSize: typography.fontSize.sm,
+              }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
+  );
+};
+
+/* ── main component ── */
+
+export const AgentListPage = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/admin') ? '/admin/agents' : '/agents';
+
+  const [activeTab, setActiveTab] = useState<string>('agents');
+
+  const tabItems = [
+    {
+      key: 'agents',
+      label: '代理列表',
+      children: <AgentListTab basePath={basePath} />,
+    },
+    {
+      key: 'types',
+      label: '类型管理',
+      children: <AgentTypeTab />,
+    },
+  ];
+
+  return (
+    <div>
+      <PageHeader
+        title="代理中心"
+        actions={
+          activeTab === 'agents' ? (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => navigate(`${basePath}/new`)}
+            >
+              创建代理
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <Tabs
+        activeKey={activeTab}
+        items={tabItems}
+        onChange={setActiveTab}
+      />
     </div>
   );
 };

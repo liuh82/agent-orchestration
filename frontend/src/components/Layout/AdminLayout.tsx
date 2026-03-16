@@ -5,11 +5,9 @@ import {
   DashboardOutlined,
   CloudServerOutlined,
   RobotOutlined,
-  ToolOutlined,
   TeamOutlined,
   SettingOutlined,
   BellOutlined,
-  BarChartOutlined,
   ArrowLeftOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -167,11 +165,6 @@ const adminOnlyMenuItems: MenuProps['items'] = [
     label: '代理中心',
   },
   {
-    key: '/admin/agent-types',
-    icon: <ToolOutlined />,
-    label: 'Agent 类型',
-  },
-  {
     key: '/admin/users',
     icon: <TeamOutlined />,
     label: '用户管理',
@@ -187,7 +180,7 @@ const commonMenuItems: MenuProps['items'] = [
   {
     key: '/admin',
     icon: <DashboardOutlined />,
-    label: '后台首页',
+    label: '管理概览',
   },
 ];
 
@@ -196,11 +189,6 @@ const adminTailMenuItems: MenuProps['items'] = [
     key: '/admin/notifications',
     icon: <BellOutlined />,
     label: '通知配置',
-  },
-  {
-    key: '/admin/stats',
-    icon: <BarChartOutlined />,
-    label: '全局统计',
   },
 ];
 

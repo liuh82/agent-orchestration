@@ -10,6 +10,7 @@ from app.deps import require_admin
 from app.models.agent_type import AgentType
 from app.models.user import User
 from app.schemas.common import success_response, error_response, paged_response
+from app.services.auth import hash_password
 
 router = APIRouter()
 
@@ -34,7 +35,8 @@ def _user_out(u: User) -> dict:
         "id": u.id, "email": u.email, "name": u.name, "role": u.role,
         "avatar": u.avatar, "settings": settings_data,
         "max_agents": u.max_agents, "max_projects": u.max_projects, "max_tasks": u.max_tasks,
-        "is_active": u.is_active, "last_login_at": u.last_login_at, "created_at": u.created_at or "",
+        "status": "active" if u.is_active else "disabled",
+        "last_login_at": u.last_login_at, "created_at": u.created_at or "",
     }
 
 
@@ -107,10 +109,32 @@ def update_status(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return error_response(404, "User not found")
-    user.is_active = body.get("is_active", user.is_active)
+    status = body.get("status")
+    if status == "active":
+        user.is_active = True
+    elif status == "disabled":
+        user.is_active = False
     db.commit()
     db.refresh(user)
     return success_response(_user_out(user), "Status updated")
+
+
+@router.post("/users/{user_id}/reset-password")
+def reset_password(
+    user_id: str,
+    body: dict,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return error_response(404, "User not found")
+    new_password = body.get("password")
+    if not new_password or len(new_password) < 6:
+        return error_response(400, "Password must be at least 6 characters")
+    user.password_hash = hash_password(new_password)
+    db.commit()
+    return success_response(None, "Password reset successful")
 
 
 # ── Agent Type Management ─────────────────────────────────
