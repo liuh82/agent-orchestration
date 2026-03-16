@@ -49,6 +49,7 @@ const statusToBadge: Record<
   cancelled: 'cancelled',
   paused: 'paused',
   pending_human: 'pending',
+  scheduled: 'pending',
 };
 
 const jobStatusToBadge: Record<

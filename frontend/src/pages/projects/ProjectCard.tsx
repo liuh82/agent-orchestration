@@ -111,11 +111,10 @@ function formatTokenCount(count: number): string {
 }
 
 export const ProjectCard = ({ project, onClick }: ProjectCardProps) => {
-  // These stats will come from the API in future; use placeholder values for now
-  const totalTasks = 0;
-  const completedTasks = 0;
+  const totalTasks = project.total_tasks ?? 0;
+  const completedTasks = project.completed_tasks ?? 0;
   const completionPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-  const tokenUsage = 0;
+  const tokenUsage = project.total_tokens ?? 0;
 
   return (
     <CardWrapper onClick={onClick}>

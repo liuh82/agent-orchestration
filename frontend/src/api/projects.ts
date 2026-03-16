@@ -7,7 +7,13 @@ export const projectApi = {
   getById: (id: string) =>
     api.get(`/projects/${id}/`) as Promise<any>,
 
-  create: (data: { name: string; description?: string; spec?: string }) =>
+  create: (data: {
+    name: string;
+    description?: string;
+    spec?: string;
+    workflow_id?: string;
+    config_overrides?: Record<string, Record<string, unknown>>;
+  }) =>
     api.post('/projects/', data) as Promise<any>,
 
   update: (id: string, data: Record<string, unknown>) =>
@@ -16,20 +22,48 @@ export const projectApi = {
   archive: (id: string) =>
     api.delete(`/projects/${id}/`) as Promise<any>,
 
-  getTasks: (projectId: string, params?: { page?: number; page_size?: number }) =>
+  getTasks: (
+    projectId: string,
+    params?: { page?: number; page_size?: number; status?: string; sort_by?: string; sort_order?: string },
+  ) =>
     api.get(`/projects/${projectId}/tasks/`, { params }) as Promise<any>,
 
-  createTask: (projectId: string, data: Record<string, unknown>) =>
+  createTask: (
+    projectId: string,
+    data: {
+      name: string;
+      description?: string;
+      workflow_id?: string;
+      assigned_agent?: string;
+      config_overrides?: Array<{
+        workflow_node_id: string;
+        agent_type_id?: string;
+        config_override: Record<string, unknown>;
+      }>;
+      schedule?: {
+        type: 'immediate' | 'cron' | 'interval';
+        cron_expression?: string;
+        interval_seconds?: number;
+      };
+    },
+  ) =>
     api.post(`/projects/${projectId}/tasks/`, data) as Promise<any>,
 
   // ── 文档 ──
   getDocuments: (projectId: string) =>
     api.get(`/projects/${projectId}/documents/`) as Promise<any>,
 
-  createDocument: (projectId: string, data: { title: string; doc_type: string; content?: string; file_id?: string }) =>
+  createDocument: (
+    projectId: string,
+    data: { title: string; doc_type: string; content?: string; file_id?: string },
+  ) =>
     api.post(`/projects/${projectId}/documents/`, data) as Promise<any>,
 
-  updateDocument: (projectId: string, docId: string, data: { title?: string; content?: string }) =>
+  updateDocument: (
+    projectId: string,
+    docId: string,
+    data: { title?: string; content?: string },
+  ) =>
     api.put(`/projects/${projectId}/documents/${docId}/`, data) as Promise<any>,
 
   deleteDocument: (projectId: string, docId: string) =>
@@ -39,7 +73,10 @@ export const projectApi = {
   getAgentConfigs: (projectId: string) =>
     api.get(`/projects/${projectId}/agent-configs/`) as Promise<any>,
 
-  saveAgentConfig: (projectId: string, data: { agent_type: string; config_type: string; content: string }) =>
+  saveAgentConfig: (
+    projectId: string,
+    data: { agent_type: string; config_type: string; content: string },
+  ) =>
     api.post(`/projects/${projectId}/agent-configs/`, data) as Promise<any>,
 
   // ── 文件管理 ──

@@ -37,7 +37,7 @@ export const useTasksStore = create<TasksState>((set) => ({
   createTask: async (taskData) => {
     set({ loading: true, error: null });
     try {
-      const response = await tasksApi.create(taskData);
+      const response = await tasksApi.create(taskData as Parameters<typeof tasksApi.create>[0]);
       set((state) => ({
         tasks: [...state.tasks, response.data],
         loading: false,

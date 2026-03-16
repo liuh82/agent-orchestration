@@ -14,7 +14,7 @@ const RegisterPage = React.lazy(() => import('@/pages/auth/RegisterPage'));
 
 // 懒加载页面 — Core
 const DashboardPage = React.lazy(() => import('@/pages/dashboard/DashboardPage'));
-const ProjectListPage = React.lazy(() => import('@/pages/projects/ProjectListPage'));
+const ProjectCenterPage = React.lazy(() => import('@/pages/projects/ProjectCenterPage'));
 const ProjectDetailPage = React.lazy(() => import('@/pages/projects/ProjectDetailPage'));
 const TaskCenterPage = React.lazy(() => import('@/pages/tasks/TaskCenterPage'));
 const WorkflowListPage = React.lazy(() => import('@/pages/workflows/WorkflowListPage'));
@@ -50,8 +50,9 @@ function App() {
             {/* 已登录 - 前台 */}
             <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
               <Route index element={<DashboardPage />} />
-              <Route path="projects" element={<ProjectListPage />} />
+              <Route path="projects" element={<ProjectCenterPage />} />
               <Route path="projects/:id" element={<ProjectDetailPage />} />
+              <Route path="projects/:id/tasks/:taskId" element={<TaskDetailPage />} />
               <Route path="tasks" element={<TaskCenterPage />} />
               <Route path="tasks/:id" element={<TaskDetailPage />} />
               <Route path="workflows" element={<WorkflowListPage />} />

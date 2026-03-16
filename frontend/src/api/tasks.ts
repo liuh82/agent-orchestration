@@ -1,24 +1,36 @@
 import api from './client';
-import type { Task } from '@/types/task';
+import type { Task, TaskConfigOverride, TaskAgentConfig } from '@/types/task';
 
 interface TaskListParams {
   page?: number;
   page_size?: number;
-  status?: Task['status'];
-  priority?: Task['priority'];
+  status?: string;
+  sort_by?: string;
+  sort_order?: string;
   project_id?: string;
-  assigned_agent_id?: string;
 }
 
 export const tasksApi = {
   list: (params?: TaskListParams) =>
     api.get('/v1/tasks/', { params }) as Promise<any>,
 
-  create: (data: Partial<Task>) =>
+  create: (data: {
+    name: string;
+    description?: string;
+    project_id?: string;
+    workflow_id?: string;
+    assigned_agent?: string;
+    config_overrides?: TaskConfigOverride[];
+    schedule?: {
+      type: 'immediate' | 'cron' | 'interval';
+      cron_expression?: string;
+      interval_seconds?: number;
+    };
+  }) =>
     api.post('/v1/tasks/', data) as Promise<any>,
 
   getById: (id: string) =>
-    api.get(`/v1/tasks/${id}`) as Promise<any>,
+    api.get(`/v1/tasks/${id}/`) as Promise<any>,
 
   update: (id: string, data: Partial<Task>) =>
     api.put(`/v1/tasks/${id}`, data) as Promise<any>,
@@ -59,4 +71,17 @@ export const tasksApi = {
   /** 批量操作 */
   batchAction: (taskIds: string[], action: 'pause' | 'cancel') =>
     api.post('/v1/tasks/batch-action', { task_ids: taskIds, action }) as Promise<any>,
+
+  /** 任务配置覆盖 */
+  getConfigs: (taskId: string) =>
+    api.get(`/v1/tasks/${taskId}/configs/`) as Promise<{ data: TaskAgentConfig[] }>,
+
+  upsertConfig: (
+    taskId: string,
+    data: { workflow_node_id: string; agent_type_id?: string; config_override: Record<string, unknown> },
+  ) =>
+    api.post(`/v1/tasks/${taskId}/configs/`, data) as Promise<any>,
+
+  deleteConfig: (taskId: string, configId: string) =>
+    api.delete(`/v1/tasks/${taskId}/configs/${configId}/`) as Promise<any>,
 };

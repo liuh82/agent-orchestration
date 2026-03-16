@@ -1,12 +1,18 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { Button, Table, Modal, Form, Input, Select, Tag, Tabs, Space, Skeleton, message } from 'antd';
+import {
+  Button, Table, Modal, Form, Input, Select, Tag, Tabs, Space, Skeleton, message, Card,
+} from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
   InboxOutlined,
   ExclamationCircleOutlined,
+  ClockCircleOutlined,
+  CheckCircleOutlined,
+  ThunderboltOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons';
 import styled from 'styled-components';
 import { colors } from '@/styles/tokens/color';
@@ -17,37 +23,32 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorBlock } from '@/components/common/ErrorBlock';
-import { projectApi } from '@/api/projects';
+import { CreateTaskModal } from './components/CreateTaskModal';
 import { DocumentManager } from './components/DocumentManager';
 import { AgentConfigEditor } from './components/AgentConfigEditor';
 import { FileManager } from './components/FileManager';
+import { projectApi } from '@/api/projects';
 import type { ApiResponse, PagedData } from '@/types/api';
 import type { Project } from '@/types/project';
 import type { Task } from '@/types/task';
 
-// --------------- Priority color mapping ---------------
-const priorityColors: Record<Task['priority'], string> = {
+// --------------- Priority helpers ---------------
+const priorityColors: Record<string, string> = {
   low: 'default',
   medium: 'blue',
   high: 'orange',
   critical: 'red',
 };
+const priorityLabels: Record<string, string> = { low: '低', medium: '中', high: '高', critical: '紧急' };
 
-const priorityLabels: Record<Task['priority'], string> = {
-  low: '低',
-  medium: '中',
-  high: '高',
-  critical: '紧急',
-};
+const scheduleLabels: Record<string, string> = { immediate: '立即', cron: '定时', interval: '循环' };
+const scheduleBadgeColors: Record<string, string> = { immediate: 'default', cron: 'purple', interval: 'cyan' };
 
-const statusToBadge: Record<Task['status'], 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused' | 'pending_human'> = {
-  pending: 'pending',
-  running: 'running',
-  completed: 'completed',
-  failed: 'failed',
-  cancelled: 'cancelled',
-  paused: 'paused',
-  pending_human: 'pending',
+// --------------- Status badge mapping ---------------
+const statusToBadge: Record<string, string> = {
+  pending: 'pending', running: 'running', completed: 'completed',
+  failed: 'failed', cancelled: 'cancelled', paused: 'paused',
+  scheduled: 'pending',
 };
 
 // --------------- Styled components ---------------
@@ -59,9 +60,36 @@ const InfoCard = styled.div`
   margin-bottom: ${spacing[6]};
 `;
 
+const ProjectTitle = styled.h2`
+  font-size: ${typography.fontSize.xl};
+  font-weight: ${typography.fontWeight.semibold};
+  color: ${colors.text.primary};
+  margin: 0 0 ${spacing[1]} 0;
+`;
+
+const DescriptionText = styled.p<{ $expanded?: boolean }>`
+  font-size: ${typography.fontSize.base};
+  color: ${colors.text.secondary};
+  margin: ${spacing[3]} 0 ${spacing[4]} 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  ${props => props.$expanded ? '-webkit-line-clamp: unset; white-space: pre-wrap;' : ''}
+`;
+
+const ToggleBtn = styled.span`
+  cursor: pointer;
+  color: ${colors.text.brand};
+  font-size: ${typography.fontSize.sm};
+  user-select: none;
+`;
+
 const InfoGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: ${spacing[4]};
 `;
 
@@ -81,6 +109,32 @@ const InfoValue = styled.span`
   color: ${colors.text.primary};
   font-weight: ${typography.fontWeight.medium};
   word-break: break-word;
+`;
+
+const StatsRow = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: ${spacing[4]};
+  margin-bottom: ${spacing[6]};
+`;
+
+const StatCard = styled(Card)`
+  .ant-card-body {
+    padding: ${spacing[4]} ${spacing[5]};
+    text-align: center;
+  }
+`;
+
+const StatCardValue = styled.div`
+  font-size: ${typography.fontSize.xl};
+  font-weight: ${typography.fontWeight.semibold};
+  color: ${colors.text.primary};
+  margin-bottom: ${spacing[1]};
+`;
+
+const StatCardLabel = styled.div`
+  font-size: ${typography.fontSize.sm};
+  color: ${colors.text.muted};
 `;
 
 const TableWrapper = styled.div`
@@ -104,16 +158,31 @@ const TableTitle = styled.h3`
   margin: 0;
 `;
 
-const DescriptionText = styled.p`
-  font-size: ${typography.fontSize.base};
-  color: ${colors.text.secondary};
-  margin: ${spacing[3]} 0 ${spacing[4]} 0;
-  line-height: 1.6;
+const FilterRow = styled.div`
+  display: flex;
+  gap: ${spacing[2]};
+  margin-bottom: ${spacing[4]};
 `;
 
 const TabContent = styled.div`
   min-height: 300px;
 `;
+
+const CollapseWrapper = styled.div`
+  margin-bottom: ${spacing[6]};
+`;
+
+// --------------- Status filter options ---------------
+const statusFilterOptions = [
+  { label: '全部', value: '' },
+  { label: '待执行', value: 'pending' },
+  { label: '已调度', value: 'scheduled' },
+  { label: '执行中', value: 'running' },
+  { label: '已暂停', value: 'paused' },
+  { label: '已完成', value: 'completed' },
+  { label: '已失败', value: 'failed' },
+  { label: '已取消', value: 'cancelled' },
+];
 
 export const ProjectDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -121,15 +190,12 @@ export const ProjectDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const pageSize = 20;
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [descExpanded, setDescExpanded] = useState(false);
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editForm] = Form.useForm<{ name: string; description?: string }>();
-  const [taskForm] = Form.useForm<{
-    title: string;
-    description?: string;
-    priority: Task['priority'];
-  }>();
 
   // Fetch project detail
   const {
@@ -143,7 +209,6 @@ export const ProjectDetailPage: React.FC = () => {
     () => projectApi.getById(id!),
     { enabled: !!id, refetchOnWindowFocus: false },
   );
-
   const project = projectRes?.data;
 
   // Fetch tasks
@@ -154,8 +219,8 @@ export const ProjectDetailPage: React.FC = () => {
     error: tasksErr,
     refetch: refetchTasks,
   } = useQuery<ApiResponse<PagedData<Task>>>(
-    ['project-tasks', id, { page, page_size: pageSize }],
-    () => projectApi.getTasks(id!, { page, page_size: pageSize }),
+    ['project-tasks', id, { page, page_size: pageSize, status: statusFilter || undefined }],
+    () => projectApi.getTasks(id!, { page, page_size: pageSize, status: statusFilter || undefined }),
     { enabled: !!id, refetchOnWindowFocus: false },
   );
 
@@ -172,9 +237,7 @@ export const ProjectDetailPage: React.FC = () => {
         editForm.resetFields();
         message.success('项目已更新');
       },
-      onError: () => {
-        message.error('更新失败');
-      },
+      onError: () => { message.error('更新失败'); },
     },
   );
 
@@ -187,28 +250,19 @@ export const ProjectDetailPage: React.FC = () => {
         queryClient.invalidateQueries(['projects']);
         navigate('/projects');
       },
-      onError: () => {
-        message.error('归档失败');
-      },
+      onError: () => { message.error('归档失败'); },
     },
   );
 
-  // Create task mutation
-  const createTaskMutation = useMutation(
-    (values: { title: string; description?: string; priority: Task['priority'] }) =>
-      projectApi.createTask(id!, values),
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(['project-tasks', id]);
-        setTaskModalOpen(false);
-        taskForm.resetFields();
-        message.success('任务已创建');
-      },
-      onError: () => {
-        message.error('创建任务失败');
-      },
-    },
-  );
+  // Create task handler
+  const handleTaskCreated = (data: Record<string, unknown>) => {
+    projectApi.createTask(id!, data as any).then(() => {
+      queryClient.invalidateQueries(['project-tasks', id]);
+      queryClient.invalidateQueries(['project', id]);
+      setTaskModalOpen(false);
+      message.success('任务已创建');
+    }).catch(() => message.error('创建任务失败'));
+  };
 
   // Handlers
   const handleEdit = () => {
@@ -219,9 +273,7 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const handleEditSubmit = () => {
-    editForm.validateFields().then((values) => {
-      editMutation.mutate(values);
-    });
+    editForm.validateFields().then((values) => editMutation.mutate(values));
   };
 
   const handleArchive = () => {
@@ -233,12 +285,6 @@ export const ProjectDetailPage: React.FC = () => {
       cancelText: '取消',
       okButtonProps: { danger: true },
       onOk: () => archiveMutation.mutate(),
-    });
-  };
-
-  const handleCreateTask = () => {
-    taskForm.validateFields().then((values) => {
-      createTaskMutation.mutate(values);
     });
   };
 
@@ -278,14 +324,47 @@ export const ProjectDetailPage: React.FC = () => {
     );
   }
 
+  // ---- Overview stats ----
+  const stats = [
+    {
+      title: '任务总数',
+      value: project.total_tasks ?? 0,
+      icon: <UnorderedListOutlined />,
+      color: colors.primary[500],
+    },
+    {
+      title: '已完成',
+      value: project.completed_tasks ?? 0,
+      icon: <CheckCircleOutlined />,
+      color: colors.success[500],
+    },
+    {
+      title: '关联工作流',
+      value: project.workflow_id ? '已关联' : '未关联',
+      icon: <ThunderboltOutlined />,
+      color: project.workflow_id ? colors.warning[500] : colors.text.muted,
+      isText: true,
+    },
+    {
+      title: 'Token 消耗',
+      value: project.total_tokens
+        ? (project.total_tokens >= 1_000_000 ? `${(project.total_tokens / 1_000_000).toFixed(1)}M` : project.total_tokens >= 1_000 ? `${(project.total_tokens / 1_000).toFixed(0)}K` : String(project.total_tokens))
+        : '0',
+      icon: <ClockCircleOutlined />,
+      color: colors.text.muted,
+      isText: true,
+    },
+  ];
+
   // ---- Task table columns ----
   const taskColumns = [
     {
-      title: '标题',
-      dataIndex: 'title',
-      key: 'title',
+      title: '任务名称',
+      dataIndex: 'name',
+      key: 'name',
+      ellipsis: true,
       render: (text: string, record: Task) => (
-        <a onClick={() => navigate(`/tasks/${record.id}`)} style={{ color: colors.text.brand, textDecoration: 'none' }}>
+        <a onClick={() => navigate(`/projects/${id}/tasks/${record.id}`)} style={{ color: colors.text.brand, textDecoration: 'none' }}>
           {text}
         </a>
       ),
@@ -295,8 +374,8 @@ export const ProjectDetailPage: React.FC = () => {
       dataIndex: 'priority',
       key: 'priority',
       width: 80,
-      render: (priority: Task['priority']) => (
-        <Tag color={priorityColors[priority]}>{priorityLabels[priority]}</Tag>
+      render: (priority: string) => (
+        <Tag color={priorityColors[priority]}>{priorityLabels[priority] || priority}</Tag>
       ),
     },
     {
@@ -304,13 +383,38 @@ export const ProjectDetailPage: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: 120,
-      render: (status: Task['status']) => <StatusBadge status={statusToBadge[status]} />,
+      render: (status: string) => <StatusBadge status={statusToBadge[status] ?? status} />,
+    },
+    {
+      title: '工作流',
+      dataIndex: 'workflow_name',
+      key: 'workflow_name',
+      width: 140,
+      render: (val: string) => val ? <Tag>{val}</Tag> : <span style={{ color: colors.text.muted }}>-</span>,
+    },
+    {
+      title: 'Agent',
+      dataIndex: 'agent_name',
+      key: 'agent_name',
+      width: 120,
+      render: (val: string) => val ? <Tag color="blue">{val}</Tag> : <span style={{ color: colors.text.muted }}>-</span>,
+    },
+    {
+      title: '执行方式',
+      dataIndex: 'schedule_type',
+      key: 'schedule_type',
+      width: 100,
+      render: (val: string) => val ? (
+        <Tag color={scheduleBadgeColors[val] || 'default'}>{scheduleLabels[val] || val}</Tag>
+      ) : (
+        <span style={{ color: colors.text.muted }}>立即</span>
+      ),
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 180,
+      width: 170,
       render: (val: string) => (val ? new Date(val).toLocaleString('zh-CN') : '-'),
     },
   ];
@@ -323,15 +427,19 @@ export const ProjectDetailPage: React.FC = () => {
       children: (
         <TabContent>
           <InfoCard>
-            {project.description && <DescriptionText>{project.description}</DescriptionText>}
+            <ProjectTitle>{project.name}</ProjectTitle>
+            {project.description && (
+              <>
+                <DescriptionText $expanded={descExpanded}>{project.description}</DescriptionText>
+                <ToggleBtn onClick={() => setDescExpanded(!descExpanded)}>
+                  {descExpanded ? '收起' : '展开全部'}
+                </ToggleBtn>
+              </>
+            )}
             <InfoGrid>
               <InfoItem>
                 <InfoLabel>状态</InfoLabel>
                 <InfoValue><StatusBadge status={project.status === 'deleted' ? 'archived' : project.status} /></InfoValue>
-              </InfoItem>
-              <InfoItem>
-                <InfoLabel>创建者</InfoLabel>
-                <InfoValue>{(project as any).created_by || '-'}</InfoValue>
               </InfoItem>
               <InfoItem>
                 <InfoLabel>创建时间</InfoLabel>
@@ -341,24 +449,25 @@ export const ProjectDetailPage: React.FC = () => {
                 <InfoLabel>更新时间</InfoLabel>
                 <InfoValue>{new Date(project.updated_at).toLocaleString('zh-CN')}</InfoValue>
               </InfoItem>
-              <InfoItem>
-                <InfoLabel>任务总数</InfoLabel>
-                <InfoValue>{total}</InfoValue>
-              </InfoItem>
-              {(project as any).total_tokens != null && (
-                <InfoItem>
-                  <InfoLabel>Token 消耗</InfoLabel>
-                  <InfoValue>{(project as any).total_tokens.toLocaleString()}</InfoValue>
-                </InfoItem>
-              )}
             </InfoGrid>
           </InfoCard>
+
+          <CollapseWrapper>
+            <StatsRow>
+              {stats.map((s) => (
+                <StatCard key={s.title} size="small" bordered={false}>
+                  <StatCardValue style={{ color: s.color }}>{s.value}</StatCardValue>
+                  <StatCardLabel>{s.title}</StatCardLabel>
+                </StatCard>
+              ))}
+            </StatsRow>
+          </CollapseWrapper>
         </TabContent>
       ),
     },
     {
       key: 'tasks',
-      label: '任务',
+      label: `任务 (${total})`,
       children: (
         <TabContent>
           <TableWrapper>
@@ -368,6 +477,18 @@ export const ProjectDetailPage: React.FC = () => {
                 创建任务
               </Button>
             </TableHeader>
+            <FilterRow>
+              {statusFilterOptions.map((opt) => (
+                <Select
+                  key={opt.value}
+                  value={opt.value}
+                  onChange={(val) => { setStatusFilter(val || ''); setPage(1); }}
+                  style={{ width: 120 }}
+                  options={[opt]}
+                  size="small"
+                />
+              ))}
+            </FilterRow>
             {tasksError ? (
               <ErrorBlock message={tasksErr instanceof Error ? tasksErr.message : '任务列表加载失败'} onRetry={() => refetchTasks()} />
             ) : tasksLoading ? (
@@ -462,33 +583,12 @@ export const ProjectDetailPage: React.FC = () => {
       </Modal>
 
       {/* Create task modal */}
-      <Modal
-        title="创建任务"
+      <CreateTaskModal
         open={taskModalOpen}
-        onOk={handleCreateTask}
-        onCancel={() => { setTaskModalOpen(false); taskForm.resetFields(); }}
-        confirmLoading={createTaskMutation.isLoading}
-        okText="创建"
-        cancelText="取消"
-        destroyOnClose
-      >
-        <Form form={taskForm} layout="vertical" preserve={false} initialValues={{ priority: 'medium' as const }}>
-          <Form.Item name="title" label="任务标题" rules={[{ required: true, message: '请输入任务标题' }]}>
-            <Input placeholder="请输入任务标题" />
-          </Form.Item>
-          <Form.Item name="description" label="任务描述">
-            <Input.TextArea rows={3} placeholder="请输入任务描述（可选）" showCount maxLength={1000} />
-          </Form.Item>
-          <Form.Item name="priority" label="优先级">
-            <Select>
-              <Select.Option value="low">低</Select.Option>
-              <Select.Option value="medium">中</Select.Option>
-              <Select.Option value="high">高</Select.Option>
-              <Select.Option value="critical">紧急</Select.Option>
-            </Select>
-          </Form.Item>
-        </Form>
-      </Modal>
+        onCancel={() => setTaskModalOpen(false)}
+        onCreated={handleTaskCreated}
+        defaultWorkflowId={project.workflow_id ?? undefined}
+      />
     </div>
   );
 };
