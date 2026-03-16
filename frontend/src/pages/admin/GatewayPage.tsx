@@ -10,6 +10,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import styled from 'styled-components';
 import { colors } from '@/styles/tokens/color';
+
 import { spacing } from '@/styles/tokens/spacing';
 import { typography } from '@/styles/tokens/typography';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -48,10 +49,10 @@ interface Bridge {
 }
 
 const BRIDGE_TYPE_OPTIONS = [
-  { label: 'WebSocket', value: 'websocket' },
-  { label: 'HTTP', value: 'http' },
-  { label: 'gRPC', value: 'grpc' },
-  { label: 'Stdio', value: 'stdio' },
+  { label: 'WebSocket', value: 'websocket', description: '常用方式，支持双向实时通信，适用于远程服务器' },
+  { label: 'HTTP', value: 'http', description: 'RESTful API 方式，适用于轻量级或防火墙内连接' },
+  { label: 'gRPC', value: 'grpc', description: '高性能二进制协议，适用于低延迟场景' },
+  { label: 'Stdio', value: 'stdio', description: '本地进程标准输入输出，适用于本机调试或容器内通信' },
 ];
 
 const PROTOCOL_OPTIONS: Record<string, { label: string; value: string }[]> = {
@@ -60,6 +61,18 @@ const PROTOCOL_OPTIONS: Record<string, { label: string; value: string }[]> = {
   grpc: [{ label: 'grpc://', value: 'grpc' }, { label: 'grpcs://', value: 'grpcs' }],
   stdio: [],
 };
+
+// Bridge 类型帮助说明
+const BridgeTypeHelp = () => (
+  <div style={{ fontSize: 12, color: '#666', lineHeight: 1.6 }}>
+    <div><strong>WebSocket</strong>：常用方式，支持双向实时通信，适用于远程服务器</div>
+    <div><strong>HTTP</strong>：RESTful API 方式，适用于轻量级或防火墙内连接</div>
+    <div><strong>gRPC</strong>：高性能二进制协议，适用于低延迟场景</div>
+    <div><strong>Stdio</strong>：本地进程标准输入输出，适用于本机调试或容器内通信</div>
+  </div>
+);
+
+
 
 const AUTH_MODE_OPTIONS: Record<string, { label: string; value: string }[]> = {
   websocket: [{ label: '无认证', value: 'none' }, { label: 'Token', value: 'token' }],
@@ -588,7 +601,17 @@ export const GatewayPage: React.FC = () => {
             <Form.Item label="名称" name="name" rules={[{ required: true, message: '请输入 Bridge 名称' }]}>
               <Input placeholder="例: 生产环境 Bridge" />
             </Form.Item>
-            <Form.Item label="Bridge 类型" name="bridge_type" rules={[{ required: true, message: '请选择类型' }]}>
+            <Form.Item
+              label={
+                <span>
+                  Bridge 类型 <Tooltip title={<BridgeTypeHelp />} placement="right">
+                    <span style={{ color: '#999', cursor: 'help' }}>ⓘ</span>
+                  </Tooltip>
+                </span>
+              }
+              name="bridge_type"
+              rules={[{ required: true, message: '请选择类型' }]}
+            >
               <Select options={BRIDGE_TYPE_OPTIONS} placeholder="选择连接类型" />
             </Form.Item>
           </FormSection>
