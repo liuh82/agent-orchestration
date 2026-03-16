@@ -31,13 +31,15 @@ export const TaskCenterPage = () => {
     isFetching,
   } = useQuery<TaskTreeProject[]>(
     ['tasks-tree', statusFilter],
-    () => tasksApi.tree().then((res: any) => {
-      if (!statusFilter) return res;
-      return res.map((project: TaskTreeProject) => ({
+    async () => {
+      const res: any = await tasksApi.tree();
+      const data = res.data ?? res;
+      if (!statusFilter) return data;
+      return data.map((project: TaskTreeProject) => ({
         ...project,
         tasks: project.tasks.filter((t: any) => t.status === statusFilter),
       }));
-    }),
+    },
     {
       refetchInterval: 10_000,
       keepPreviousData: true,
@@ -75,7 +77,7 @@ export const TaskCenterPage = () => {
 
       {isError && (
         <ErrorBlock
-          message={error instanceof Error ? error.message : '加载失败'}
+          message={String((error as any)?.message || error || '加载失败')}
           onRetry={() => void refetch()}
         />
       )}
