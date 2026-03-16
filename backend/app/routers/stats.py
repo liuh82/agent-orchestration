@@ -198,3 +198,92 @@ def global_stats(
         "jobs": jobs_count or 0,
         "total_tokens": total_tokens or 0,
     })
+
+
+@router.get("/personal")
+def personal_stats(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Personal stats — same data as /dashboard but structured for frontend."""
+    uid = user.id
+
+    # Tasks by status
+    task_q = db.query(Task.status, func.count(Task.id)).filter(Task.user_id == uid).group_by(Task.status)
+    tasks = {"total": 0, "running": 0, "completed": 0, "failed": 0, "pending": 0}
+    for status, count in task_q:
+        tasks["total"] += count
+        if status in tasks:
+            tasks[status] = count
+
+    # Token stats
+    all_tokens = db.query(
+        func.coalesce(func.sum(Job.prompt_tokens), 0),
+        func.coalesce(func.sum(Job.completion_tokens), 0),
+    ).filter(Job.user_id == uid).first()
+    total_t = (all_tokens[0] or 0) + (all_tokens[1] or 0)
+
+    today_tokens = db.query(
+        func.coalesce(func.sum(Job.prompt_tokens), 0),
+        func.coalesce(func.sum(Job.completion_tokens), 0),
+    ).filter(Job.user_id == uid, *(_time_filters(Job.created_at, days=1))).first()
+    today_t = (today_tokens[0] or 0) + (today_tokens[1] or 0)
+
+    week_tokens = db.query(
+        func.coalesce(func.sum(Job.prompt_tokens), 0),
+        func.coalesce(func.sum(Job.completion_tokens), 0),
+    ).filter(Job.user_id == uid, *(_time_filters(Job.created_at, days=7))).first()
+    week_t = (week_tokens[0] or 0) + (week_tokens[1] or 0)
+
+    month_tokens = db.query(
+        func.coalesce(func.sum(Job.prompt_tokens), 0),
+        func.coalesce(func.sum(Job.completion_tokens), 0),
+    ).filter(Job.user_id == uid, *(_time_filters(Job.created_at, days=30))).first()
+    month_t = (month_tokens[0] or 0) + (month_tokens[1] or 0)
+
+    tokens = {"today": today_t, "week": week_t, "month": month_t, "total": total_t}
+
+    # Cost (placeholder)
+    cost = {"today": 0, "week": 0, "month": 0, "total": 0}
+
+    # Projects
+    proj_count = db.query(func.count(Project.id)).filter(Project.user_id == uid, Project.status == "active").scalar()
+    proj_total = db.query(func.count(Project.id)).filter(Project.user_id == uid).scalar()
+    projects = {"active": proj_count or 0, "total": proj_total or 0}
+
+    # Agents
+    online_agents = db.query(func.count(AgentInstance.id)).filter(
+        AgentInstance.user_id == uid, AgentInstance.is_active == True, AgentInstance.status == "online"
+    ).scalar()
+    total_agents = db.query(func.count(AgentInstance.id)).filter(
+        AgentInstance.user_id == uid, AgentInstance.is_active == True
+    ).scalar()
+    agents = {"online": online_agents or 0, "offline": (total_agents or 0) - (online_agents or 0), "total": total_agents or 0}
+
+    return success_response({
+        "tasks": tasks,
+        "tokens": tokens,
+        "cost": cost,
+        "projects": projects,
+        "agents": agents,
+    })
+
+
+@router.get("/recent-tasks")
+def recent_tasks(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    limit: int = 10,
+):
+    """Recent tasks for dashboard."""
+    tasks = db.query(Task).filter(Task.user_id == user.id).order_by(Task.created_at.desc()).limit(limit).all()
+    result = []
+    for t in tasks:
+        result.append({
+            "id": t.id,
+            "title": t.title,
+            "status": t.status,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "updated_at": t.updated_at.isoformat() if t.updated_at else None,
+        })
+    return success_response(result)
