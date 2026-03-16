@@ -135,6 +135,32 @@ export const WorkflowEditorPage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
 
+  /* Make this page full-screen, overriding MainLayout constraints */
+  useEffect(() => {
+    const contentEl = document.querySelector('main') as HTMLElement;
+    const innerEl = contentEl?.querySelector(':scope > div') as HTMLElement;
+    if (contentEl) {
+      contentEl.style.padding = '0';
+      contentEl.style.overflow = 'hidden';
+      contentEl.style.background = '#0f172a';
+    }
+    if (innerEl) {
+      innerEl.style.maxWidth = 'none';
+      innerEl.style.height = '100%';
+    }
+    return () => {
+      if (contentEl) {
+        contentEl.style.padding = '';
+        contentEl.style.overflow = '';
+        contentEl.style.background = '';
+      }
+      if (innerEl) {
+        innerEl.style.maxWidth = '';
+        innerEl.style.height = '';
+      }
+    };
+  }, []);
+
   /* Sync store -> local ReactFlow state */
   useEffect(() => {
     setLocalNodes(nodes);
