@@ -64,27 +64,27 @@ const PROTOCOL_OPTIONS: Record<string, { label: string; value: string }[]> = {
 
 // Bridge 类型帮助说明
 const BridgeTypeHelp = () => (
-  <div style={{ fontSize: 12, lineHeight: 1.8, maxWidth: 420, color: '#e2e8f0' }}>
-    <div style={{ marginBottom: 6, fontWeight: 600, color: '#ffffff' }}>如何选择 Bridge 类型？</div>
-    <div style={{ marginBottom: 4 }}><strong style={{ color: '#60a5fa' }}>WebSocket（推荐）</strong></div>
+  <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+    <div style={{ marginBottom: 6, fontWeight: 600, color: '#0f172a' }}>如何选择 Bridge 类型？</div>
+    <div style={{ marginBottom: 4 }}><strong style={{ color: '#3b82f6' }}>WebSocket（推荐）</strong></div>
     <div style={{ marginBottom: 8, paddingLeft: 8 }}>
       最常用的方式。适用于远程服务器、云主机、Docker 容器部署。<br/>
-      <span style={{ color: '#94a3b8' }}>→ 推荐 ws:// 内网，wss:// 公网加密</span>
+      <span style={{ color: '#64748b' }}>→ 推荐 ws:// 内网，wss:// 公网加密</span>
     </div>
-    <div style={{ marginBottom: 4 }}><strong style={{ color: '#4ade80' }}>HTTP</strong></div>
+    <div style={{ marginBottom: 4 }}><strong style={{ color: '#22c55e' }}>HTTP</strong></div>
     <div style={{ marginBottom: 8, paddingLeft: 8 }}>
       RESTful API 方式。适用于简单场景或已有 HTTP 代理的环境。<br/>
-      <span style={{ color: '#94a3b8' }}>→ 适合不需要实时推送的轻量级 Agent</span>
+      <span style={{ color: '#64748b' }}>→ 适合不需要实时推送的轻量级 Agent</span>
     </div>
-    <div style={{ marginBottom: 4 }}><strong style={{ color: '#c084fc' }}>gRPC</strong></div>
+    <div style={{ marginBottom: 4 }}><strong style={{ color: '#7c3aed' }}>gRPC</strong></div>
     <div style={{ marginBottom: 8, paddingLeft: 8 }}>
       高性能二进制协议。适用于对性能要求极高的生产环境。<br/>
-      <span style={{ color: '#94a3b8' }}>→ 需要额外配置 TLS 证书</span>
+      <span style={{ color: '#64748b' }}>→ 需要额外配置 TLS 证书</span>
     </div>
-    <div style={{ marginBottom: 4 }}><strong style={{ color: '#fbbf24' }}>Stdio</strong></div>
+    <div style={{ marginBottom: 4 }}><strong style={{ color: '#d97706' }}>Stdio</strong></div>
     <div style={{ marginBottom: 4, paddingLeft: 8 }}>
       标准输入输出通信。适用于本机开发调试或单机部署。<br/>
-      <span style={{ color: '#94a3b8' }}>→ 仅限本机使用</span>
+      <span style={{ color: '#64748b' }}>→ 仅限本机使用</span>
     </div>
   </div>
 );
@@ -621,7 +621,7 @@ export const GatewayPage: React.FC = () => {
             <Form.Item
               label={
                 <span>
-                  Bridge 类型 <Tooltip title={<BridgeTypeHelp />} placement="right" overlayStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}>
+                  Bridge 类型 <Tooltip title={<BridgeTypeHelp />} placement="right" overlayStyle={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, maxWidth: 440 }}>
                     <span style={{ color: '#999', cursor: 'help' }}>ⓘ</span>
                   </Tooltip>
                 </span>
