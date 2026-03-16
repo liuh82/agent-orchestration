@@ -1,6 +1,6 @@
 """Email notification adapter using aiosmtplib."""
 from email.mime.text import MIMEText
-from typing import Optional, Tuple
+from typing import Tuple
 
 from .base import BaseAdapter, NotificationMessage
 
@@ -15,14 +15,20 @@ class EmailAdapter(BaseAdapter):
             return False
 
         smtp_host = config.get("smtp_host", "smtp.gmail.com")
-        smtp_port = int(config.get("smtp_port", 587))
-        username = config.get("username")
+        smtp_port = int(config.get("smtp_port", 465))
+        from_email = config.get("from_email")
         password = config.get("password")
-        use_tls = config.get("use_tls", True)
-        from_email = config.get("from_email", username)
-        to_email = config.get("to_email")
+        ssl_tls = config.get("ssl_tls", True)
+        recipients = config.get("recipients")
 
-        if not all([username, password, to_email]):
+        if not all([smtp_host, from_email, password, recipients]):
+            return False
+
+        if isinstance(recipients, str):
+            to_emails = [r.strip() for r in recipients.split(",") if r.strip()]
+        elif isinstance(recipients, list):
+            to_emails = recipients
+        else:
             return False
 
         html_body = f"""
@@ -35,16 +41,16 @@ class EmailAdapter(BaseAdapter):
         msg = MIMEText(html_body, "html", "utf-8")
         msg["Subject"] = f"[Nexus] {message.title}"
         msg["From"] = from_email
-        msg["To"] = to_email
+        msg["To"] = ", ".join(to_emails)
 
         try:
-            await aiosmtplib.send_message(
+            await aiosmtplib.send(
+                msg,
                 hostname=smtp_host,
                 port=smtp_port,
-                username=username,
+                username=from_email,
                 password=password,
-                start_tls=use_tls,
-                message=msg,
+                use_tls=ssl_tls,
             )
             return True
         except Exception:
@@ -53,12 +59,13 @@ class EmailAdapter(BaseAdapter):
     async def validate_config(self, config: dict) -> Tuple[bool, str]:
         if not config.get("smtp_host"):
             return False, "smtp_host is required"
-        if not config.get("username"):
-            return False, "username is required"
+        if not config.get("from_email"):
+            return False, "from_email is required"
         if not config.get("password"):
             return False, "password is required"
-        if not config.get("to_email"):
-            return False, "to_email is required"
+        recipients = config.get("recipients")
+        if not recipients or (isinstance(recipients, list) and len(recipients) == 0):
+            return False, "recipients is required"
         return True, ""
 
     def get_config_schema(self) -> dict:
@@ -67,27 +74,35 @@ class EmailAdapter(BaseAdapter):
             "properties": {
                 "smtp_host": {
                     "type": "string",
-                    "title": "SMTP Host",
-                    "default": "smtp.gmail.com",
+                    "title": "SMTP 服务器",
+                    "description": "SMTP 服务器地址",
                 },
                 "smtp_port": {
                     "type": "integer",
-                    "title": "SMTP Port",
-                    "default": 587,
+                    "title": "SMTP 端口",
+                    "default": 465,
                 },
-                "username": {"type": "string", "title": "SMTP Username"},
-                "password": {"type": "string", "title": "SMTP Password"},
                 "from_email": {
                     "type": "string",
-                    "title": "From Email",
-                    "description": "默认与 username 相同",
+                    "title": "发件人邮箱",
+                    "description": "发件人邮箱地址",
                 },
-                "to_email": {"type": "string", "title": "To Email"},
-                "use_tls": {
+                "password": {
+                    "type": "string",
+                    "title": "密码/授权码",
+                    "description": "SMTP 授权码",
+                },
+                "ssl_tls": {
                     "type": "boolean",
-                    "title": "Use TLS",
+                    "title": "SSL/TLS",
                     "default": True,
                 },
+                "recipients": {
+                    "type": "array",
+                    "title": "收件人",
+                    "description": "收件人邮箱列表",
+                    "items": {"type": "string"},
+                },
             },
-            "required": ["smtp_host", "username", "password", "to_email"],
+            "required": ["smtp_host", "from_email", "password", "recipients"],
         }

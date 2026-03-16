@@ -211,3 +211,127 @@ def list_global_channels(
 ):
     channels = db.query(NotificationChannel).order_by(NotificationChannel.created_at.desc()).all()
     return success_response([_channel_out(ch) for ch in channels])
+
+
+@router.post("/admin/channels", tags=["admin-notifications"])
+async def create_admin_channel(
+    body: dict,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin creates a global notification channel (user_id=None)."""
+    channel_type = body.get("channel_type", "")
+    config = body.get("config", {})
+
+    try:
+        adapter = get_adapter(channel_type)
+        valid, err = await adapter.validate_config(config)
+        if not valid:
+            return error_response(400, f"Config validation failed: {err}")
+    except ValueError as e:
+        return error_response(400, str(e))
+
+    ch = NotificationChannel(
+        user_id=None,
+        channel_type=channel_type,
+        name=body.get("name", channel_type),
+        config=json.dumps(config),
+        triggers=json.dumps(body.get("triggers")),
+        is_active=body.get("is_active", True),
+    )
+    db.add(ch)
+    db.commit()
+    db.refresh(ch)
+    return success_response(_channel_out(ch), "Global channel created")
+
+
+@router.put("/admin/channels/{channel_id}", tags=["admin-notifications"])
+async def update_admin_channel(
+    channel_id: str,
+    body: dict,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin updates any notification channel."""
+    ch = db.query(NotificationChannel).filter(
+        NotificationChannel.id == channel_id,
+    ).first()
+    if not ch:
+        return error_response(404, "Channel not found")
+
+    if "config" in body and "channel_type" in body:
+        try:
+            adapter = get_adapter(body["channel_type"])
+            valid, err = await adapter.validate_config(body["config"])
+            if not valid:
+                return error_response(400, f"Config validation failed: {err}")
+        except ValueError as e:
+            return error_response(400, str(e))
+        ch.channel_type = body["channel_type"]
+
+    if "name" in body:
+        ch.name = body["name"]
+    if "config" in body:
+        ch.config = json.dumps(body["config"])
+    if "triggers" in body:
+        ch.triggers = json.dumps(body["triggers"])
+    if "is_active" in body:
+        ch.is_active = body["is_active"]
+    db.commit()
+    db.refresh(ch)
+    return success_response(_channel_out(ch), "Channel updated")
+
+
+@router.delete("/admin/channels/{channel_id}", tags=["admin-notifications"])
+def delete_admin_channel(
+    channel_id: str,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin deletes any notification channel."""
+    ch = db.query(NotificationChannel).filter(
+        NotificationChannel.id == channel_id,
+    ).first()
+    if not ch:
+        return error_response(404, "Channel not found")
+    db.delete(ch)
+    db.commit()
+    return success_response(None, "Channel deleted")
+
+
+@router.post("/admin/channels/{channel_id}/test", tags=["admin-notifications"])
+async def test_admin_channel(
+    channel_id: str,
+    body: TestMessage = TestMessage(),
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin sends a test message through any channel."""
+    ch = db.query(NotificationChannel).filter(
+        NotificationChannel.id == channel_id,
+    ).first()
+    if not ch:
+        return error_response(404, "Channel not found")
+
+    config = _parse_json(ch.config)
+    if not isinstance(config, dict):
+        config = {}
+
+    try:
+        adapter = get_adapter(ch.channel_type)
+        from app.services.notification.base import NotificationMessage
+        msg = NotificationMessage(
+            title="Nexus 测试通知",
+            body=body.message,
+            level="info",
+        )
+        ok = await adapter.send(config, msg)
+        if ok:
+            return success_response({"status": "sent"})
+        else:
+            return error_response(502, "Send failed, check channel config")
+    except ValueError as e:
+        return error_response(400, str(e))
+    except Exception as e:
+        logger.warning("Notification test failed: %s", e)
+        return error_response(502, f"Send failed: {str(e)}")

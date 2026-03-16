@@ -9,13 +9,19 @@ export interface NotificationChannel {
   updated_at: string;
 }
 
+export interface FormFieldSelectOption {
+  label: string;
+  value: string;
+}
+
 export interface FormField {
   name: string;
   label: string;
-  type: 'url' | 'password' | 'text' | 'number' | 'switch' | 'email';
+  type: 'url' | 'password' | 'text' | 'number' | 'switch' | 'email' | 'select' | 'tag';
   required?: boolean;
   placeholder?: string;
   defaultValue?: unknown;
+  options?: FormFieldSelectOption[];
 }
 
 export const CHANNEL_TYPE_OPTIONS = [
@@ -25,6 +31,8 @@ export const CHANNEL_TYPE_OPTIONS = [
   { label: 'Slack', value: 'slack' },
   { label: 'Discord', value: 'discord' },
   { label: '邮件', value: 'email' },
+  { label: 'Webhook（通用）', value: 'webhook' },
+  { label: '站内通知', value: 'in_app' },
 ];
 
 export const CHANNEL_TYPE_LABEL_MAP: Record<string, string> = {
@@ -35,6 +43,8 @@ export const CHANNEL_TYPE_LABEL_MAP: Record<string, string> = {
   slack: 'Slack',
   discord: 'Discord',
   email: '邮件',
+  webhook: 'Webhook',
+  in_app: '站内通知',
 };
 
 export const CHANNEL_TYPE_TAG_COLOR_MAP: Record<string, string> = {
@@ -45,20 +55,36 @@ export const CHANNEL_TYPE_TAG_COLOR_MAP: Record<string, string> = {
   slack: '#e01e5a',
   discord: '#5865f2',
   email: '#3b82f6',
+  webhook: '#8b5cf6',
+  in_app: '#6b7280',
 };
 
 /** 每种通道类型的动态表单字段定义 */
 export const CHANNEL_FIELDS: Record<string, FormField[]> = {
   feishu: [
-    { name: 'webhook_url', label: 'Webhook URL', type: 'url', required: true, placeholder: 'https://open.feishu.cn/open-apis/bot/v2/hook/...' },
-    { name: 'secret', label: '签名密钥', type: 'password', placeholder: '可选，用于签名验证' },
+    { name: 'app_id', label: 'App ID', type: 'text', required: true, placeholder: '飞书应用 App ID' },
+    { name: 'app_secret', label: 'App Secret', type: 'password', required: true, placeholder: '飞书应用 App Secret' },
+    { name: 'group_webhook_url', label: '群聊 Webhook URL', type: 'url', placeholder: '可选，群机器人 Webhook 地址' },
+    { name: 'msg_type', label: '消息类型', type: 'select', defaultValue: 'text', options: [
+      { label: '文本消息', value: 'text' },
+      { label: '卡片消息', value: 'card' },
+    ] },
   ],
   dingtalk: [
-    { name: 'webhook_url', label: 'Webhook URL', type: 'url', required: true, placeholder: 'https://oapi.dingtalk.com/robot/send?access_token=...' },
-    { name: 'secret', label: '加签密钥', type: 'password', placeholder: '可选，用于加签验证' },
+    { name: 'app_key', label: 'App Key', type: 'text', required: true, placeholder: '钉钉应用 App Key' },
+    { name: 'app_secret', label: 'App Secret', type: 'password', required: true, placeholder: '钉钉应用 App Secret' },
+    { name: 'group_webhook', label: '群机器人 Webhook', type: 'url', placeholder: '可选，群机器人 Webhook 地址' },
+    { name: 'msg_type', label: '消息类型', type: 'select', defaultValue: 'text', options: [
+      { label: '文本消息', value: 'text' },
+      { label: 'Markdown 消息', value: 'markdown' },
+      { label: 'ActionCard 消息', value: 'actionCard' },
+    ] },
   ],
   wecom: [
-    { name: 'webhook_url', label: 'Webhook URL', type: 'url', required: true, placeholder: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...' },
+    { name: 'corp_id', label: 'Corp ID', type: 'text', required: true, placeholder: '企业微信 Corp ID' },
+    { name: 'agent_id', label: 'Agent ID', type: 'text', required: true, placeholder: '企业微信 Agent ID' },
+    { name: 'secret', label: 'Secret', type: 'password', required: true, placeholder: '企业微信应用 Secret' },
+    { name: 'group_webhook', label: '群机器人 Webhook', type: 'url', placeholder: '可选，群机器人 Webhook 地址' },
   ],
   slack: [
     { name: 'webhook_url', label: 'Webhook URL', type: 'url', required: true, placeholder: 'https://hooks.slack.com/services/...' },
@@ -71,12 +97,21 @@ export const CHANNEL_FIELDS: Record<string, FormField[]> = {
   ],
   email: [
     { name: 'smtp_host', label: 'SMTP 服务器', type: 'text', required: true, placeholder: 'smtp.company.com' },
-    { name: 'smtp_port', label: '端口', type: 'number', defaultValue: 587 },
-    { name: 'username', label: '账号', type: 'text', required: true, placeholder: '发件邮箱账号' },
-    { name: 'password', label: '密码', type: 'password', required: true, placeholder: 'SMTP 授权码' },
-    { name: 'use_tls', label: '使用 TLS', type: 'switch', defaultValue: true },
-    { name: 'from_email', label: '发件人', type: 'email', required: true, placeholder: 'noreply@company.com' },
+    { name: 'smtp_port', label: 'SMTP 端口', type: 'number', defaultValue: 465 },
+    { name: 'from_email', label: '发件人邮箱', type: 'email', required: true, placeholder: 'noreply@company.com' },
+    { name: 'password', label: '密码/授权码', type: 'password', required: true, placeholder: 'SMTP 授权码' },
+    { name: 'ssl_tls', label: 'SSL/TLS', type: 'switch', defaultValue: true },
+    { name: 'recipients', label: '收件人', type: 'tag', placeholder: '输入邮箱后按回车添加' },
   ],
+  webhook: [
+    { name: 'url', label: 'URL', type: 'url', required: true, placeholder: 'https://example.com/webhook' },
+    { name: 'secret', label: 'Secret', type: 'password', placeholder: '可选，用于签名验证' },
+    { name: 'method', label: 'Method', type: 'select', defaultValue: 'POST', options: [
+      { label: 'POST', value: 'POST' },
+      { label: 'GET', value: 'GET' },
+    ] },
+  ],
+  in_app: [],
 };
 
 export const TRIGGER_OPTIONS = [

@@ -21,6 +21,7 @@ const ModalFormWrapper = styled.div`
 export const AdminNotificationPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<NotificationChannel | null>(null);
+  const [currentChannelType, setCurrentChannelType] = useState('feishu');
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const queryKey = ['admin-notifications'];
@@ -40,7 +41,7 @@ export const AdminNotificationPage = () => {
 
   const createMutation = useMutation(
     (values: Record<string, unknown>) =>
-      notificationApi.create({
+      notificationApi.createGlobal({
         channel_type: values.channel_type,
         name: values.name,
         config: extractConfig(values),
@@ -61,7 +62,7 @@ export const AdminNotificationPage = () => {
 
   const updateMutation = useMutation(
     (values: Record<string, unknown>) =>
-      notificationApi.update(editingChannel!.id, {
+      notificationApi.updateGlobal(editingChannel!.id, {
         name: values.name,
         config: extractConfig(values),
         triggers: values.triggers,
@@ -94,18 +95,34 @@ export const AdminNotificationPage = () => {
 
   const handleOpenCreate = () => {
     setEditingChannel(null);
+    setCurrentChannelType('feishu');
     setModalOpen(true);
+    // Set initial values after modal opens
+    setTimeout(() => {
+      form.setFieldsValue(buildDefaultValues('feishu'));
+    }, 0);
   };
 
   const handleEdit = (channel: NotificationChannel) => {
     setEditingChannel(channel);
+    setCurrentChannelType(channel.channel_type);
     setModalOpen(true);
+    setTimeout(() => {
+      form.setFieldsValue(buildDefaultValues(channel.channel_type, channel));
+    }, 0);
   };
 
   const handleCloseModal = () => {
     form.resetFields();
     setModalOpen(false);
     setEditingChannel(null);
+    setCurrentChannelType('feishu');
+  };
+
+  const handleChannelTypeChange = (type: string) => {
+    setCurrentChannelType(type);
+    // Reset config fields when switching channel type during create
+    form.setFieldsValue(buildDefaultValues(type));
   };
 
   if (isError) {
@@ -138,7 +155,7 @@ export const AdminNotificationPage = () => {
           }
         />
       ) : (
-        <ChannelList channels={channels} queryKey={queryKey} onEdit={handleEdit} loading={isLoading} />
+        <ChannelList channels={channels} queryKey={queryKey} onEdit={handleEdit} loading={isLoading} isAdmin />
       )}
 
       <Modal
@@ -163,9 +180,10 @@ export const AdminNotificationPage = () => {
             }
           >
             <ChannelForm
-              channelType={editingChannel?.channel_type ?? 'feishu'}
+              channelType={currentChannelType}
               triggerOptions={ADMIN_TRIGGER_OPTIONS}
               disabled={!!editingChannel}
+              onChannelTypeChange={handleChannelTypeChange}
             />
           </Form>
         </ModalFormWrapper>

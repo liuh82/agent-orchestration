@@ -21,6 +21,7 @@ const ModalFormWrapper = styled.div`
 export const NotificationPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<NotificationChannel | null>(null);
+  const [currentChannelType, setCurrentChannelType] = useState('feishu');
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const queryKey = ['notifications'];
@@ -94,18 +95,32 @@ export const NotificationPage = () => {
 
   const handleOpenCreate = () => {
     setEditingChannel(null);
+    setCurrentChannelType('feishu');
     setModalOpen(true);
+    setTimeout(() => {
+      form.setFieldsValue(buildDefaultValues('feishu'));
+    }, 0);
   };
 
   const handleEdit = (channel: NotificationChannel) => {
     setEditingChannel(channel);
+    setCurrentChannelType(channel.channel_type);
     setModalOpen(true);
+    setTimeout(() => {
+      form.setFieldsValue(buildDefaultValues(channel.channel_type, channel));
+    }, 0);
   };
 
   const handleCloseModal = () => {
     form.resetFields();
     setModalOpen(false);
     setEditingChannel(null);
+    setCurrentChannelType('feishu');
+  };
+
+  const handleChannelTypeChange = (type: string) => {
+    setCurrentChannelType(type);
+    form.setFieldsValue(buildDefaultValues(type));
   };
 
   if (isError) {
@@ -163,9 +178,10 @@ export const NotificationPage = () => {
             }
           >
             <ChannelForm
-              channelType={editingChannel?.channel_type ?? 'feishu'}
+              channelType={currentChannelType}
               triggerOptions={TRIGGER_OPTIONS}
               disabled={!!editingChannel}
+              onChannelTypeChange={handleChannelTypeChange}
             />
           </Form>
         </ModalFormWrapper>

@@ -6,11 +6,12 @@ import { notificationApi } from '@/api/notifications';
 interface TestSendButtonProps {
   channelId: string;
   channelName?: string;
+  isAdmin?: boolean;
 }
 
-export const TestSendButton = ({ channelId, channelName }: TestSendButtonProps) => {
+export const TestSendButton = ({ channelId, channelName, isAdmin }: TestSendButtonProps) => {
   const testMutation = useMutation(
-    () => notificationApi.test(channelId),
+    () => isAdmin ? notificationApi.testGlobal(channelId) : notificationApi.test(channelId),
     {
       onSuccess: () => {
         void message.success(channelName ? `通道「${channelName}」测试消息发送成功` : '测试消息发送成功');

@@ -1,10 +1,11 @@
-import { Form, Input, InputNumber, Select, Switch, Checkbox } from 'antd';
+import { Form, Input, InputNumber, Select, Switch, Checkbox, Alert } from 'antd';
 import { CHANNEL_TYPE_OPTIONS, CHANNEL_FIELDS, TRIGGER_OPTIONS, type NotificationChannel, type FormField } from './types';
 
 interface ChannelFormProps {
   channelType: string;
   triggerOptions?: typeof TRIGGER_OPTIONS;
   disabled?: boolean;
+  onChannelTypeChange?: (type: string) => void;
 }
 
 /** 渲染单个动态字段 */
@@ -42,6 +43,18 @@ const renderField = (field: FormField) => {
           ]}
         >
           <Input placeholder={field.placeholder} />
+        </Form.Item>
+      );
+    case 'select':
+      return (
+        <Form.Item key={field.name} label={field.label} name={field.name}>
+          <Select options={field.options} placeholder={field.placeholder} />
+        </Form.Item>
+      );
+    case 'tag':
+      return (
+        <Form.Item key={field.name} label={field.label} name={field.name}>
+          <Select mode="tags" placeholder={field.placeholder} tokenSeparators={[',', ' ']} />
         </Form.Item>
       );
     case 'number':
@@ -115,8 +128,13 @@ export const ChannelForm = ({
   channelType,
   triggerOptions = TRIGGER_OPTIONS,
   disabled = false,
+  onChannelTypeChange,
 }: ChannelFormProps) => {
   const fields = CHANNEL_FIELDS[channelType] ?? [];
+
+  const handleTypeChange = (value: string) => {
+    onChannelTypeChange?.(value);
+  };
 
   return (
     <>
@@ -125,7 +143,12 @@ export const ChannelForm = ({
         name="channel_type"
         rules={[{ required: true, message: '请选择通道类型' }]}
       >
-        <Select options={CHANNEL_TYPE_OPTIONS} disabled={disabled} placeholder="选择通知渠道" />
+        <Select
+          options={CHANNEL_TYPE_OPTIONS}
+          disabled={disabled}
+          placeholder="选择通知渠道"
+          onChange={handleTypeChange}
+        />
       </Form.Item>
 
       <Form.Item
@@ -135,6 +158,15 @@ export const ChannelForm = ({
       >
         <Input placeholder="例如：团队飞书群" maxLength={50} />
       </Form.Item>
+
+      {channelType === 'in_app' && (
+        <Alert
+          type="info"
+          showIcon
+          message="站内通知无需额外配置，开启后将通过平台内消息中心推送通知。"
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
       {fields.map(renderField)}
 

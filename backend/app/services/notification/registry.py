@@ -8,6 +8,8 @@ from .wecom import WeComAdapter
 from .slack import SlackAdapter
 from .discord import DiscordAdapter
 from .email import EmailAdapter
+from .webhook import WebhookAdapter
+from .in_app import InAppAdapter
 
 ADAPTERS: Dict[str, Type[BaseAdapter]] = {
     "feishu": FeishuAdapter,
@@ -16,6 +18,8 @@ ADAPTERS: Dict[str, Type[BaseAdapter]] = {
     "slack": SlackAdapter,
     "discord": DiscordAdapter,
     "email": EmailAdapter,
+    "webhook": WebhookAdapter,
+    "in_app": InAppAdapter,
 }
 
 

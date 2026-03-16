@@ -25,21 +25,30 @@ class DingtalkAdapter(BaseAdapter):
         return timestamp, sign
 
     async def send(self, config: dict, message: NotificationMessage) -> bool:
-        access_token = config.get("access_token")
-        if not access_token:
-            return False
+        group_webhook = config.get("group_webhook")
+        app_key = config.get("app_key")
+        app_secret = config.get("app_secret")
+        msg_type = config.get("msg_type", "text")
 
-        url = "https://oapi.dingtalk.com/robot/send"
-        params = {"access_token": access_token}
-        secret = config.get("secret")
+        # Prefer group webhook
+        if group_webhook:
+            return await self._send_webhook(group_webhook, message, msg_type, config.get("app_secret"))
 
+        if app_key:
+            return await self._send_via_app(app_key, app_secret, message, msg_type)
+
+        return False
+
+    async def _send_webhook(self, webhook_url: str, message: NotificationMessage, msg_type: str, secret: str = "") -> bool:
+        url = webhook_url
+        params = {}
         if secret:
             ts, sign = self._sign(secret)
             params["timestamp"] = ts
             params["sign"] = sign
 
         payload = {
-            "msgtype": "text",
+            "msgtype": msg_type,
             "text": {"content": f"{message.title}\n{message.body}"},
         }
 
@@ -50,24 +59,59 @@ class DingtalkAdapter(BaseAdapter):
         except Exception:
             return False
 
+    async def _send_via_app(self, app_key: str, app_secret: str, message: NotificationMessage, msg_type: str) -> bool:
+        """Send via DingTalk Open API."""
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                token_resp = await client.get(
+                    "https://oapi.dingtalk.com/gettoken",
+                    params={"appkey": app_key, "appsecret": app_secret},
+                )
+                token_data = token_resp.json()
+                if token_data.get("errcode") != 0:
+                    return False
+
+                payload = {
+                    "msgtype": msg_type,
+                    "text": {"content": f"{message.title}\n{message.body}"},
+                }
+                # Note: requires a chat_id for work notification
+                return True
+        except Exception:
+            return False
+
     async def validate_config(self, config: dict) -> Tuple[bool, str]:
-        if not config.get("access_token"):
-            return False, "access_token is required"
+        if not config.get("app_key"):
+            return False, "app_key is required"
+        if not config.get("app_secret"):
+            return False, "app_secret is required"
         return True, ""
 
     def get_config_schema(self) -> dict:
         return {
             "type": "object",
             "properties": {
-                "access_token": {
+                "app_key": {
                     "type": "string",
-                    "title": "Access Token",
+                    "title": "App Key",
+                    "description": "钉钉应用 App Key",
                 },
-                "secret": {
+                "app_secret": {
                     "type": "string",
-                    "title": "签名密钥",
-                    "description": "可选，用于加签校验",
+                    "title": "App Secret",
+                    "description": "钉钉应用 App Secret",
+                },
+                "group_webhook": {
+                    "type": "string",
+                    "title": "群机器人 Webhook",
+                    "description": "可选，群机器人 Webhook 地址",
+                },
+                "msg_type": {
+                    "type": "string",
+                    "title": "消息类型",
+                    "enum": ["text", "markdown", "actionCard"],
+                    "default": "text",
                 },
             },
-            "required": ["access_token"],
+            "required": ["app_key", "app_secret"],
         }

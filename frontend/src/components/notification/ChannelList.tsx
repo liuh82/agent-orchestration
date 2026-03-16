@@ -8,6 +8,7 @@ import {
   SlackOutlined,
   MailOutlined,
   ApiOutlined,
+  NotificationOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQueryClient } from 'react-query';
 import styled from 'styled-components';
@@ -149,6 +150,8 @@ const getChannelIcon = (channelType: string): React.ReactNode => {
       return <SlackOutlined />;
     case 'email':
       return <MailOutlined />;
+    case 'in_app':
+      return <NotificationOutlined />;
     default:
       return <ApiOutlined />;
   }
@@ -162,10 +165,16 @@ const getTriggerLabel = (value: string): string =>
 
 const getConfigPreview = (config: Record<string, unknown>): string => {
   if (config.webhook_url) return truncateUrl(String(config.webhook_url));
+  if (config.group_webhook_url) return truncateUrl(String(config.group_webhook_url));
+  if (config.group_webhook) return truncateUrl(String(config.group_webhook));
+  if (config.url) return truncateUrl(String(config.url));
+  if (config.app_id) return `App: ${String(config.app_id)}`;
+  if (config.corp_id) return `Corp: ${String(config.corp_id)}`;
   if (config.smtp_host) {
     const port = config.smtp_port ? `:${config.smtp_port}` : '';
     return `${String(config.smtp_host)}${port} → ${String(config.from_email ?? '')}`;
   }
+  if (Object.keys(config).length === 0) return '无需额外配置';
   return JSON.stringify(config);
 };
 
@@ -174,13 +183,14 @@ interface ChannelListProps {
   queryKey: string[];
   onEdit: (channel: NotificationChannel) => void;
   loading?: boolean;
+  isAdmin?: boolean;
 }
 
-export const ChannelList = ({ channels, queryKey, onEdit, loading }: ChannelListProps) => {
+export const ChannelList = ({ channels, queryKey, onEdit, loading, isAdmin }: ChannelListProps) => {
   const queryClient = useQueryClient();
 
   const deleteMutation = useMutation(
-    (id: string) => notificationApi.delete(id),
+    (id: string) => isAdmin ? notificationApi.deleteGlobal(id) : notificationApi.delete(id),
     {
       onSuccess: () => {
         void message.success('通道已删除');
@@ -194,7 +204,7 @@ export const ChannelList = ({ channels, queryKey, onEdit, loading }: ChannelList
 
   const toggleMutation = useMutation(
     ({ id, is_active }: { id: string; is_active: boolean }) =>
-      notificationApi.update(id, { is_active }),
+      isAdmin ? notificationApi.updateGlobal(id, { is_active }) : notificationApi.update(id, { is_active }),
     {
       onSuccess: () => {
         queryClient.invalidateQueries(queryKey);
@@ -276,7 +286,7 @@ export const ChannelList = ({ channels, queryKey, onEdit, loading }: ChannelList
               </Button>
             </Tooltip>
 
-            <TestSendButton channelId={channel.id} channelName={channel.name} />
+            <TestSendButton channelId={channel.id} channelName={channel.name} isAdmin={isAdmin} />
 
             <Popconfirm
               title="确认删除"
