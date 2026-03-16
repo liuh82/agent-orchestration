@@ -47,11 +47,6 @@ const CardTitle = styled.span`
   color: ${colors.text.secondary};
 `;
 
-const CardBody = styled.div`
-  flex: 1;
-  overflow: auto;
-`;
-
 const CARD_META: Record<string, { title: string }> = {
   task_stats: { title: '任务统计' },
   token_usage: { title: 'Token 消耗' },
@@ -89,11 +84,7 @@ export const DashboardGrid = ({ cardData }: DashboardGridProps) => {
             <CardHeader>
               <CardTitle>{meta?.title ?? card.type}</CardTitle>
             </CardHeader>
-            {!isCollapsed && (
-              <CardBody>
-                {Comp && <Comp data={cardData[card.type]} />}
-              </CardBody>
-            )}
+            {!isCollapsed && Comp && <Comp data={cardData[card.type]} />}
           </CardWrapper>
         );
       })}
