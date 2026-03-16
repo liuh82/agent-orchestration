@@ -31,6 +31,7 @@ from app.models.human_intervention import HumanIntervention  # noqa: F401
 from app.models.workflow_execution import WorkflowExecution, WorkflowNodeExecution  # noqa: F401
 from app.models.dashboard_layout import DashboardLayout  # noqa: F401
 from app.models.user_session_token import UserSessionToken  # noqa: F401
+from app.models.task_agent_config import TaskAgentConfig  # noqa: F401
 
 # Note: legacy models in orm_models.py are NOT imported here;
 # they use Base.metadata.create_all() in main.py lifespan instead.

@@ -1,4 +1,5 @@
 """Project v1 router."""
+import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -14,10 +15,21 @@ from app.schemas.common import success_response, error_response, paged_response
 router = APIRouter()
 
 
+def _parse_json(val: Optional[str]):
+    if val:
+        try:
+            return json.loads(val)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return None
+
+
 def _to_project_out(p: Project) -> dict:
     return ProjectOut(
         id=p.id, user_id=p.user_id, name=p.name, description=p.description,
-        spec=p.spec, workflow_id=p.workflow_id, status=p.status,
+        spec=p.spec, workflow_id=p.workflow_id,
+        config_overrides=_parse_json(p.config_overrides),
+        status=p.status,
         total_tasks=p.total_tasks, completed_tasks=p.completed_tasks,
         total_tokens=p.total_tokens, total_cost=p.total_cost,
         created_at=p.created_at or "", updated_at=p.updated_at or "",
@@ -71,6 +83,7 @@ def create_project(
         description=body.description,
         spec=body.spec,
         workflow_id=body.workflow_id,
+        config_overrides=json.dumps(body.config_overrides) if body.config_overrides else None,
     )
     db.add(project)
     db.commit()
@@ -121,6 +134,8 @@ def update_project(
         project.spec = body.spec
     if body.status is not None:
         project.status = body.status
+    if body.config_overrides is not None:
+        project.config_overrides = json.dumps(body.config_overrides)
 
     db.commit()
     db.refresh(project)

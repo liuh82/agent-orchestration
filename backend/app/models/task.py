@@ -26,6 +26,9 @@ class NexusTask(Base, TimestampMixin):
     depends_on: Mapped[Optional[str]] = mapped_column(Text)
     assigned_agent: Mapped[Optional[str]] = mapped_column(String(36))
     workflow_id: Mapped[Optional[str]] = mapped_column(String(36))
+    workflow_snapshot: Mapped[Optional[str]] = mapped_column(Text)  # JSON: workflow definition snapshot at creation
+    schedule_type: Mapped[Optional[str]] = mapped_column(String(20))  # once / cron / interval
+    schedule_config: Mapped[Optional[str]] = mapped_column(Text)  # JSON: {"cron": "..."} or {"interval_seconds": N}
 
     total_jobs: Mapped[int] = mapped_column(Integer, default=0)
     completed_jobs: Mapped[int] = mapped_column(Integer, default=0)

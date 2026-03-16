@@ -131,6 +131,6 @@ async def health_check():
 app.include_router(projects.router, prefix="/api/projects", tags=["projects-compat"])
 app.include_router(agents_v1.router, prefix="/api/agent-types", tags=["agent-types-compat"])
 app.include_router(tasks_v1.router, prefix="/api/projects/{project_id}/tasks", tags=["tasks-compat"])
-app.include_router(tasks_v1.router, prefix="/api/tasks", tags=["tasks-v1-compat"])
+app.include_router(tasks_v1.router, prefix="/api/tasks", tags=["tasks-compat"])
 app.include_router(agents_v1.router, prefix="/api/agents", tags=["agents-v1-compat"])
 app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs-compat"])

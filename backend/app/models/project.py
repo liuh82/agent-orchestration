@@ -22,6 +22,8 @@ class Project(Base, TimestampMixin):
     workflow_id: Mapped[Optional[str]] = mapped_column(String(36))  # FK to workflows
     status: Mapped[str] = mapped_column(String(20), default="active")
 
+    config_overrides: Mapped[Optional[str]] = mapped_column(Text)  # JSON: workflow node config overrides
+
     total_tasks: Mapped[int] = mapped_column(Integer, default=0)
     completed_tasks: Mapped[int] = mapped_column(Integer, default=0)
     total_tokens: Mapped[int] = mapped_column(Integer, default=0)

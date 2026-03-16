@@ -9,6 +9,7 @@ class ProjectCreate(BaseModel):
     description: Optional[str] = None
     spec: Optional[str] = None
     workflow_id: Optional[str] = None
+    config_overrides: Optional[dict] = None
 
 
 class ProjectUpdate(BaseModel):
@@ -16,6 +17,7 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     spec: Optional[str] = None
     status: Optional[str] = None
+    config_overrides: Optional[dict] = None
 
 
 class ProjectOut(BaseModel):
@@ -25,6 +27,7 @@ class ProjectOut(BaseModel):
     description: Optional[str] = None
     spec: Optional[str] = None
     workflow_id: Optional[str] = None
+    config_overrides: Optional[dict] = None
     status: str = "active"
     total_tasks: int = 0
     completed_tasks: int = 0
