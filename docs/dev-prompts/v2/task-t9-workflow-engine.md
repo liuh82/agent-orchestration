@@ -2,126 +2,181 @@
 
 ## 必读文件（先读完再动手）
 - CLAUDE.md
-- **docs/workflow-schema.md**（⭐ 工作流定义 Schema — 与 T8 的共同契约，必须严格遵循）
+- **docs/dev-prompts/v2/workflow-schema-v1.md**（⚠️ 与 T8 共用 Schema，严格遵循）
 - docs/architecture-v4.md（工作流引擎部分）
-- backend/app/services/workflow_engine/engine.py（现有引擎，需在此基础上升级）
-- backend/app/services/workflow_engine/nodes/（现有节点执行器）
-- backend/app/services/workflow_engine/registry.py（节点注册表）
-- backend/app/services/workflow_engine/state_machine.py（状态机）
+- backend/app/services/workflow_engine/ 目录（现有引擎代码）
+- backend/app/services/workflow_engine/engine.py（核心调度）
+- backend/app/services/workflow_engine/nodes/ 目录（现有节点执行器）
+- backend/app/services/workflow_engine/state_machine.py
+- backend/app/services/workflow_engine/event_publisher.py
 - backend/app/models/workflow_execution.py（执行记录模型）
 
 ## 核心约束
-- **严格遵守 docs/workflow-schema.md 定义的节点类型、config 结构、端口约定和变量引用系统**
-- Schema 是 T8（编辑器）和 T9（引擎）的共同契约，不要自行发明字段
-- 只改 `backend/` 目录
-- 数据库变更用 Alembic 迁移
+- **工作流定义格式必须严格遵循 workflow-schema-v1.md**
+- T8（前端编辑器）按同一 Schema 开发，两边独立开发后需无缝集成
+- 不要修改前端代码（T8 负责）
+- 不要修改数据库模型（T2 数据库重建时统一处理）
 - 不要 git commit
+
+---
 
 ## 任务目标
-升级工作流执行引擎，支持 Schema 定义的所有 15 种节点类型，包括分支逻辑、循环、子工作流调用和变量系统。
+升级工作流执行引擎，支持完整的节点类型、分支逻辑、循环、子工作流调用和变量系统。
 
-## 具体要求
+## 实现步骤
 
-### 9.1 引擎入口改造
-现有 `WorkflowEngine.start()` 接收 `definition: dict`，需确保：
-- 解析 Schema 格式的 `definition`（version、variables、nodes、edges、config）
-- 从 nodes 中找到类型为 `trigger_*` 的节点作为入口（而非仅靠无入边判断）
-- 全局变量注册到变量上下文
-- 全局 config 中的 timeout、max_concurrent_nodes 等配置生效
+### 第一步：变量解析器
 
-### 9.2 变量引用系统（Schema 第 6 节）
-- 实现 `VariableResolver` 类
-- 支持 `{{ node_id.output.field }}` 引用上游节点输出
-- 支持 `{{ variables.xxx }}` 引用工作流全局变量
-- 支持 `{{ env.xxx }}` 引用环境变量
-- 支持 `{{ context.user_id }}` 等上下文变量
-- 引用在节点执行前统一解析替换
-- 引用不存在的变量时抛出明确错误
+新建 `backend/app/services/workflow_engine/variable_resolver.py`：
 
-### 9.3 节点执行器开发
-为 Schema 中每种节点类型实现执行器，注册到 `NodeRegistry`：
+- 解析 `{{ }}` 模板语法
+- 支持点号路径访问嵌套字段：`{{ node_1.output.result.score }}`
+- 解析优先级：循环变量 > 节点输出 > 工作流变量 > 环境变量 > 上下文变量
+- 引用不存在的变量返回 `None`（不报错）
+- 支持特殊变量：`loop.current_index`, `loop.current_item`, `context.user_id`, `context.task_id`
+- 实现为纯函数，方便单元测试
 
-**触发器节点（3种）**
-- `trigger_manual`：直接通过，输出空数据
-- `trigger_cron`：输出触发时间 `{ triggered_at: "..." }`
-- `trigger_webhook`：输出请求数据 `{ method, path, headers, body, query_params }`
+### 第二步：节点注册表扩展
 
-**Agent 节点**
-- `agent`：现有 agent 执行器的增强版，支持 config 中的 model/prompt/temperature/max_tokens 覆盖
+更新 `backend/app/services/workflow_engine/registry.py`（或 `NodeRegistry`）：
 
-**逻辑控制节点（4种）**
-- `condition`：评估 ConditionGroup（logic: and/or + rules），输出 `{ result: true/false }`，根据结果选择 true/false 端口
-- `switch`：按顺序评估 cases，输出 `{ matched_case: "case_name" }`，路由到对应端口
-- `loop`：支持 fixed/iterate 模式，设置 current_item/current_index 变量，支持 break_condition
-- `wait`：支持 duration（asyncio.sleep）模式，webhook 模式预留
+注册以下节点执行器：
+- `manual_trigger` → ManualTriggerNode
+- `cron_trigger` → CronTriggerNode
+- `webhook_trigger` → WebhookTriggerNode
+- `agent` → AgentNode（升级现有）
+- `if` → IfNode
+- `switch` → SwitchNode
+- `loop` → LoopNode
+- `wait` → WaitNode
+- `sub_workflow` → SubWorkflowNode
+- `http_request` → HttpRequestNode
+- `code` → CodeNode
+- `transform` → TransformNode
+- `output` → OutputNode
 
-**工作流节点**
-- `sub_workflow`：加载目标工作流定义，传递 input_mapping，等待完成，合并输出。嵌套深度限制默认 5
+每种节点实现 `NodeExecutor` 接口（参考现有 `base.py`）。
 
-**数据节点（3种）**
-- `http_request`：用 aiohttp 发送请求，支持 {{ }} 变量替换
-- `code`：Python 用 exec/eval，JavaScript 预留。沙箱隔离，超时保护
-- `transform`：按 TransformRule 列表执行数据转换
+### 第三步：各节点执行器实现
 
-**输出节点（3种）**
-- `notification`：调用通知服务发送通知
-- `human`：创建 HumanIntervention 记录，状态转为 WAITING，等待回调恢复
-- `output`：将数据写入执行上下文的 outputs
+#### 3.1 触发器节点
 
-### 9.4 多端口路由（Schema 第 4 节）
-- `_get_next_nodes()` 方法需支持 source_handle 过滤
-- condition 节点根据输出结果选择 true/false 端口
-- switch 节点根据匹配结果选择对应 case 端口
-- agent/http_request/code/sub_workflow 失败时路由到 error 端口
-- human 节点根据审批结果路由到 approved/rejected 端口
-- 无匹配端口时走 default 端口
+- `manual_trigger`：直接返回 success（手动触发由 API 调用）
+- `cron_trigger`：验证 cron 表达式，返回 success（实际调度由外部 scheduler）
+- `webhook_trigger`：返回 success，输出包含请求的 method/path/headers/body
 
-### 9.5 错误处理（Schema 第 3.4 + 5 节）
-- 节点级重试：按 RetryConfig 执行重试，支持 fixed/exponential backoff
-- 节点级错误策略：
-  - `stop`：停止整个工作流
-  - `skip`：跳过当前节点，继续后续
-  - `error_output`：走 error 端口，无 error 端口则停止
-- 工作流级错误策略：
-  - `stop_all`：停止所有节点
-  - `continue`：继续执行未受影响的分支
-  - `notify`：发送通知后停止
+#### 3.2 Agent 节点（升级现有）
 
-### 9.6 循环执行
-- fixed 模式：执行 N 次，设置 `current_index` 变量
-- iterate 模式：遍历列表，设置 `current_item` 和 `current_index` 变量
-- 每次 iteration 后检查 break_condition，满足则跳出
-- 超过 max_iterations 强制终止（默认 100）
+- 从 `data.agentId` 加载 Agent 配置，或使用 `data` 中的内联配置
+- 用变量解析器替换 prompt 中的 `{{ }}`
+- 配置 model/temperature/maxTokens/timeout
+- 调用 LLM 并返回结果
+- 输出格式：`{ content: string, usage: { prompt_tokens, completion_tokens }, model: string }`
 
-### 9.7 节点输出格式（Schema 第 6.3 节）
-每个节点执行后产出统一格式：
-```python
-{
-    "status": "success" | "failed" | "skipped",
-    "data": { ... },       # 业务数据
-    "error": "...",        # 仅 failed 时
-    "metadata": {
-        "duration_ms": 1234,
-        "retries": 0
-    }
-}
-```
+#### 3.3 IF 条件分支节点
+
+- 解析 `data.conditions`（field/operator/value）
+- 逐个评估条件，根据 `data.logic`（and/or）组合
+- 输出：`{ result: true/false, matched_conditions: [...] }`
+- 引擎根据 result 决定走 `true` 还是 `false` sourceHandle 的 edge
+
+支持的 operator：`eq`, `neq`, `gt`, `lt`, `gte`, `lte`, `contains`, `regex`, `empty`, `not_empty`
+
+#### 3.4 Switch 多路分支节点
+
+- 解析 `data.field`，取值
+- 逐个匹配 `data.cases`（按顺序）
+- 第一个匹配的 case 对应 sourceHandle `case_N`
+- 无匹配走 `default`
+- 输出：`{ matched_case: number | "default", value: any }`
+
+#### 3.5 Loop 循环节点
+
+- `loopType=count`：执行 body 分支 N 次，每次注入 `loop.current_index`
+- `loopType=iterate`：遍历列表，每次注入 `loop.current_item` 和 `loop.current_index`
+- 检查 `breakCondition`，满足则跳到 `done`
+- 强制 `maxIterations` 限制（默认 100）
+- body 边对应的下游节点执行完后回到 loop 节点评估下一次
+- 全部完成后走 `done` 边
+
+#### 3.6 Wait 等待节点
+
+- `waitType=duration`：asyncio.sleep 指定秒数
+- `waitType=webhook`：设置状态为 waiting，等 webhook 回调后继续
+
+#### 3.7 Sub Workflow 子工作流节点
+
+- 从 `data.workflowId` 加载目标工作流定义
+- 解析 `data.parameterMapping`，将父工作流变量传递给子工作流
+- 递归调用 `WorkflowEngine.start()`
+- 等待子工作流完成
+- 将子工作流输出合并到当前变量上下文
+- 防止无限递归：跟踪嵌套深度，超过 `maxDepth`（默认 5）则报错
+
+#### 3.8 HTTP Request 节点
+
+- 解析 URL/method/headers/body（支持 `{{ }}` 变量）
+- 使用 `aiohttp` 发送请求
+- 输出：`{ status_code, headers, body }`
+- 支持 retryPolicy
+
+#### 3.9 Code 节点
+
+- `language=python`：使用 `exec()` 或 `subprocess` 执行（注意安全隔离）
+- `language=javascript`：使用 `subprocess` 调 node 执行
+- 输入：上游节点输出作为变量注入
+- 输出：stdout 作为节点输出
+- 强制 timeout（默认 60 秒）
+
+#### 3.10 Transform 数据转换节点
+
+- 解析 `data.mappings`，逐个执行赋值
+- 将结果写入当前变量上下文
+- 输出：转换后的变量集合
+
+#### 3.11 Output 输出节点
+
+- 收集上游节点输出
+- 按 `data.format` 格式化（json/text/markdown）
+- 记录到执行日志
+
+### 第四步：引擎调度升级
+
+更新 `backend/app/services/workflow_engine/engine.py`：
+
+- 解析 Schema v1 格式的 definition
+- sourceHandle 路由：IF/Switch/Loop 节点根据 sourceHandle 决定下游
+- 变量上下文传递：维护 `context` 字典，每执行完一个节点更新
+- 循环处理：loop 节点的 body 边下游执行完后自动回到 loop
+- 错误处理：
+  - 节点级 retry（配置 retryPolicy）
+  - 节点级 errorStrategy（stop/skip/continue）
+  - 工作流级 errorStrategy（stop_all/continue/notify）
+- 执行超时：config.timeout
+
+### 第五步：事件推送升级
+
+更新 `backend/app/services/workflow_engine/event_publisher.py`：
+
+- 推送执行进度：`{ current_node, completed_nodes, total_nodes }`
+- 推送节点输出：`{ node_id, output }`
+- 保持现有 WebSocket 通道不变
 
 ## 完成标准
-- [ ] 所有 15 种节点类型注册到 NodeRegistry
-- [ ] VariableResolver 支持所有 4 种变量引用
-- [ ] condition 节点正确评估 ConditionGroup 并按 true/false 端口路由
-- [ ] switch 节点支持多 case 分支
-- [ ] loop 节点支持 fixed 和 iterate 模式 + break
-- [ ] sub_workflow 可调用并返回结果 + 深度限制
-- [ ] 多端口路由正常工作（true/false/error/approved/rejected）
-- [ ] 重试机制正常工作
-- [ ] 节点输出格式统一为 Schema 第 6.3 节格式
-- [ ] 能消费前端编辑器产出的 Schema 格式 definition
-- [ ] Python 语法检查通过
+- [ ] 变量解析器正确处理所有 `{{ }}` 语法
+- [ ] IF 节点正确评估条件并路由到 true/false 分支
+- [ ] Switch 节点支持多条件分支
+- [ ] Loop 节点支持 count 和 iterate 两种模式
+- [ ] Sub Workflow 可调用并返回结果
+- [ ] HTTP Request 节点可发送请求
+- [ ] Code 节点可执行 Python/JavaScript
+- [ ] Transform 节点正确映射变量
+- [ ] 错误处理和重试机制正常
+- [ ] Python 语法检查全部通过
+- [ ] 现有工作流不回归（仍能正常执行）
 
 ## 不要做的事
-- 不要修改前端代码
-- 不要修改数据库模型（如果需要新字段用 Alembic 迁移）
-- 不要自行发明不在 Schema 中的节点类型或 config 字段
+- 不要修改 `frontend/` 目录下任何文件
+- 不要修改数据库模型
 - 不要 git commit
+- 不要实现调度器（cron/webhook 的定时触发，那是独立模块）

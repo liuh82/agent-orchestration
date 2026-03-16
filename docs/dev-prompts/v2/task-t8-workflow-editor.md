@@ -2,112 +2,150 @@
 
 ## 必读文件（先读完再动手）
 - CLAUDE.md
-- **docs/workflow-schema.md**（⭐ 工作流定义 Schema — 与 T9 的共同契约，必须严格遵循）
-- docs/architecture-v4.md（工作流引擎部分）
-- frontend/src/types/workflow.ts（现有类型定义，需按 Schema 重写）
-- frontend/src/stores/useWorkflowStore.ts（现有状态管理）
-- frontend/src/pages/workflows/（现有工作流页面）
-- frontend/src/components/workflow/（现有组件）
-- frontend/src/api/workflows.ts（现有 API）
+- **docs/dev-prompts/v2/workflow-schema-v1.md**（⚠️ 与 T9 共用 Schema，严格遵循）
+- docs/architecture-v4.md（工作流编辑器部分）
+- frontend/src/pages/workflows/ 目录（现有工作流页面，**理解但重写**）
+- frontend/src/components/workflow/ 目录（现有组件，**理解但重写**）
+- frontend/src/types/workflow.ts（现有类型定义，**按 Schema v1 更新**）
+- frontend/src/stores/useWorkflowStore.ts（现有 store，**理解但重写**）
 
 ## 参考资源
 - n8n 工作流编辑器：https://docs.n8n.io/workflows/
 - React Flow 文档：https://reactflow.dev/
 
 ## 核心约束
-- **严格遵守 docs/workflow-schema.md 定义的节点类型和配置结构**
-- Schema 是 T8（编辑器）和 T9（引擎）的共同契约，不要自行发明字段
-- React Flow ↔ Schema 的映射关系见 Schema 文档第 8 节
-- 只改 `frontend/src/` 目录
+- **数据格式必须严格遵循 workflow-schema-v1.md**
+- T9（后端引擎）按同一 Schema 开发，两边独立开发后需无缝集成
+- 不要引入非必要的依赖（React Flow 已有）
+- 不要修改后端代码（T9 负责）
 - 不要 git commit
+
+---
 
 ## 任务目标
-完全重写工作流编辑器，参照 n8n 的交互和功能。
+完全重写工作流编辑器，参照 n8n 的交互体验。
 
-## 具体要求
+## 实现步骤
 
-### 8.1 节点面板（左侧拖拽区）
+### 第一步：类型定义（按 Schema v1）
 
-按 Schema 第 3.2 节的节点类型分类展示：
+更新 `frontend/src/types/workflow.ts`，严格对齐 `workflow-schema-v1.md` 中的类型：
 
-**触发器类**
-- 手动触发（trigger_manual）
-- 定时触发（trigger_cron）— 配置 cron 表达式 + 时区
-- Webhook 触发（trigger_webhook）— 配置 method + path + auth
+- `WorkflowNodeType` 枚举：`manual_trigger | cron_trigger | webhook_trigger | agent | if | switch | loop | wait | sub_workflow | http_request | code | transform | output`
+- `WorkflowNode` 接口：包含 `id`, `type`, `position`, `data`, `disabled`
+- 每种节点的 `data` 类型（如 `AgentNodeData`, `IfNodeData`, `SwitchNodeData` 等）
+- `WorkflowEdge` 接口：包含 `id`, `source`, `target`, `sourceHandle`, `targetHandle`, `label`
+- `WorkflowConfig` 接口
+- `WorkflowDefinition` 顶层接口（version/name/description/nodes/edges/variables/config）
 
-**核心节点**
-- Agent（agent）— 选择 Agent、配置 prompt/model/temperature/max_tokens、标记 overridable_fields
-- 条件分支（condition）— 配置 ConditionGroup（logic + rules）
-- 多路分支（switch）— 配置多个 SwitchCase
-- 循环（loop）— fixed/iterate 两种模式，break 条件
-- 等待（wait）— duration/webhook 两种模式
+### 第二步：Zustand Store 重写
+
+更新 `frontend/src/stores/useWorkflowStore.ts`：
+
+- 撤销/重做（Ctrl+Z / Ctrl+Shift+Z）— 保留现有实现，确认正常
+- `saveDefinition()` 方法：将 store 中的 nodes + edges + config 打包成 Schema v1 格式的 JSON
+- `loadDefinition(json)` 方法：解析 Schema v1 JSON 还原到 store
+- 节点 CRUD：addNode / removeNode / updateNodeData / duplicateNode
+- 连线 CRUD：addEdge / removeEdge
+- 多选批量操作：selectMultiple / deleteSelected
+
+### 第三步：节点面板（左侧拖拽区）
+
+分类展示所有节点类型：
+
+**触发器**
+- 手动触发 `manual_trigger`
+- 定时触发 `cron_trigger` — 配置 cron 表达式
+- Webhook 触发 `webhook_trigger` — 配置 HTTP method 和 path
+
+**Agent**
+- Agent 执行 `agent` — 选择 Agent、配置 prompt/model/temperature/maxTokens/timeout
+
+**逻辑控制**
+- IF 条件 `if` — 配置条件（field/operator/value）和逻辑（and/or），2 个输出端口
+- Switch 多路 `switch` — 配置 field 和多个 cases，N 个输出端口
+- 循环 `loop` — count 或 iterate 模式，2 个输出端口（body/done）
+- 等待 `wait` — duration 或 webhook 模式
 
 **工作流**
-- 子工作流（sub_workflow）— 选择工作流 + input_mapping
+- 子工作流 `sub_workflow` — 选择目标工作流、参数映射
 
-**数据节点**
-- HTTP 请求（http_request）— URL/method/headers/body
-- 代码执行（code）— python/javascript + 代码编辑器
-- 数据转换（transform）— TransformRule 列表
+**数据**
+- HTTP 请求 `http_request` — URL/method/headers/body
+- 代码执行 `code` — python/javascript + 代码
+- 数据转换 `transform` — 变量映射
 
 **输出**
-- 通知（notification）— 选择通道 + 消息模板
-- 人工审批（human）— 审批说明 + 审批人
-- 输出（output）— 输出名称 + 数据源
+- 输出 `output` — 格式选择
 
-### 8.2 画布功能
-- 拖拽连线（支持多端口：default/true/false/error/approved/rejected）
-- 自动布局（dagre，按 Schema 的端口名渲染 Handle）
+每种节点有**图标、颜色、中文标签**。支持拖拽到画布。
+
+### 第四步：画布功能
+
+基于 React Flow 实现：
+- 拖拽连线（sourceHandle/targetHandle 命名遵循 Schema v1 §4）
+- 网格背景（dots 类型）
 - 缩放和平移
-- Mini map
-- 撤销/重做（Ctrl+Z / Ctrl+Shift+Z）— useWorkflowStore 已实现
-- 节点复制/粘贴
-- 多选和批量删除
-- 网格背景
-- 节点执行状态着色（pending/running/completed/failed）
+- Mini Map
+- 节点复制（Ctrl+D）/ 粘贴 / 批量删除
+- 自动布局（dagre，保留现有 `layoutGraph` 逻辑）
+- 节点禁用态视觉区分（灰色 + 虚线边框）
 
-### 8.3 节点配置面板（右侧）
-- 点击节点打开配置面板
-- 根据 `WorkflowNode.type` 动态渲染对应配置表单
-- 每种节点类型的 config 字段严格遵循 Schema 第 3.3 节
-- 条件分支的 ConditionGroup 用可视化规则构建器（field + operator + value）
-- 代码执行节点嵌入代码编辑器（monaco-editor 或简单 textarea）
-- 支持变量引用提示（输入 `{{` 时弹出变量补全）
+### 第五步：节点组件
+
+每种节点类型一个 React 组件（参考 `@xyflow/react` 自定义节点）：
+
+- 通用样式：深色卡片 + 类型图标 + 节点名称 + 状态指示灯
+- Agent 节点：显示 Agent 名称和模型
+- IF 节点：2 个输出 handle，标注"是/否"
+- Switch 节点：N 个输出 handle + 1 个 default handle
+- Loop 节点：2 个输出 handle，标注"循环体/完成"
+- 触发器节点：无边框，用醒目颜色区分
+
+### 第六步：节点配置面板（右侧）
+
+点击节点打开右侧配置面板：
+- 根据 `node.type` 动态渲染不同的表单
+- 使用 Ant Design Form 组件
+- 支持变量插入（点击输入框旁的 `{{ }}` 按钮弹出变量选择器）
 - 配置验证（必填项、格式校验）
-- 保存配置后即时更新节点
+- 保存后即时更新画布上的节点显示
+- Agent 节点：下拉选择已有 Agent 或手动配置
+- IF/Switch 节点：动态添加/删除条件行
+- Loop 节点：循环类型切换时显示对应配置
+- 高级模式：JSON/YAML 编辑（切换）
 
-### 8.4 多端口连线
-- condition 节点：两个源 Handle（true / false）
-- switch 节点：default Handle + 每个 case 的动态 Handle
-- agent/http_request/code 节点：default Handle + error Handle
-- human 节点：approved Handle + rejected Handle
-- 其他节点：default Handle
-- 连线标签显示端口名
+### 第七步：工作流管理
 
-### 8.5 工作流管理
-- 保存工作流（名称 + 描述 + 版本）— 保存时转换为 Schema 格式存入 `definition` 字段
-- 工作流列表页
-- 工作流版本管理
-- 导入/导出（JSON 格式，按 Schema 第 7.3 节）
+- 保存工作流：`POST /api/v1/workflows`（body 为 Schema v1 JSON）
+- 加载工作流：`GET /api/v1/workflows/:id` → 解析 definition
+- 工作流列表页：卡片式展示
+- 导入/导出：JSON 文件下载和上传
+- 工作流测试运行按钮（调 `POST /api/v1/workflows/:id/execute`）
 
-### 8.6 类型定义
-- 重写 `frontend/src/types/workflow.ts`
-- 严格按照 Schema 定义所有 TypeScript 类型
-- 节点类型从 7 种扩展到 Schema 定义的 15 种
-- 每种节点的 config 类型严格对应 Schema 第 3.3 节
+## UI 规范
+- 整体深色主题（参考现有系统配色：侧边栏 #334155, 背景 #0f172a）
+- 节点卡片背景 #1e293b，边框 #334155
+- 选中节点边框高亮 #3b82f6
+- 节点运行中状态：蓝色脉冲动画
+- 节点成功：绿色指示灯
+- 节点失败：红色指示灯
 
 ## 完成标准
-- [ ] 所有 15 种节点类型可拖拽到画布
-- [ ] 每种节点可配置（右侧面板按 Schema 渲染）
-- [ ] 多端口连线正常工作（true/false/error 等）
-- [ ] 工作流可保存为 Schema 格式（后端可直接消费）
-- [ ] 工作流可从 Schema 格式加载（后端存储的 definition 能正确渲染）
+- [ ] 所有 13 种节点类型可拖拽到画布
+- [ ] 节点配置面板按类型动态渲染
+- [ ] IF 节点有 true/false 两个输出端口
+- [ ] Switch 节点有 case_0/case_1/.../default 多个输出端口
+- [ ] Loop 节点有 body/done 两个输出端口
+- [ ] 连线数据格式符合 Schema v1 §4
+- [ ] 保存时输出 Schema v1 完整 JSON
+- [ ] 加载时正确解析 Schema v1 JSON
 - [ ] 撤销/重做正常
 - [ ] 前端 console 无 error
-- [ ] 无 TypeScript 类型错误（npx tsc --noEmit 零错误）
+- [ ] 无 TypeScript 类型错误
 
 ## 不要做的事
-- 不要引入非必要的依赖（React Flow 已有，dagre 已有）
-- 不要修改后端代码（T9 负责）
-- 不要自行发明不在 Schema 中的节点类型或 config 字段
+- 不要修改 `backend/` 目录下任何文件
 - 不要 git commit
+- 不要引入 React Flow 之外的画布库
+- 不要做实时执行状态显示（后续迭代）
