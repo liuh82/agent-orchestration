@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+
 import { ResponsiveGridLayout, useContainerWidth, verticalCompactor } from 'react-grid-layout';
 import styled from 'styled-components';
 import { colors } from '@/styles/tokens/color';
@@ -20,10 +20,7 @@ const CardWrapper = styled.div`
   border: 1px solid ${colors.border.DEFAULT};
   border-radius: ${radius.lg};
   padding: ${spacing[4]};
-  height: 100%;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
 `;
 
 const CardHeader = styled.div`
@@ -31,18 +28,12 @@ const CardHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   margin-bottom: ${spacing[3]};
-  flex-shrink: 0;
 `;
 
 const CardTitle = styled.span`
   font-size: 13px;
   font-weight: ${typography.fontWeight.medium};
   color: ${colors.text.secondary};
-`;
-
-const CardBody = styled.div`
-  flex: 1;
-  overflow: auto;
 `;
 
 const CARD_META: Record<string, { title: string }> = {
@@ -82,11 +73,7 @@ export const DashboardGrid = ({ cardData }: DashboardGridProps) => {
           <CardHeader>
             <CardTitle>{meta?.title ?? card.type}</CardTitle>
           </CardHeader>
-          {!isCollapsed && (
-            <CardBody>
-              {Comp && <Comp data={cardData[card.type]} />}
-            </CardBody>
-          )}
+          {!isCollapsed && Comp && <Comp data={cardData[card.type]} />}
         </CardWrapper>
       );
     });

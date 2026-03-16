@@ -64,27 +64,27 @@ const PROTOCOL_OPTIONS: Record<string, { label: string; value: string }[]> = {
 
 // Bridge 类型帮助说明
 const BridgeTypeHelp = () => (
-  <div style={{ fontSize: 12, color: '#666', lineHeight: 1.8, maxWidth: 420 }}>
-    <div style={{ marginBottom: 6, fontWeight: 600 }}>如何选择 Bridge 类型？</div>
-    <div style={{ marginBottom: 4 }}><strong style={{ color: '#1890ff' }}>WebSocket（推荐）</strong></div>
+  <div style={{ fontSize: 12, lineHeight: 1.8, maxWidth: 420, color: '#e2e8f0' }}>
+    <div style={{ marginBottom: 6, fontWeight: 600, color: '#ffffff' }}>如何选择 Bridge 类型？</div>
+    <div style={{ marginBottom: 4 }}><strong style={{ color: '#60a5fa' }}>WebSocket（推荐）</strong></div>
     <div style={{ marginBottom: 8, paddingLeft: 8 }}>
-      最常用的方式。适用于在远程服务器、云主机、Docker 容器上部署 oc-bridge 连接到 Nexus。<br/>
-      <span style={{ color: '#999' }}>→ 推荐 <code>ws://</code> 内网通信，<code>wss://</code> 公网加密通信</span>
+      最常用的方式。适用于远程服务器、云主机、Docker 容器部署。<br/>
+      <span style={{ color: '#94a3b8' }}>→ 推荐 ws:// 内网，wss:// 公网加密</span>
     </div>
-    <div style={{ marginBottom: 4 }}><strong style={{ color: '#52c41a' }}>HTTP</strong></div>
+    <div style={{ marginBottom: 4 }}><strong style={{ color: '#4ade80' }}>HTTP</strong></div>
     <div style={{ marginBottom: 8, paddingLeft: 8 }}>
-      通过 RESTful API 与 Nexus 交互。适用于简单场景或已有 HTTP 代理的环境。<br/>
-      <span style={{ color: '#999' }}>→ 适合不需要实时推送的轻量级 Agent（如定时任务型）</span>
+      RESTful API 方式。适用于简单场景或已有 HTTP 代理的环境。<br/>
+      <span style={{ color: '#94a3b8' }}>→ 适合不需要实时推送的轻量级 Agent</span>
     </div>
-    <div style={{ marginBottom: 4 }}><strong style={{ color: '#722ed1' }}>gRPC</strong></div>
+    <div style={{ marginBottom: 4 }}><strong style={{ color: '#c084fc' }}>gRPC</strong></div>
     <div style={{ marginBottom: 8, paddingLeft: 8 }}>
-      高性能二进制协议，延迟最低。适用于对性能要求极高的生产环境。<br/>
-      <span style={{ color: '#999' }}>→ 需要额外配置 TLS 证书，部署复杂度较高</span>
+      高性能二进制协议。适用于对性能要求极高的生产环境。<br/>
+      <span style={{ color: '#94a3b8' }}>→ 需要额外配置 TLS 证书</span>
     </div>
-    <div style={{ marginBottom: 4 }}><strong style={{ color: '#fa8c16' }}>Stdio</strong></div>
+    <div style={{ marginBottom: 4 }}><strong style={{ color: '#fbbf24' }}>Stdio</strong></div>
     <div style={{ marginBottom: 4, paddingLeft: 8 }}>
-      通过标准输入输出与本机 Nexus 进程通信。适用于开发调试或单机部署。<br/>
-      <span style={{ color: '#999' }}>→ 仅限本机使用，命令示例：<code>oc-bridge start --stdio</code></span>
+      标准输入输出通信。适用于本机开发调试或单机部署。<br/>
+      <span style={{ color: '#94a3b8' }}>→ 仅限本机使用</span>
     </div>
   </div>
 );
