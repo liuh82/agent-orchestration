@@ -1,4 +1,3 @@
-import { useCallback, useEffect } from 'react';
 import { Skeleton } from 'antd';
 import { useQuery } from 'react-query';
 import styled from 'styled-components';
@@ -7,9 +6,7 @@ import { spacing } from '@/styles/tokens/spacing';
 import { PageHeader } from '@/components/common/PageHeader';
 import { ErrorBlock } from '@/components/common/ErrorBlock';
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid';
-import { LayoutManager } from '@/components/dashboard/LayoutManager';
 import { dashboardApi } from '@/api/dashboard';
-import { useDashboardStore } from '@/stores/useDashboardStore';
 import { useAuthStore } from '@/stores/auth';
 
 const SkeletonCard = styled(Skeleton)`
@@ -33,8 +30,6 @@ const SkeletonGrid = styled.div`
 export const DashboardPage = () => {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
-  const scope = isAdmin ? 'admin' : 'frontend';
-  const { setLayouts } = useDashboardStore();
 
   const {
     data: statsResponse,
@@ -42,7 +37,7 @@ export const DashboardPage = () => {
     isError: statsError,
     error: statsErr,
     refetch: refetchStats,
-  } = useQuery(['dashboard-stats', scope], () =>
+  } = useQuery(['dashboard-stats'], () =>
     isAdmin ? dashboardApi.getGlobalStats() : dashboardApi.getPersonalStats(),
   );
 
@@ -60,36 +55,6 @@ export const DashboardPage = () => {
     agent_status: stats?.agents ?? { online: 0, offline: 0, total: 0 },
     recent_tasks: recentResponse?.data ?? recentResponse ?? [],
   };
-
-  // Load saved layouts
-  useEffect(() => {
-    dashboardApi.getLayouts(scope).then((res: any) => {
-      const defs = res?.data?.items ?? res?.data ?? [];
-      useDashboardStore.getState().setLayoutDefs(defs);
-      const defaultDef = defs.find((d: any) => d.is_default);
-      if (defaultDef?.layout) {
-        if (defaultDef.layout.cards) useDashboardStore.getState().setCards(defaultDef.layout.cards);
-        if (defaultDef.layout.layouts) useDashboardStore.getState().setLayouts(defaultDef.layout.layouts);
-        useDashboardStore.getState().setActiveLayoutId(defaultDef.id);
-      }
-    }).catch(() => {
-      // Use defaults on error
-    });
-  }, [scope]);
-
-  // Debounced auto-save on layout change (2s)
-  const handleLayoutChange = useCallback(
-    (() => {
-      let timer: ReturnType<typeof setTimeout>;
-      return (newLayouts: Record<string, any>) => {
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-          setLayouts(newLayouts);
-        }, 2000);
-      };
-    })(),
-    [setLayouts],
-  );
 
   if (statsError) {
     return (
@@ -116,8 +81,7 @@ export const DashboardPage = () => {
   return (
     <div>
       <PageHeader title="Dashboard" />
-      <LayoutManager scope={scope} />
-      <DashboardGrid cardData={cardData} onLayoutChange={handleLayoutChange} />
+      <DashboardGrid cardData={cardData} />
     </div>
   );
 };

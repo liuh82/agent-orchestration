@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { ResponsiveGridLayout, useContainerWidth, verticalCompactor } from 'react-grid-layout';
-import type { ResponsiveLayouts } from 'react-grid-layout';
 import styled from 'styled-components';
 import { colors } from '@/styles/tokens/color';
 import { spacing } from '@/styles/tokens/spacing';
@@ -35,24 +34,6 @@ const CardHeader = styled.div`
   flex-shrink: 0;
 `;
 
-const CardTitleRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${spacing[2]};
-`;
-
-const DragHandle = styled.span`
-  cursor: grab;
-  color: ${colors.text.muted};
-  font-size: 16px;
-  line-height: 1;
-  user-select: none;
-
-  &:active {
-    cursor: grabbing;
-  }
-`;
-
 const CardTitle = styled.span`
   font-size: 13px;
   font-weight: ${typography.fontWeight.medium};
@@ -84,10 +65,9 @@ const CARD_COMPONENTS: Record<CardType, React.FC<{ data: any }>> = {
 
 interface DashboardGridProps {
   cardData: Record<string, any>;
-  onLayoutChange?: (layouts: ResponsiveLayouts) => void;
 }
 
-export const DashboardGrid = ({ cardData, onLayoutChange }: DashboardGridProps) => {
+export const DashboardGrid = ({ cardData }: DashboardGridProps) => {
   const { layouts, cards, collapsedCards } = useDashboardStore();
   const { width, containerRef } = useContainerWidth();
 
@@ -100,10 +80,7 @@ export const DashboardGrid = ({ cardData, onLayoutChange }: DashboardGridProps) 
       return (
         <CardWrapper key={card.id} style={isCollapsed ? { height: 60 } : undefined}>
           <CardHeader>
-            <CardTitleRow>
-              <DragHandle className="card-drag-handle">⠿</DragHandle>
-              <CardTitle>{meta?.title ?? card.type}</CardTitle>
-            </CardTitleRow>
+            <CardTitle>{meta?.title ?? card.type}</CardTitle>
           </CardHeader>
           {!isCollapsed && (
             <CardBody>
@@ -124,11 +101,10 @@ export const DashboardGrid = ({ cardData, onLayoutChange }: DashboardGridProps) 
         cols={{ lg: 12, md: 10, sm: 6 }}
         rowHeight={80}
         width={width}
-        onLayoutChange={(_layout, allLayouts) => onLayoutChange?.(allLayouts)}
-        dragConfig={{ handle: '.card-drag-handle' }}
+        dragConfig={{ enabled: false }}
+        resizeConfig={{ enabled: false }}
         compactor={verticalCompactor}
         margin={[Number(spacing[4]), Number(spacing[4])]}
-        resizeConfig={{ enabled: true }}
       >
         {layoutItems}
       </ResponsiveGridLayout>
