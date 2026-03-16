@@ -96,6 +96,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth-compat"])
 app.include_router(agents_v1.router, prefix="/api/v1/agents", tags=["v1-agents"])
 app.include_router(agents_v1.router, prefix="/api/v1/agent-types", tags=["v1-agent-types"])
 app.include_router(projects.router, prefix="/api/v1/projects", tags=["v1-projects"])
+app.include_router(tasks_v3.router, prefix="/api/v1/tasks", tags=["v3-tasks"])
 app.include_router(tasks_v1.router, prefix="/api/v1/projects/{project_id}/tasks", tags=["v1-tasks"])
 app.include_router(tasks_v1.router, prefix="/api/v1/tasks", tags=["v1-tasks"])
 app.include_router(jobs.router, prefix="/api/v1/tasks/{task_id}/jobs", tags=["v1-jobs"])
@@ -109,7 +110,6 @@ app.include_router(project_documents.router, prefix="/api/v1/projects/{project_i
 app.include_router(task_files.router, prefix="/api/v1/tasks/{task_id}/files", tags=["task-files"])
 
 # Phase 3: task tree, human interventions, batch actions
-app.include_router(tasks_v3.router, prefix="/api/v1/tasks", tags=["v3-tasks"])
 
 # v1 admin / settings / notifications / stats routes
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["v1-admin"])
