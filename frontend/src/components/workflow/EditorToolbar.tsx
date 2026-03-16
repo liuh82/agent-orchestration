@@ -22,10 +22,15 @@ const Toolbar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: ${spacing[3]} ${spacing[4]};
-  background: ${colors.surface.DEFAULT};
+  padding: ${spacing[2]} ${spacing[4]};
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid ${colors.border.DEFAULT};
+  border-radius: 8px;
+  margin: 8px 12px;
   gap: ${spacing[3]};
+  z-index: 5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 `;
 
 const Left = styled.div`

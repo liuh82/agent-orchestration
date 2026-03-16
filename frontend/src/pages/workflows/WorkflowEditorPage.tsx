@@ -371,10 +371,10 @@ export const WorkflowEditorPage = () => {
 
   return (
     <EditorLayout>
-      <EditorToolbar onSave={handleSave} isSaving={isSaving} />
       <EditorBody>
         <NodePanel />
         <CanvasWrapper ref={reactFlowWrapper}>
+          <EditorToolbar onSave={handleSave} isSaving={isSaving} />
           <ReactFlow
             nodes={localNodes}
             edges={localEdges}
@@ -392,7 +392,7 @@ export const WorkflowEditorPage = () => {
           >
             <Background
               variant={BackgroundVariant.Dots}
-              color="#334155"
+              color="#cbd5e1"
               gap={20}
               size={1}
             />

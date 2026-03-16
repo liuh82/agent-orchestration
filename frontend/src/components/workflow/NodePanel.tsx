@@ -42,14 +42,14 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 /* ── Dark Theme Colors ── */
 
 const DARK = {
-  bg: '#0f172a',
-  surface: '#1e293b',
-  surfaceHover: '#334155',
-  border: '#334155',
-  borderHover: '#475569',
-  text: '#e2e8f0',
+  bg: '#ffffff',
+  surface: '#f8fafc',
+  surfaceHover: '#0f172a',
+  border: '#0f172a',
+  borderHover: '#cbd5e1',
+  text: '#0f172a',
   textMuted: '#94a3b8',
-  textDisabled: '#64748b',
+  textDisabled: '#94a3b8',
 };
 
 /* ── Styled Components ── */

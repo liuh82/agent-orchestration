@@ -3,14 +3,14 @@ import { spacing } from '@/styles/tokens/spacing';
 import { typography } from '@/styles/tokens/typography';
 import { radius } from '@/styles/tokens/radius';
 
-/* ── Canvas Dark Theme Color Tokens ── */
+/* ── Canvas Light Theme Color Tokens ── */
 
-export const NODE_BG = '#1e293b';
-export const NODE_BORDER = '#334155';
+export const NODE_BG = '#ffffff';
+export const NODE_BORDER = '#e2e8f0';
 export const NODE_BORDER_SELECTED = '#3b82f6';
-export const NODE_TEXT = '#f1f5f9';
-export const NODE_TEXT_SECONDARY = '#94a3b8';
-export const NODE_TEXT_MUTED = '#64748b';
+export const NODE_TEXT = '#0f172a';
+export const NODE_TEXT_SECONDARY = '#64748b';
+export const NODE_TEXT_MUTED = '#94a3b8';
 
 /* ── Shared Styled Components ── */
 
@@ -29,8 +29,8 @@ export const NodeWrapper = styled.div<{
   border-radius: ${radius.lg};
   box-shadow: ${({ $selected }) =>
     $selected
-      ? `0 0 0 2px ${NODE_BORDER_SELECTED}40, 0 4px 12px rgba(0,0,0,0.3)`
-      : '0 2px 8px rgba(0,0,0,0.2)'};
+      ? `0 0 0 2px ${NODE_BORDER_SELECTED}40, 0 2px 8px rgba(0,0,0,0.1)`
+      : '0 1px 4px rgba(0,0,0,0.08)'};
   padding: ${spacing[2]} ${spacing[3]};
   display: flex;
   flex-direction: column;

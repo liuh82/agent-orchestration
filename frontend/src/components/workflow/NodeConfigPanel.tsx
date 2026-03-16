@@ -52,8 +52,8 @@ import { NODE_META as nodeMetaRegistry } from '@/types/workflow';
 const Panel = styled.div`
   width: 360px;
   min-width: 360px;
-  background: #0f172a;
-  border-left: 1px solid #334155;
+  background: #ffffff;
+  border-left: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -64,7 +64,7 @@ const PanelHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #334155;
+  border-bottom: 1px solid #e2e8f0;
   flex-shrink: 0;
 `;
 
@@ -114,9 +114,9 @@ const AdvancedJsonArea = styled(Input.TextArea)`
   font-family: ${typography.fontFamily.mono} !important;
   font-size: ${typography.fontSize.sm} !important;
   line-height: 1.6 !important;
-  background: #1e293b !important;
+  background: #f8fafc !important;
   color: #e2e8f0 !important;
-  border-color: #334155 !important;
+  border-color: #e2e8f0 !important;
 
   &:focus {
     border-color: #6366f1 !important;
@@ -150,9 +150,9 @@ const AddRowButton = styled(Button)`
  * ================================================================ */
 
 const DARK_SELECT_STYLE: React.CSSProperties = {
-  background: '#1e293b',
-  borderColor: '#334155',
-  color: '#e2e8f0',
+  background: '#f8fafc',
+  borderColor: '#e2e8f0',
+  color: '#0f172a',
 };
 
 /* ================================================================
@@ -279,7 +279,7 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
           size="small"
           type={!manualMode ? 'primary' : 'default'}
           onClick={() => setManualMode(false)}
-          style={manualMode ? { background: '#1e293b', borderColor: '#334155', color: '#94a3b8' } : undefined}
+          style={manualMode ? { background: '#f8fafc', borderColor: '#e2e8f0', color: '#334155' } : undefined}
         >
           选择 Agent
         </Button>
@@ -287,7 +287,7 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
           size="small"
           type={manualMode ? 'primary' : 'default'}
           onClick={() => setManualMode(true)}
-          style={!manualMode ? { background: '#1e293b', borderColor: '#334155', color: '#94a3b8' } : undefined}
+          style={!manualMode ? { background: '#f8fafc', borderColor: '#e2e8f0', color: '#334155' } : undefined}
         >
           手动配置
         </Button>
@@ -689,9 +689,9 @@ const WaitForm: React.FC<WaitFormProps> = ({ data, onUpdate }) => {
         <div
           style={{
             padding: spacing[3],
-            background: '#1e293b',
+            background: '#f8fafc',
             borderRadius: 6,
-            color: '#94a3b8',
+            color: '#64748b',
             fontSize: typography.fontSize.sm,
           }}
         >
@@ -1355,7 +1355,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ agents }) => {
         return (
           <div
             style={{
-              color: '#94a3b8',
+              color: '#64748b',
               fontSize: typography.fontSize.sm,
               padding: spacing[2],
             }}
@@ -1398,7 +1398,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ agents }) => {
           />
         </Form.Item>
 
-        <Divider style={{ borderColor: '#334155', margin: `${spacing[1]} 0` }} />
+        <Divider style={{ borderColor: '#e2e8f0', margin: `${spacing[1]} 0` }} />
 
         {/* Advanced Mode Toggle */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: spacing[2] as string }}>
