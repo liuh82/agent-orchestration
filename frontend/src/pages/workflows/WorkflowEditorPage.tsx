@@ -49,7 +49,7 @@ import { NODE_META } from '@/types/workflow';
 const EditorLayout = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: calc(100vh - 56px);
 `;
 
 const EditorBody = styled.div`
