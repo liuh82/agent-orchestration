@@ -7,7 +7,6 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { ErrorBlock } from '@/components/common/ErrorBlock';
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid';
 import { dashboardApi } from '@/api/dashboard';
-import { useAuthStore } from '@/stores/auth';
 
 const SkeletonCard = styled(Skeleton)`
   background: ${colors.surface.DEFAULT};
@@ -28,9 +27,6 @@ const SkeletonGrid = styled.div`
 `;
 
 export const DashboardPage = () => {
-  const user = useAuthStore((s) => s.user);
-  const isAdmin = user?.role === 'admin';
-
   const {
     data: statsResponse,
     isLoading: statsLoading,
@@ -38,7 +34,7 @@ export const DashboardPage = () => {
     error: statsErr,
     refetch: refetchStats,
   } = useQuery(['dashboard-stats'], () =>
-    isAdmin ? dashboardApi.getGlobalStats() : dashboardApi.getPersonalStats(),
+    dashboardApi.getPersonalStats(),
   );
 
   const {
