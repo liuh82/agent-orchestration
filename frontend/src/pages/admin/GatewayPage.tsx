@@ -621,7 +621,7 @@ export const GatewayPage: React.FC = () => {
             <Form.Item
               label={
                 <span>
-                  Bridge 类型 <Tooltip title={<BridgeTypeHelp />} placement="right">
+                  Bridge 类型 <Tooltip title={<BridgeTypeHelp />} placement="right" overlayStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}>
                     <span style={{ color: '#999', cursor: 'help' }}>ⓘ</span>
                   </Tooltip>
                 </span>
