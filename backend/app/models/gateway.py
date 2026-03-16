@@ -23,6 +23,14 @@ class BridgeRecord(Base):
     os_version: Mapped[Optional[str]] = mapped_column(String(100))
     node_version: Mapped[Optional[str]] = mapped_column(String(50))
     bridge_version: Mapped[Optional[str]] = mapped_column(String(50))
+    # Bridge configuration fields (user-defined)
+    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    bridge_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # websocket, http, grpc, stdio
+    host: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    port: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    protocol: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    auth_config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
     user_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default='offline')
     last_seen: Mapped[int] = mapped_column(Integer, nullable=False)

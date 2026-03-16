@@ -1,9 +1,11 @@
 """Bridge CRUD router — user-isolated bridge management."""
 import secrets
 import time
-from typing import Optional
+import uuid
+from typing import Optional, Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -15,14 +17,45 @@ from app.schemas.common import success_response, error_response
 
 router = APIRouter()
 
-# Gateway URL from config — TODO: read from settings/env
+# Gateway URL from config
 GATEWAY_WS_URL = getattr(settings, "GATEWAY_WS_URL", "ws://localhost:8765/ws/gateway")
+
+
+# ── Pydantic schemas ──────────────────────────────────────
+
+
+class BridgeCreateRequest(BaseModel):
+    """Request body for creating a Bridge."""
+    name: str = Field(..., min_length=1, max_length=255)
+    bridge_type: str = Field(..., pattern="^(websocket|http|grpc|stdio)$")
+    host: Optional[str] = Field(None, max_length=255)
+    port: Optional[int] = Field(None, ge=1, le=65535)
+    protocol: Optional[str] = Field(None, max_length=20)
+    auth_config: Optional[Dict[str, Any]] = None
+
+
+class BridgeUpdateRequest(BaseModel):
+    """Request body for updating a Bridge (all fields optional)."""
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    host: Optional[str] = Field(None, max_length=255)
+    port: Optional[int] = Field(None, ge=1, le=65535)
+    protocol: Optional[str] = Field(None, max_length=20)
+    auth_config: Optional[Dict[str, Any]] = None
+
+
+# ── Helpers ───────────────────────────────────────────────
 
 
 def _bridge_to_dict(b: BridgeRecord) -> dict:
     return {
         "id": b.id,
         "bridge_id": b.bridge_id,
+        "name": b.name,
+        "bridge_type": b.bridge_type,
+        "host": b.host,
+        "port": b.port,
+        "protocol": b.protocol,
+        "auth_config": b.auth_config,
         "platform": b.platform,
         "hostname": b.hostname,
         "os_version": b.os_version,
@@ -55,7 +88,7 @@ def _task_to_dict(t: TaskRecord) -> dict:
     }
 
 
-# ── GET /bridges ─────────────────────────────────────────────
+# ── GET /bridges ─────────────────────────────────────────
 
 
 @router.get("/")
@@ -70,19 +103,26 @@ def list_bridges(
     return success_response([_bridge_to_dict(b) for b in bridges])
 
 
-# ── POST /bridges ────────────────────────────────────────────
+# ── POST /bridges ────────────────────────────────────────
 
 
 @router.post("/")
 def create_bridge(
+    body: BridgeCreateRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    bridge_id = str(__import__("uuid").uuid4())
+    bridge_id = str(uuid.uuid4())
     api_key = secrets.token_urlsafe(32)
 
     bridge = BridgeRecord(
         bridge_id=bridge_id,
+        name=body.name,
+        bridge_type=body.bridge_type,
+        host=body.host,
+        port=body.port,
+        protocol=body.protocol,
+        auth_config=body.auth_config,
         platform="unknown",
         hostname="pending-registration",
         status="offline",
@@ -96,6 +136,8 @@ def create_bridge(
 
     return success_response({
         "bridge_id": bridge.bridge_id,
+        "name": bridge.name,
+        "bridge_type": bridge.bridge_type,
         "api_key": api_key,
         "ws_url": GATEWAY_WS_URL,
         "setup_command": f"npm install -g @liuh82/oc-bridge && oc-bridge setup --url {GATEWAY_WS_URL} --token {api_key}",
@@ -107,7 +149,7 @@ def create_bridge(
     })
 
 
-# ── GET /bridges/:id ────────────────────────────────────────
+# ── GET /bridges/:id ────────────────────────────────────
 
 
 @router.get("/{bridge_id}")
@@ -126,12 +168,13 @@ def get_bridge(
     return success_response(_bridge_to_dict(bridge))
 
 
-# ── PUT /bridges/:id ────────────────────────────────────────
+# ── PUT /bridges/:id ────────────────────────────────────
 
 
 @router.put("/{bridge_id}")
 def update_bridge(
     bridge_id: str,
+    body: BridgeUpdateRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -143,11 +186,18 @@ def update_bridge(
     if user.role != "admin" and getattr(bridge, "user_id", None) != user.id:
         return error_response(403, "无权限")
 
-    # Currently limited update — name/status changes via gateway heartbeat
+    update_data = body.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(bridge, field, value)
+
+    bridge.updated_at = int(time.time())
+    db.commit()
+    db.refresh(bridge)
+
     return success_response(_bridge_to_dict(bridge))
 
 
-# ── DELETE /bridges/:id ─────────────────────────────────────
+# ── DELETE /bridges/:id ─────────────────────────────────
 
 
 @router.delete("/{bridge_id}")
@@ -164,12 +214,26 @@ def delete_bridge(
     if user.role != "admin" and getattr(bridge, "user_id", None) != user.id:
         return error_response(403, "无权限")
 
+    # Disconnect if online
+    if bridge.status == "online":
+        try:
+            from app.routers.gateway import ws_server
+            if ws_server and ws_server.is_connected(bridge_id):
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.ensure_future(ws_server.disconnect(bridge_id))
+                else:
+                    loop.run_until_complete(ws_server.disconnect(bridge_id))
+        except Exception:
+            pass
+
     db.delete(bridge)
     db.commit()
     return success_response(None, "Bridge deleted")
 
 
-# ── GET /bridges/:id/tasks ──────────────────────────────────
+# ── GET /bridges/:id/tasks ──────────────────────────────
 
 
 @router.get("/{bridge_id}/tasks")
