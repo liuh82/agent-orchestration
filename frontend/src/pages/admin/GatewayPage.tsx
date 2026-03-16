@@ -64,11 +64,28 @@ const PROTOCOL_OPTIONS: Record<string, { label: string; value: string }[]> = {
 
 // Bridge 类型帮助说明
 const BridgeTypeHelp = () => (
-  <div style={{ fontSize: 12, color: '#666', lineHeight: 1.6 }}>
-    <div><strong>WebSocket</strong>：常用方式，支持双向实时通信，适用于远程服务器</div>
-    <div><strong>HTTP</strong>：RESTful API 方式，适用于轻量级或防火墙内连接</div>
-    <div><strong>gRPC</strong>：高性能二进制协议，适用于低延迟场景</div>
-    <div><strong>Stdio</strong>：本地进程标准输入输出，适用于本机调试或容器内通信</div>
+  <div style={{ fontSize: 12, color: '#666', lineHeight: 1.8, maxWidth: 420 }}>
+    <div style={{ marginBottom: 6, fontWeight: 600 }}>如何选择 Bridge 类型？</div>
+    <div style={{ marginBottom: 4 }}><strong style={{ color: '#1890ff' }}>WebSocket（推荐）</strong></div>
+    <div style={{ marginBottom: 8, paddingLeft: 8 }}>
+      最常用的方式。适用于在远程服务器、云主机、Docker 容器上部署 oc-bridge 连接到 Nexus。<br/>
+      <span style={{ color: '#999' }}>→ 推荐 <code>ws://</code> 内网通信，<code>wss://</code> 公网加密通信</span>
+    </div>
+    <div style={{ marginBottom: 4 }}><strong style={{ color: '#52c41a' }}>HTTP</strong></div>
+    <div style={{ marginBottom: 8, paddingLeft: 8 }}>
+      通过 RESTful API 与 Nexus 交互。适用于简单场景或已有 HTTP 代理的环境。<br/>
+      <span style={{ color: '#999' }}>→ 适合不需要实时推送的轻量级 Agent（如定时任务型）</span>
+    </div>
+    <div style={{ marginBottom: 4 }}><strong style={{ color: '#722ed1' }}>gRPC</strong></div>
+    <div style={{ marginBottom: 8, paddingLeft: 8 }}>
+      高性能二进制协议，延迟最低。适用于对性能要求极高的生产环境。<br/>
+      <span style={{ color: '#999' }}>→ 需要额外配置 TLS 证书，部署复杂度较高</span>
+    </div>
+    <div style={{ marginBottom: 4 }}><strong style={{ color: '#fa8c16' }}>Stdio</strong></div>
+    <div style={{ marginBottom: 4, paddingLeft: 8 }}>
+      通过标准输入输出与本机 Nexus 进程通信。适用于开发调试或单机部署。<br/>
+      <span style={{ color: '#999' }}>→ 仅限本机使用，命令示例：<code>oc-bridge start --stdio</code></span>
+    </div>
   </div>
 );
 
