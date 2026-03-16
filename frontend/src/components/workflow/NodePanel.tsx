@@ -39,13 +39,13 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   SendOutlined: <SendOutlined />,
 };
 
-/* ── Dark Theme Colors ── */
+/* ── Light Theme Colors ── */
 
-const DARK = {
+const LIGHT = {
   bg: '#ffffff',
   surface: '#f8fafc',
-  surfaceHover: '#0f172a',
-  border: '#0f172a',
+  surfaceHover: '#f1f5f9',
+  border: '#e2e8f0',
   borderHover: '#cbd5e1',
   text: '#0f172a',
   textMuted: '#94a3b8',
@@ -57,8 +57,8 @@ const DARK = {
 const PanelContainer = styled.div`
   width: 240px;
   min-width: 240px;
-  background: ${DARK.bg};
-  border-right: 1px solid ${DARK.border};
+  background: ${LIGHT.bg};
+  border-right: 1px solid ${LIGHT.border};
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -71,7 +71,7 @@ const PanelContainer = styled.div`
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
-    background: ${DARK.borderHover};
+    background: ${LIGHT.borderHover};
     border-radius: ${radius.full};
   }
 `;
@@ -80,17 +80,17 @@ const PanelHeader = styled.div`
   padding: ${spacing[4]} ${spacing[4]} ${spacing[3]};
   font-size: ${typography.fontSize.base};
   font-weight: ${typography.fontWeight.semibold};
-  color: ${DARK.text};
+  color: ${LIGHT.text};
   letter-spacing: ${typography.letterSpacing.wide};
-  border-bottom: 1px solid ${DARK.border};
+  border-bottom: 1px solid ${LIGHT.border};
 `;
 
 const StyledCollapse = styled(Collapse)`
-  background: ${DARK.bg};
+  background: ${LIGHT.bg};
   border: none;
 
   .ant-collapse-item {
-    border-bottom: 1px solid ${DARK.border};
+    border-bottom: 1px solid ${LIGHT.border};
     background: transparent;
 
     &:last-child {
@@ -101,18 +101,18 @@ const StyledCollapse = styled(Collapse)`
   .ant-collapse-header {
     align-items: center !important;
     padding: ${spacing[3]} ${spacing[3]} !important;
-    color: ${DARK.text} !important;
+    color: ${LIGHT.text} !important;
     font-size: ${typography.fontSize.sm} !important;
     font-weight: ${typography.fontWeight.medium} !important;
     transition: background 0.15s ease !important;
 
     &:hover {
-      background: ${DARK.surface} !important;
+      background: ${LIGHT.surface} !important;
     }
   }
 
   .ant-collapse-expand-icon {
-    color: ${DARK.textMuted} !important;
+    color: ${LIGHT.textMuted} !important;
 
     .anticon {
       font-size: 12px !important;
@@ -155,10 +155,10 @@ const NodeItem = styled.div<{ $color: string }>`
   padding: ${spacing[2]} ${spacing[3]};
   border-radius: ${radius.md};
   font-size: ${typography.fontSize.sm};
-  color: ${DARK.text};
+  color: ${LIGHT.text};
   cursor: grab;
   border: 1px solid transparent;
-  background: ${DARK.surface};
+  background: #f0f2f5;
   transition: all 0.15s ease;
   position: relative;
 
@@ -178,7 +178,7 @@ const NodeItem = styled.div<{ $color: string }>`
 
   &:hover {
     border-color: ${({ $color }) => $color};
-    background: ${DARK.surfaceHover};
+    background: ${LIGHT.surfaceHover};
 
     &::before {
       opacity: 1;

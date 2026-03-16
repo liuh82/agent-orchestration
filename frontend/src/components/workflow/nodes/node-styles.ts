@@ -23,10 +23,10 @@ export const NodeWrapper = styled.div<{
   min-width: 180px;
   min-height: 60px;
   background: ${NODE_BG};
-  border: 2px solid
-    ${({ $color, $selected, $isTrigger }) =>
-      $selected ? NODE_BORDER_SELECTED : $isTrigger ? $color : NODE_BORDER};
-  border-radius: ${radius.lg};
+  border: 1px solid ${({ $selected }) =>
+    $selected ? NODE_BORDER_SELECTED : NODE_BORDER};
+  border-radius: 10px;
+  border-left: 4px solid ${({ $color, $selected }) => $selected ? NODE_BORDER_SELECTED : $color};
   box-shadow: ${({ $selected }) =>
     $selected
       ? `0 0 0 2px ${NODE_BORDER_SELECTED}40, 0 2px 8px rgba(0,0,0,0.1)`
@@ -38,6 +38,10 @@ export const NodeWrapper = styled.div<{
   opacity: ${({ $disabled }) => ($disabled ? 0.5 : 1)};
   border-style: ${({ $disabled }) => ($disabled ? 'dashed' : 'solid')};
   transition: border-color 0.15s, box-shadow 0.15s;
+
+  &:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  }
 `;
 
 export const NodeHeader = styled.div`
@@ -79,10 +83,13 @@ export const NodeDesc = styled.div`
   max-width: 160px;
 `;
 
-export const HandleContainer = styled.div<{ $count: number }>`
+export const HandleContainer = styled.div`
+  display: flex;
+  justify-content: center;
   position: relative;
-  height: 20px;
+  height: 1px;
   width: 100%;
+  margin-top: 4px;
 `;
 
 export const HandleLabelTag = styled.span<{
@@ -107,12 +114,14 @@ export const sourceHandleStyle = (color: string) => ({
   background: color,
   width: 10,
   height: 10,
-  border: '2px solid #1e293b' as const,
+  border: '2px solid #e2e8f0' as const,
+  top: -5,
 });
 
 export const targetHandleStyle = {
-  background: '#64748b',
+  background: '#94a3b8',
   width: 10,
   height: 10,
-  border: '2px solid #1e293b' as const,
+  border: '2px solid #e2e8f0' as const,
+  bottom: -5,
 };

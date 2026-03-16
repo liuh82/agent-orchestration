@@ -55,13 +55,6 @@ export const BaseNode = memo(function BaseNode({
   const staticOutputs = meta?.handles.outputs ?? [];
   const allOutputs = [...staticOutputs, ...(extraOutputs ?? [])];
 
-  // Calculate handle positions for multiple outputs (evenly spread)
-  const getOutputLeft = (index: number, total: number): number => {
-    if (total === 0) return 50;
-    if (total === 1) return 50;
-    return ((index + 1) * 100) / (total + 1);
-  };
-
   const label = (data as Record<string, unknown>).label || meta?.label || type;
 
   return (
@@ -87,29 +80,44 @@ export const BaseNode = memo(function BaseNode({
 
       {description && <NodeDesc>{description}</NodeDesc>}
 
-      <HandleContainer $count={allOutputs.length}>
-        {allOutputs.map((output, i) => (
-          <div key={output.id} style={{ position: 'relative' }}>
-            <Handle
-              type="source"
-              position={Position.Bottom}
-              id={output.id}
+      <HandleContainer>
+        {allOutputs.length === 1 ? (
+          /* Single output: center */
+          <Handle
+            type="source"
+            position={Position.Bottom}
+            id={allOutputs[0].id}
+            style={sourceHandleStyle((allOutputs[0] as ExtraOutput).color || color)}
+          />
+        ) : (
+          /* Multiple outputs: spread evenly via flexbox */
+          allOutputs.map((output) => (
+            <div
+              key={output.id}
               style={{
-                ...sourceHandleStyle((output as ExtraOutput).color || color),
-                left: `${getOutputLeft(i, allOutputs.length)}%`,
-                position: 'absolute',
+                flex: 1,
+                display: 'flex',
+                justifyContent: 'center',
+                position: 'relative' as const,
               }}
-            />
-            {allOutputs.length > 1 && output.label && (
-              <HandleLabelTag
-                $color={(output as ExtraOutput).color || color}
-                $left={getOutputLeft(i, allOutputs.length)}
-              >
-                {output.label}
-              </HandleLabelTag>
-            )}
-          </div>
-        ))}
+            >
+              <Handle
+                type="source"
+                position={Position.Bottom}
+                id={output.id}
+                style={sourceHandleStyle((output as ExtraOutput).color || color)}
+              />
+              {output.label && (
+                <HandleLabelTag
+                  $color={(output as ExtraOutput).color || color}
+                  $left={100}
+                >
+                  {output.label}
+                </HandleLabelTag>
+              )}
+            </div>
+          ))
+        )}
       </HandleContainer>
     </NodeWrapper>
   );

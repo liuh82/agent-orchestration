@@ -46,12 +46,12 @@ import type {
 import { NODE_META as nodeMetaRegistry } from '@/types/workflow';
 
 /* ================================================================
- *  Styled Components (Dark Theme)
+ *  Styled Components (Light Theme)
  * ================================================================ */
 
 const Panel = styled.div`
-  width: 360px;
-  min-width: 360px;
+  width: 320px;
+  min-width: 320px;
   background: #ffffff;
   border-left: 1px solid #e2e8f0;
   display: flex;
@@ -90,7 +90,7 @@ const NodeIconBadge = styled.div<{ $color: string }>`
 const NodeTypeLabel = styled.span`
   font-size: ${typography.fontSize.base};
   font-weight: ${typography.fontWeight.semibold};
-  color: #e2e8f0;
+  color: #0f172a;
 `;
 
 const PanelBody = styled.div`
@@ -104,7 +104,7 @@ const PanelBody = styled.div`
 const SectionTitle = styled.div`
   font-size: ${typography.fontSize.sm};
   font-weight: ${typography.fontWeight.medium};
-  color: #94a3b8;
+  color: #334155;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: ${spacing[1]};
@@ -115,7 +115,7 @@ const AdvancedJsonArea = styled(Input.TextArea)`
   font-size: ${typography.fontSize.sm} !important;
   line-height: 1.6 !important;
   background: #f8fafc !important;
-  color: #e2e8f0 !important;
+  color: #0f172a !important;
   border-color: #e2e8f0 !important;
 
   &:focus {
@@ -146,10 +146,10 @@ const AddRowButton = styled(Button)`
 `;
 
 /* ================================================================
- *  Ant Design Dark Overrides
+ *  Ant Design Light Overrides
  * ================================================================ */
 
-const DARK_SELECT_STYLE: React.CSSProperties = {
+const LIGHT_SELECT_STYLE: React.CSSProperties = {
   background: '#f8fafc',
   borderColor: '#e2e8f0',
   color: '#0f172a',
@@ -300,7 +300,7 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
           placeholder="选择 Agent"
           size="small"
           options={agents.map((a) => ({ label: a.name, value: a.id }))}
-          style={DARK_SELECT_STYLE}
+          style={LIGHT_SELECT_STYLE}
           popupMatchSelectWidth={false}
         />
       )}
@@ -311,7 +311,7 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
           onChange={(e) => onUpdate({ prompt: e.target.value })}
           rows={4}
           placeholder="输入 Prompt，支持 {{变量名}} 语法"
-          style={DARK_SELECT_STYLE}
+          style={LIGHT_SELECT_STYLE}
         />
       </Form.Item>
 
@@ -322,7 +322,7 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
             onChange={(e) => onUpdate({ model: e.target.value })}
             placeholder="gpt-4, claude-3, etc."
             size="small"
-            style={DARK_SELECT_STYLE}
+            style={LIGHT_SELECT_STYLE}
           />
         </Form.Item>
       )}
@@ -345,7 +345,7 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
           min={1}
           max={128000}
           size="small"
-          style={{ width: '100%', ...DARK_SELECT_STYLE }}
+          style={{ width: '100%', ...LIGHT_SELECT_STYLE }}
         />
       </Form.Item>
 
@@ -356,7 +356,7 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
           min={1}
           max={3600}
           size="small"
-          style={{ width: '100%', ...DARK_SELECT_STYLE }}
+          style={{ width: '100%', ...LIGHT_SELECT_STYLE }}
         />
       </Form.Item>
     </div>
@@ -425,7 +425,7 @@ const IfForm: React.FC<IfFormProps> = ({ data, onUpdate }) => {
                   }
                   placeholder="字段"
                   size="small"
-                  style={DARK_SELECT_STYLE}
+                  style={LIGHT_SELECT_STYLE}
                 />
                 <Select
                   value={cond.operator}
@@ -434,7 +434,7 @@ const IfForm: React.FC<IfFormProps> = ({ data, onUpdate }) => {
                   }
                   size="small"
                   options={CONDITION_OPERATORS}
-                  style={{ width: '100%', ...DARK_SELECT_STYLE }}
+                  style={{ width: '100%', ...LIGHT_SELECT_STYLE }}
                 />
                 {!hideValue && (
                   <Input
@@ -444,7 +444,7 @@ const IfForm: React.FC<IfFormProps> = ({ data, onUpdate }) => {
                     }
                     placeholder="值"
                     size="small"
-                    style={DARK_SELECT_STYLE}
+                    style={LIGHT_SELECT_STYLE}
                   />
                 )}
               </div>
@@ -513,7 +513,7 @@ const SwitchForm: React.FC<SwitchFormProps> = ({ data, onUpdate }) => {
           onChange={(e) => onUpdate({ field: e.target.value })}
           placeholder="输入字段路径"
           size="small"
-          style={DARK_SELECT_STYLE}
+          style={LIGHT_SELECT_STYLE}
         />
       </Form.Item>
 
@@ -528,7 +528,7 @@ const SwitchForm: React.FC<SwitchFormProps> = ({ data, onUpdate }) => {
                 onChange={(e) => updateCase(index, { ...c, label: e.target.value })}
                 placeholder="分支标签"
                 size="small"
-                style={DARK_SELECT_STYLE}
+                style={LIGHT_SELECT_STYLE}
               />
               <div style={{ display: 'flex', gap: spacing[1] as string }}>
                 <Select
@@ -536,14 +536,14 @@ const SwitchForm: React.FC<SwitchFormProps> = ({ data, onUpdate }) => {
                   onChange={(val) => updateCase(index, { ...c, operator: val })}
                   size="small"
                   options={CONDITION_OPERATORS}
-                  style={{ width: '50%', ...DARK_SELECT_STYLE }}
+                  style={{ width: '50%', ...LIGHT_SELECT_STYLE }}
                 />
                 <Input
                   value={c.value}
                   onChange={(e) => updateCase(index, { ...c, value: e.target.value })}
                   placeholder="值"
                   size="small"
-                  style={{ width: '50%', ...DARK_SELECT_STYLE }}
+                  style={{ width: '50%', ...LIGHT_SELECT_STYLE }}
                 />
               </div>
             </div>
@@ -604,7 +604,7 @@ const LoopForm: React.FC<LoopFormProps> = ({ data, onUpdate }) => {
             min={1}
             max={10000}
             size="small"
-            style={{ width: '100%', ...DARK_SELECT_STYLE }}
+            style={{ width: '100%', ...LIGHT_SELECT_STYLE }}
           />
         </Form.Item>
       )}
@@ -616,7 +616,7 @@ const LoopForm: React.FC<LoopFormProps> = ({ data, onUpdate }) => {
             onChange={(e) => onUpdate({ listPath: e.target.value })}
             placeholder="例如: data.items"
             size="small"
-            style={DARK_SELECT_STYLE}
+            style={LIGHT_SELECT_STYLE}
           />
         </Form.Item>
       )}
@@ -628,7 +628,7 @@ const LoopForm: React.FC<LoopFormProps> = ({ data, onUpdate }) => {
           min={1}
           max={100000}
           size="small"
-          style={{ width: '100%', ...DARK_SELECT_STYLE }}
+          style={{ width: '100%', ...LIGHT_SELECT_STYLE }}
         />
       </Form.Item>
 
@@ -638,7 +638,7 @@ const LoopForm: React.FC<LoopFormProps> = ({ data, onUpdate }) => {
           onChange={(e) => onUpdate({ breakCondition: e.target.value || undefined })}
           placeholder="例如: result.done === true"
           size="small"
-          style={DARK_SELECT_STYLE}
+          style={LIGHT_SELECT_STYLE}
         />
       </Form.Item>
     </div>
@@ -680,7 +680,7 @@ const WaitForm: React.FC<WaitFormProps> = ({ data, onUpdate }) => {
             min={1}
             max={86400}
             size="small"
-            style={{ width: '100%', ...DARK_SELECT_STYLE }}
+            style={{ width: '100%', ...LIGHT_SELECT_STYLE }}
           />
         </Form.Item>
       )}
@@ -722,7 +722,7 @@ const CronTriggerForm: React.FC<CronTriggerFormProps> = ({ data, onUpdate }) => 
           onChange={(e) => onUpdate({ cronExpression: e.target.value })}
           placeholder="0 * * * *"
           size="small"
-          style={DARK_SELECT_STYLE}
+          style={LIGHT_SELECT_STYLE}
         />
       </Form.Item>
 
@@ -732,7 +732,7 @@ const CronTriggerForm: React.FC<CronTriggerFormProps> = ({ data, onUpdate }) => 
           onChange={(e) => onUpdate({ timezone: e.target.value })}
           placeholder="UTC"
           size="small"
-          style={DARK_SELECT_STYLE}
+          style={LIGHT_SELECT_STYLE}
         />
       </Form.Item>
     </div>
@@ -759,7 +759,7 @@ const WebhookTriggerForm: React.FC<WebhookTriggerFormProps> = ({ data, onUpdate 
           onChange={(val) => onUpdate({ method: val as WebhookTriggerNodeData['method'] })}
           size="small"
           options={WEBHOOK_METHODS.map((m) => ({ label: m, value: m }))}
-          style={DARK_SELECT_STYLE}
+          style={LIGHT_SELECT_STYLE}
         />
       </Form.Item>
 
@@ -769,7 +769,7 @@ const WebhookTriggerForm: React.FC<WebhookTriggerFormProps> = ({ data, onUpdate 
           onChange={(e) => onUpdate({ path: e.target.value })}
           placeholder="/webhook/my-workflow"
           size="small"
-          style={DARK_SELECT_STYLE}
+          style={LIGHT_SELECT_STYLE}
         />
       </Form.Item>
     </div>
@@ -817,7 +817,7 @@ const HttpRequestForm: React.FC<HttpRequestFormProps> = ({ data, onUpdate }) => 
             }
             size="small"
             options={HTTP_METHODS.map((m) => ({ label: m, value: m }))}
-            style={DARK_SELECT_STYLE}
+            style={LIGHT_SELECT_STYLE}
           />
         </Form.Item>
         <Form.Item label="URL" style={{ marginBottom: 0, width: '60%' }}>
@@ -826,7 +826,7 @@ const HttpRequestForm: React.FC<HttpRequestFormProps> = ({ data, onUpdate }) => 
             onChange={(e) => onUpdate({ url: e.target.value })}
             placeholder="https://api.example.com"
             size="small"
-            style={DARK_SELECT_STYLE}
+            style={LIGHT_SELECT_STYLE}
           />
         </Form.Item>
       </div>
@@ -836,7 +836,7 @@ const HttpRequestForm: React.FC<HttpRequestFormProps> = ({ data, onUpdate }) => 
           value={headersText}
           onChange={handleHeadersChange}
           rows={3}
-          style={{ ...DARK_SELECT_STYLE, fontFamily: typography.fontFamily.mono, fontSize: typography.fontSize.sm }}
+          style={{ ...LIGHT_SELECT_STYLE, fontFamily: typography.fontFamily.mono, fontSize: typography.fontSize.sm }}
         />
       </Form.Item>
 
@@ -846,7 +846,7 @@ const HttpRequestForm: React.FC<HttpRequestFormProps> = ({ data, onUpdate }) => 
           onChange={(e) => onUpdate({ body: e.target.value })}
           rows={4}
           placeholder="请求体 (JSON / text)"
-          style={{ ...DARK_SELECT_STYLE, fontFamily: typography.fontFamily.mono, fontSize: typography.fontSize.sm }}
+          style={{ ...LIGHT_SELECT_STYLE, fontFamily: typography.fontFamily.mono, fontSize: typography.fontSize.sm }}
         />
       </Form.Item>
 
@@ -857,7 +857,7 @@ const HttpRequestForm: React.FC<HttpRequestFormProps> = ({ data, onUpdate }) => 
           min={1}
           max={3600}
           size="small"
-          style={{ width: '100%', ...DARK_SELECT_STYLE }}
+          style={{ width: '100%', ...LIGHT_SELECT_STYLE }}
         />
       </Form.Item>
     </div>
@@ -886,7 +886,7 @@ const CodeForm: React.FC<CodeFormProps> = ({ data, onUpdate }) => {
           }
           size="small"
           options={CODE_LANGUAGES}
-          style={DARK_SELECT_STYLE}
+          style={LIGHT_SELECT_STYLE}
         />
       </Form.Item>
 
@@ -897,7 +897,7 @@ const CodeForm: React.FC<CodeFormProps> = ({ data, onUpdate }) => {
           rows={10}
           placeholder="在此输入代码..."
           style={{
-            ...DARK_SELECT_STYLE,
+            ...LIGHT_SELECT_STYLE,
             fontFamily: typography.fontFamily.mono,
             fontSize: typography.fontSize.sm,
           }}
@@ -911,7 +911,7 @@ const CodeForm: React.FC<CodeFormProps> = ({ data, onUpdate }) => {
           min={1}
           max={3600}
           size="small"
-          style={{ width: '100%', ...DARK_SELECT_STYLE }}
+          style={{ width: '100%', ...LIGHT_SELECT_STYLE }}
         />
       </Form.Item>
     </div>
@@ -965,7 +965,7 @@ const TransformForm: React.FC<TransformFormProps> = ({ data, onUpdate }) => {
                 }
                 placeholder="目标变量"
                 size="small"
-                style={{ width: '50%', ...DARK_SELECT_STYLE }}
+                style={{ width: '50%', ...LIGHT_SELECT_STYLE }}
               />
               <Input
                 value={m.sourceExpression}
@@ -974,7 +974,7 @@ const TransformForm: React.FC<TransformFormProps> = ({ data, onUpdate }) => {
                 }
                 placeholder="来源表达式"
                 size="small"
-                style={{ width: '50%', ...DARK_SELECT_STYLE }}
+                style={{ width: '50%', ...LIGHT_SELECT_STYLE }}
               />
             </div>
           </DynamicRowField>
@@ -1045,7 +1045,7 @@ const SubWorkflowForm: React.FC<SubWorkflowFormProps> = ({ data, onUpdate }) => 
           onChange={(e) => onUpdate({ workflowId: e.target.value })}
           placeholder="输入工作流 ID"
           size="small"
-          style={DARK_SELECT_STYLE}
+          style={LIGHT_SELECT_STYLE}
         />
       </Form.Item>
 
@@ -1055,7 +1055,7 @@ const SubWorkflowForm: React.FC<SubWorkflowFormProps> = ({ data, onUpdate }) => 
             value={data.workflowName}
             disabled
             size="small"
-            style={DARK_SELECT_STYLE}
+            style={LIGHT_SELECT_STYLE}
           />
         </Form.Item>
       )}
@@ -1067,7 +1067,7 @@ const SubWorkflowForm: React.FC<SubWorkflowFormProps> = ({ data, onUpdate }) => 
           min={1}
           max={20}
           size="small"
-          style={{ width: '100%', ...DARK_SELECT_STYLE }}
+          style={{ width: '100%', ...LIGHT_SELECT_STYLE }}
         />
       </Form.Item>
 
@@ -1084,7 +1084,7 @@ const SubWorkflowForm: React.FC<SubWorkflowFormProps> = ({ data, onUpdate }) => 
                 }
                 placeholder="来源路径"
                 size="small"
-                style={{ width: '50%', ...DARK_SELECT_STYLE }}
+                style={{ width: '50%', ...LIGHT_SELECT_STYLE }}
               />
               <Input
                 value={p.targetVar}
@@ -1093,7 +1093,7 @@ const SubWorkflowForm: React.FC<SubWorkflowFormProps> = ({ data, onUpdate }) => 
                 }
                 placeholder="目标变量"
                 size="small"
-                style={{ width: '50%', ...DARK_SELECT_STYLE }}
+                style={{ width: '50%', ...LIGHT_SELECT_STYLE }}
               />
             </div>
           </DynamicRowField>
@@ -1140,7 +1140,7 @@ const OutputForm: React.FC<OutputFormProps> = ({ data, onUpdate }) => {
           }
           size="small"
           options={OUTPUT_FORMATS}
-          style={DARK_SELECT_STYLE}
+          style={LIGHT_SELECT_STYLE}
         />
       </Form.Item>
 
@@ -1150,7 +1150,7 @@ const OutputForm: React.FC<OutputFormProps> = ({ data, onUpdate }) => {
           onChange={(e) => onUpdate({ outputPath: e.target.value || undefined })}
           placeholder="例如: /outputs/result.json"
           size="small"
-          style={DARK_SELECT_STYLE}
+          style={LIGHT_SELECT_STYLE}
         />
       </Form.Item>
     </div>
@@ -1394,7 +1394,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ agents }) => {
             onChange={handleLabelChange}
             placeholder="输入节点名称"
             size="small"
-            style={DARK_SELECT_STYLE}
+            style={LIGHT_SELECT_STYLE}
           />
         </Form.Item>
 

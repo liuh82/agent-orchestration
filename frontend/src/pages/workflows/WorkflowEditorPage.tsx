@@ -231,7 +231,7 @@ export const WorkflowEditorPage = () => {
       const newEdge = {
         ...params,
         animated: true,
-        style: { strokeWidth: 2, stroke: '#475569' },
+        style: { strokeWidth: 2, stroke: '#cbd5e1' },
         type: 'smoothstep' as const,
       };
       setLocalEdges((eds) => addEdge(newEdge, eds));
@@ -356,12 +356,12 @@ export const WorkflowEditorPage = () => {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  /* ── Default Edge Options (dark theme) ── */
+  /* ── Default Edge Options ── */
 
   const defaultEdgeOptions = useMemo(
     () => ({
       animated: true,
-      style: { strokeWidth: 2, stroke: '#475569' },
+      style: { strokeWidth: 2, stroke: '#cbd5e1' },
       type: 'smoothstep' as const,
     }),
     [],
@@ -401,7 +401,7 @@ export const WorkflowEditorPage = () => {
               nodeColor={(node) =>
                 NODE_META[node.type as WorkflowNodeType]?.color ?? '#64748b'
               }
-              style={{ background: '#0f172a', border: '1px solid #334155' }}
+              style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}
             />
           </ReactFlow>
         </CanvasWrapper>
