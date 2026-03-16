@@ -16,7 +16,21 @@ import { typography } from '@/styles/tokens/typography';
 import { workflowsApi } from '@/api/workflows';
 import { WorkflowWebSocket } from '@/utils/websocket';
 import { useWorkflowMonitorStore } from '@/stores/useWorkflowStore';
-import { AgentNode, ConditionNode, HumanNode, ParallelNode, TransformNode, NotificationNode, TimerNode } from '@/components/workflow/nodes';
+import {
+  ManualTriggerNode,
+  CronTriggerNode,
+  WebhookTriggerNode,
+  AgentNode,
+  IfNode,
+  SwitchNode,
+  LoopNode,
+  WaitNode,
+  SubWorkflowNode,
+  HttpRequestNode,
+  CodeNode,
+  TransformNode,
+  OutputNode,
+} from '@/components/workflow/nodes';
 import type { WsEvent } from '@/types/workflow';
 
 const MonitorLayout = styled.div`
@@ -99,13 +113,19 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const nodeTypes = {
+  manual_trigger: ManualTriggerNode,
+  cron_trigger: CronTriggerNode,
+  webhook_trigger: WebhookTriggerNode,
   agent: AgentNode,
-  condition: ConditionNode,
-  human: HumanNode,
-  parallel: ParallelNode,
+  if: IfNode,
+  switch: SwitchNode,
+  loop: LoopNode,
+  wait: WaitNode,
+  sub_workflow: SubWorkflowNode,
+  http_request: HttpRequestNode,
+  code: CodeNode,
   transform: TransformNode,
-  notification: NotificationNode,
-  timer: TimerNode,
+  output: OutputNode,
 };
 
 export const WorkflowMonitorPage = () => {

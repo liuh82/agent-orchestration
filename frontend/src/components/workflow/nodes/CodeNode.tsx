@@ -1,23 +1,23 @@
 import { memo } from 'react';
 import { type NodeProps } from '@xyflow/react';
-import { RobotOutlined } from '@ant-design/icons';
+import { CodeOutlined } from '@ant-design/icons';
 import { BaseNode } from './BaseNode';
-import type { AgentNodeData } from '@/types/workflow';
+import type { CodeNodeData } from '@/types/workflow';
 
-export const AgentNode = memo(function AgentNode({
+export const CodeNode = memo(function CodeNode({
   data,
   selected,
   type,
 }: NodeProps) {
-  const d = data as unknown as AgentNodeData;
-  const description = d.model || d.agentType || undefined;
+  const d = data as unknown as CodeNodeData;
+  const description = d.language || undefined;
 
   return (
     <BaseNode
       data={data}
       selected={selected}
       type={type}
-      icon={<RobotOutlined />}
+      icon={<CodeOutlined />}
       description={description}
     />
   );

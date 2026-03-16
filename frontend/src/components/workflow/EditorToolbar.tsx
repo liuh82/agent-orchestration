@@ -6,6 +6,8 @@ import {
   SaveOutlined,
   UndoOutlined,
   RedoOutlined,
+  ImportOutlined,
+  ExportOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -62,6 +64,40 @@ export const EditorToolbar = ({ onSave, isSaving }: EditorToolbarProps) => {
   const [templateForm] = Form.useForm();
   const [executing, setExecuting] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
+
+  const handleExport = () => {
+    const def = useWorkflowStore.getState().saveDefinition();
+    const blob = new Blob([JSON.stringify(def, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${def.name || 'workflow'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    void message.success('导出成功');
+  };
+
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const json = ev.target?.result as string;
+        try {
+          useWorkflowStore.getState().loadDefinition(json);
+          void message.success('导入成功');
+        } catch {
+          void message.error('导入失败：无效的 JSON 格式');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
 
   const handleExecute = async () => {
     if (!workflowId) {
@@ -120,6 +156,12 @@ export const EditorToolbar = ({ onSave, isSaving }: EditorToolbarProps) => {
           <WorkflowName>{workflowName || '未命名工作流'}</WorkflowName>
         </Left>
         <Right>
+          <Tooltip title="导入 JSON">
+            <Button type="text" size="small" icon={<ImportOutlined />} onClick={handleImport} />
+          </Tooltip>
+          <Tooltip title="导出 JSON">
+            <Button type="text" size="small" icon={<ExportOutlined />} onClick={handleExport} />
+          </Tooltip>
           <Tooltip title="撤销 (Ctrl+Z)">
             <Button type="text" size="small" icon={<UndoOutlined />} onClick={undo} />
           </Tooltip>

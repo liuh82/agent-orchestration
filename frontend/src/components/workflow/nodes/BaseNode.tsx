@@ -1,58 +1,116 @@
 import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import styled from 'styled-components';
-import { colors } from '@/styles/tokens/color';
-import { spacing } from '@/styles/tokens/spacing';
-import { typography } from '@/styles/tokens/typography';
-import { radius } from '@/styles/tokens/radius';
-import type { WorkflowNodeData } from '@/types/workflow';
+import {
+  NodeWrapper,
+  NodeHeader,
+  NodeIconWrapper,
+  NodeLabel,
+  NodeDesc,
+  HandleContainer,
+  HandleLabelTag,
+  sourceHandleStyle,
+  targetHandleStyle,
+} from './node-styles';
+import {
+  NODE_META,
+  type WorkflowNodeType,
+  type HandleDefinition,
+} from '@/types/workflow';
 
-const NodeWrapper = styled.div<{ $color: string; $selected?: boolean }>`
-  min-width: 180px;
-  min-height: 80px;
-  background: ${colors.surface.DEFAULT};
-  border: 2px solid ${({ $color }) => $color};
-  border-radius: ${radius.lg};
-  box-shadow: ${({ $selected }) => $selected ? `0 0 0 2px ${colors.primary[500]}, 0 4px 12px rgba(0,0,0,0.1)` : '0 2px 8px rgba(0,0,0,0.06)'};
-  padding: ${spacing[3]} ${spacing[4]};
-  display: flex;
-  flex-direction: column;
-  gap: ${spacing[1]};
-`;
+/* ── Extra output handle (for dynamic cases like Switch) ── */
 
-const NodeLabel = styled.div<{ $color: string }>`
-  font-size: ${typography.fontSize.sm};
-  font-weight: ${typography.fontWeight.semibold};
-  color: ${({ $color }) => $color};
-  display: flex;
-  align-items: center;
-  gap: ${spacing[2]};
-`;
-
-const NodeDesc = styled.div`
-  font-size: 12px;
-  color: ${colors.text.secondary};
-  line-height: 1.4;
-`;
-
-interface BaseNodeProps {
-  data: WorkflowNodeData;
-  color: string;
-  icon: React.ReactNode;
-  description?: string;
-  selected?: boolean;
+export interface ExtraOutput extends HandleDefinition {
+  color?: string;
 }
 
-export const BaseNode = memo(({ data, color, icon, description, selected }: BaseNodeProps) => (
-  <NodeWrapper $color={color} $selected={selected}>
-    <Handle type="target" position={Position.Top} style={{ background: color, width: 8, height: 8, border: '2px solid white' }} />
-    <NodeLabel $color={color}>
-      {icon}
-      {data.label || '未命名'}
-    </NodeLabel>
-    {description && <NodeDesc>{description}</NodeDesc>}
-    <Handle type="source" position={Position.Bottom} style={{ background: color, width: 8, height: 8, border: '2px solid white' }} />
-  </NodeWrapper>
-));
+/* ── BaseNode Props ── */
 
-BaseNode.displayName = 'BaseNode';
+interface BaseNodeProps {
+  data: Record<string, unknown>;
+  selected?: boolean;
+  type: string;
+  disabled?: boolean;
+  icon: React.ReactNode;
+  description?: string;
+  extraOutputs?: ExtraOutput[];
+}
+
+/* ── BaseNode Component ── */
+
+export const BaseNode = memo(function BaseNode({
+  data,
+  selected,
+  type,
+  disabled,
+  icon,
+  description,
+  extraOutputs,
+}: BaseNodeProps) {
+  const meta = NODE_META[type as WorkflowNodeType];
+  const color = meta?.color ?? '#64748b';
+  const isTrigger = meta?.category === 'trigger';
+  const hasInput = (meta?.handles.inputs.length ?? 0) > 0;
+
+  // Merge static outputs from NODE_META with dynamic extraOutputs
+  const staticOutputs = meta?.handles.outputs ?? [];
+  const allOutputs = [...staticOutputs, ...(extraOutputs ?? [])];
+
+  // Calculate handle positions for multiple outputs (evenly spread)
+  const getOutputLeft = (index: number, total: number): number => {
+    if (total === 0) return 50;
+    if (total === 1) return 50;
+    return ((index + 1) * 100) / (total + 1);
+  };
+
+  const label = (data as Record<string, unknown>).label || meta?.label || type;
+
+  return (
+    <NodeWrapper
+      $color={color}
+      $selected={selected}
+      $disabled={disabled}
+      $isTrigger={isTrigger}
+    >
+      {hasInput && (
+        <Handle
+          type="target"
+          position={Position.Top}
+          id={meta!.handles.inputs[0].id}
+          style={targetHandleStyle}
+        />
+      )}
+
+      <NodeHeader>
+        <NodeIconWrapper $color={color}>{icon}</NodeIconWrapper>
+        <NodeLabel>{label as string}</NodeLabel>
+      </NodeHeader>
+
+      {description && <NodeDesc>{description}</NodeDesc>}
+
+      <HandleContainer $count={allOutputs.length}>
+        {allOutputs.map((output, i) => (
+          <div key={output.id} style={{ position: 'relative' }}>
+            <Handle
+              type="source"
+              position={Position.Bottom}
+              id={output.id}
+              style={{
+                ...sourceHandleStyle((output as ExtraOutput).color || color),
+                left: `${getOutputLeft(i, allOutputs.length)}%`,
+                position: 'absolute',
+              }}
+            />
+            {allOutputs.length > 1 && output.label && (
+              <HandleLabelTag
+                $color={(output as ExtraOutput).color || color}
+                $left={getOutputLeft(i, allOutputs.length)}
+              >
+                {output.label}
+              </HandleLabelTag>
+            )}
+          </div>
+        ))}
+      </HandleContainer>
+    </NodeWrapper>
+  );
+});

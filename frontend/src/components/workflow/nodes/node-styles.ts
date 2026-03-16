@@ -1,0 +1,118 @@
+import styled from 'styled-components';
+import { spacing } from '@/styles/tokens/spacing';
+import { typography } from '@/styles/tokens/typography';
+import { radius } from '@/styles/tokens/radius';
+
+/* ── Canvas Dark Theme Color Tokens ── */
+
+export const NODE_BG = '#1e293b';
+export const NODE_BORDER = '#334155';
+export const NODE_BORDER_SELECTED = '#3b82f6';
+export const NODE_TEXT = '#f1f5f9';
+export const NODE_TEXT_SECONDARY = '#94a3b8';
+export const NODE_TEXT_MUTED = '#64748b';
+
+/* ── Shared Styled Components ── */
+
+export const NodeWrapper = styled.div<{
+  $color: string;
+  $selected?: boolean;
+  $disabled?: boolean;
+  $isTrigger?: boolean;
+}>`
+  min-width: 180px;
+  min-height: 60px;
+  background: ${NODE_BG};
+  border: 2px solid
+    ${({ $color, $selected, $isTrigger }) =>
+      $selected ? NODE_BORDER_SELECTED : $isTrigger ? $color : NODE_BORDER};
+  border-radius: ${radius.lg};
+  box-shadow: ${({ $selected }) =>
+    $selected
+      ? `0 0 0 2px ${NODE_BORDER_SELECTED}40, 0 4px 12px rgba(0,0,0,0.3)`
+      : '0 2px 8px rgba(0,0,0,0.2)'};
+  padding: ${spacing[2]} ${spacing[3]};
+  display: flex;
+  flex-direction: column;
+  gap: ${spacing[1]};
+  opacity: ${({ $disabled }) => ($disabled ? 0.5 : 1)};
+  border-style: ${({ $disabled }) => ($disabled ? 'dashed' : 'solid')};
+  transition: border-color 0.15s, box-shadow 0.15s;
+`;
+
+export const NodeHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${spacing[2]};
+  font-size: ${typography.fontSize.sm};
+  font-weight: ${typography.fontWeight.semibold};
+  color: ${NODE_TEXT};
+`;
+
+export const NodeIconWrapper = styled.div<{ $color: string }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: ${radius.md};
+  background: ${({ $color }) => `${$color}20`};
+  color: ${({ $color }) => $color};
+  font-size: 14px;
+  flex-shrink: 0;
+`;
+
+export const NodeLabel = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+`;
+
+export const NodeDesc = styled.div`
+  font-size: 11px;
+  color: ${NODE_TEXT_SECONDARY};
+  font-family: ${typography.fontFamily.mono};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+`;
+
+export const HandleContainer = styled.div<{ $count: number }>`
+  position: relative;
+  height: 20px;
+  width: 100%;
+`;
+
+export const HandleLabelTag = styled.span<{
+  $color: string;
+  $left: number;
+}>`
+  position: absolute;
+  bottom: -16px;
+  left: ${({ $left }) => $left}%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: ${({ $color }) => $color};
+  background: ${NODE_BG};
+  padding: 0 4px;
+  white-space: nowrap;
+  pointer-events: none;
+`;
+
+/* ── Handle Style Helpers ── */
+
+export const sourceHandleStyle = (color: string) => ({
+  background: color,
+  width: 10,
+  height: 10,
+  border: '2px solid #1e293b' as const,
+});
+
+export const targetHandleStyle = {
+  background: '#64748b',
+  width: 10,
+  height: 10,
+  border: '2px solid #1e293b' as const,
+};

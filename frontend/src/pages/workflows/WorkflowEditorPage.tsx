@@ -1,18 +1,50 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { ReactFlow, Background, Controls, MiniMap, addEdge, useNodesState, useEdgesState, type Connection, type Edge, BackgroundVariant } from '@xyflow/react';
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  addEdge,
+  useNodesState,
+  useEdgesState,
+  type Connection,
+  type Edge,
+  type Node,
+  type NodeMouseHandler,
+  BackgroundVariant,
+} from '@xyflow/react';
 import dagre from 'dagre';
 import '@xyflow/react/dist/style.css';
 import { message } from 'antd';
 import styled from 'styled-components';
-import { colors } from '@/styles/tokens/color';
 import { useWorkflowStore } from '@/stores/useWorkflowStore';
 import { workflowsApi } from '@/api/workflows';
 import { EditorToolbar } from '@/components/workflow/EditorToolbar';
 import { NodePanel } from '@/components/workflow/NodePanel';
 import { NodeConfigPanel } from '@/components/workflow/NodeConfigPanel';
-import { AgentNode, ConditionNode, HumanNode, ParallelNode, TransformNode, NotificationNode, TimerNode } from '@/components/workflow/nodes';
-import type { WorkflowNodeType, WorkflowNodeData, WorkflowNode } from '@/types/workflow';
-import { NODE_TYPE_OPTIONS } from '@/types/workflow';
+import {
+  ManualTriggerNode,
+  CronTriggerNode,
+  WebhookTriggerNode,
+  AgentNode,
+  IfNode,
+  SwitchNode,
+  LoopNode,
+  WaitNode,
+  SubWorkflowNode,
+  HttpRequestNode,
+  CodeNode,
+  TransformNode,
+  OutputNode,
+} from '@/components/workflow/nodes';
+import type {
+  NodeDataRf,
+  WorkflowNodeType,
+  ReactFlowNode,
+} from '@/types/workflow';
+import { NODE_META } from '@/types/workflow';
+
+/* ── Styled Components ── */
 
 const EditorLayout = styled.div`
   display: flex;
@@ -28,26 +60,36 @@ const EditorBody = styled.div`
 
 const CanvasWrapper = styled.div`
   flex: 1;
-  background: #fafafa;
+  background: #0f172a;
 `;
 
-const nodeTypes = {
+/* ── Node Type Registration (13 nodes) ── */
+
+const nodeTypes: Record<string, any> = {
+  manual_trigger: ManualTriggerNode,
+  cron_trigger: CronTriggerNode,
+  webhook_trigger: WebhookTriggerNode,
   agent: AgentNode,
-  condition: ConditionNode,
-  human: HumanNode,
-  parallel: ParallelNode,
+  if: IfNode,
+  switch: SwitchNode,
+  loop: LoopNode,
+  wait: WaitNode,
+  sub_workflow: SubWorkflowNode,
+  http_request: HttpRequestNode,
+  code: CodeNode,
   transform: TransformNode,
-  notification: NotificationNode,
-  timer: TimerNode,
+  output: OutputNode,
 };
 
-const layoutGraph = (nodes: WorkflowNode[], edges: Edge[]) => {
+/* ── Dagre Auto-Layout (exported for toolbar / menu usage) ── */
+
+export const layoutGraph = (nodes: Node<NodeDataRf>[], edges: Edge[]): Node<NodeDataRf>[] => {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: 'TB', nodesep: 80, ranksep: 100 });
 
   nodes.forEach((node) => {
-    g.setNode(node.id, { width: 200, height: 100 });
+    g.setNode(node.id, { width: 220, height: 100 });
   });
   edges.forEach((edge) => {
     g.setEdge(edge.source, edge.target);
@@ -58,24 +100,42 @@ const layoutGraph = (nodes: WorkflowNode[], edges: Edge[]) => {
   return nodes.map((node) => {
     const pos = g.node(node.id);
     if (pos) {
-      return { ...node, position: { x: pos.x - 100, y: pos.y - 50 } };
+      return { ...node, position: { x: pos.x - 110, y: pos.y - 50 } };
     }
     return node;
   });
 };
 
+/* ── Helpers ── */
+
 const generateId = () => `node_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+/* ── Page Component ── */
 
 export const WorkflowEditorPage = () => {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { workflowId, workflowName, nodes, edges, setWorkflowId, setWorkflowName, addNode, setSelectedNodeId, loadDefinition, setEdges } = useWorkflowStore();
+  const {
+    workflowId,
+    nodes,
+    edges,
+    setWorkflowId,
+    setWorkflowName,
+    setWorkflowDescription,
+    setNodes,
+    setEdges,
+    addNode,
+    setSelectedNodeIds,
+    saveDefinition,
+    loadDefinition,
+  } = useWorkflowStore();
 
+  /* Local ReactFlow state (synced from store) */
   const [localNodes, setLocalNodes, onNodesChange] = useNodesState(nodes);
   const [localEdges, setLocalEdges, onEdgesChange] = useEdgesState(edges);
   const [isSaving, setIsSaving] = useState(false);
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
 
-  // Sync store → local
+  /* Sync store -> local ReactFlow state */
   useEffect(() => {
     setLocalNodes(nodes);
   }, [nodes, setLocalNodes]);
@@ -84,38 +144,51 @@ export const WorkflowEditorPage = () => {
     setLocalEdges(edges);
   }, [edges, setLocalEdges]);
 
-  // Load existing workflow if editing
+  /* Sync local changes back to store (for save/definition) */
+  useEffect(() => {
+    setNodes(localNodes);
+  }, [localNodes, setNodes]);
+
+  useEffect(() => {
+    setEdges(localEdges);
+  }, [localEdges, setEdges]);
+
+  /* Load existing workflow or template on mount */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
     const templateId = params.get('template');
+
     if (templateId) {
       workflowsApi.getTemplate(templateId).then((res: any) => {
         const def = res?.data?.definition;
-        if (def?.nodes && def?.edges) {
-          const laid = layoutGraph(def.nodes, def.edges);
-          loadDefinition(laid, def.edges);
+        if (def) {
+          const jsonStr = typeof def === 'string' ? def : JSON.stringify(def);
+          loadDefinition(jsonStr);
         }
       });
       return;
     }
+
     if (id) {
       setWorkflowId(id);
       workflowsApi.getById(id).then((res: any) => {
         const wf = res?.data ?? res;
         if (wf) {
           setWorkflowName(wf.name || '');
-          const def = wf.definition;
-          if (def?.nodes && def?.edges) {
-            const laid = layoutGraph(def.nodes, def.edges);
-            loadDefinition(laid, def.edges);
+          setWorkflowDescription(wf.description || '');
+          if (wf.definition) {
+            const jsonStr = typeof wf.definition === 'string'
+              ? wf.definition
+              : JSON.stringify(wf.definition);
+            loadDefinition(jsonStr);
           }
         }
       });
     }
   }, []);
 
-  // Load agents for config panel
+  /* Load agents for config panel */
   useEffect(() => {
     import('@/api/agents').then(({ agentApi }) => {
       agentApi.list().then((res: any) => {
@@ -125,24 +198,31 @@ export const WorkflowEditorPage = () => {
     });
   }, []);
 
+  /* ── Event Handlers ── */
+
   const onConnect = useCallback(
     (params: Connection) => {
-      setLocalEdges((eds) => addEdge({ ...params, animated: true, style: { strokeWidth: 2 } }, eds));
-      setEdges([...localEdges, { ...params, animated: true, style: { strokeWidth: 2 } } as any]);
+      const newEdge = {
+        ...params,
+        animated: true,
+        style: { strokeWidth: 2, stroke: '#475569' },
+        type: 'smoothstep' as const,
+      };
+      setLocalEdges((eds) => addEdge(newEdge, eds));
     },
-    [localEdges, setEdges, setLocalEdges],
+    [setLocalEdges],
   );
 
-  const onNodeClick = useCallback(
-    (_: any, node: any) => {
-      setSelectedNodeId(node.id);
+  const onNodeClick: NodeMouseHandler = useCallback(
+    (_event, node) => {
+      setSelectedNodeIds([node.id]);
     },
-    [setSelectedNodeId],
+    [setSelectedNodeIds],
   );
 
   const onPaneClick = useCallback(() => {
-    setSelectedNodeId(null);
-  }, [setSelectedNodeId]);
+    setSelectedNodeIds([]);
+  }, [setSelectedNodeIds]);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -155,23 +235,22 @@ export const WorkflowEditorPage = () => {
       const type = event.dataTransfer.getData('application/reactflow') as WorkflowNodeType;
       if (!type) return;
 
+      const meta = NODE_META[type];
+      if (!meta) return;
+
       const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
       if (!reactFlowBounds) return;
 
       const position = {
-        x: event.clientX - reactFlowBounds.left - 100,
+        x: event.clientX - reactFlowBounds.left - 110,
         y: event.clientY - reactFlowBounds.top - 50,
       };
 
-      const opt = NODE_TYPE_OPTIONS.find((o) => o.value === type);
-      const newNode: WorkflowNode = {
+      const newNode: ReactFlowNode = {
         id: generateId(),
         type,
         position,
-        data: {
-          label: opt?.label ?? type,
-          nodeType: type,
-        } as WorkflowNodeData,
+        data: meta.defaultData() as NodeDataRf,
       };
 
       addNode(newNode);
@@ -179,12 +258,16 @@ export const WorkflowEditorPage = () => {
     [addNode],
   );
 
+  /* ── Save (Schema v1) ── */
+
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
+      const def = saveDefinition();
       const payload = {
-        name: workflowName || '未命名工作流',
-        definition: { nodes: localNodes, edges: localEdges },
+        name: def.name,
+        description: def.description,
+        definition: JSON.stringify(def),
       };
       if (workflowId) {
         await workflowsApi.update(workflowId, payload);
@@ -199,31 +282,66 @@ export const WorkflowEditorPage = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [workflowId, workflowName, localNodes, localEdges, setWorkflowId]);
+  }, [workflowId, saveDefinition, setWorkflowId]);
 
-  // Keyboard shortcuts
+  /* ── Keyboard Shortcuts ── */
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'z' && !e.shiftKey) {
-          e.preventDefault();
-          useWorkflowStore.getState().undo();
+      /* Skip when user is typing in an input/textarea */
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      /* Ctrl/Cmd + Z -> undo */
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        useWorkflowStore.getState().undo();
+        return;
+      }
+
+      /* Ctrl/Cmd + Shift + Z -> redo */
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        useWorkflowStore.getState().redo();
+        return;
+      }
+
+      /* Ctrl/Cmd + D -> duplicate selected node */
+      if ((e.key === 'd' || e.key === 'D') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        const ids = useWorkflowStore.getState().selectedNodeIds;
+        if (ids.length === 1) {
+          useWorkflowStore.getState().duplicateNode(ids[0]);
         }
-        if (e.key === 'z' && e.shiftKey) {
+        return;
+      }
+
+      /* Delete / Backspace -> delete selected */
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const ids = useWorkflowStore.getState().selectedNodeIds;
+        if (ids.length > 0) {
           e.preventDefault();
-          useWorkflowStore.getState().redo();
+          useWorkflowStore.getState().deleteSelected();
         }
+        return;
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const defaultEdgeOptions = useMemo(() => ({
-    animated: true,
-    style: { strokeWidth: 2, stroke: colors.border.DEFAULT },
-    type: 'smoothstep',
-  }), []);
+  /* ── Default Edge Options (dark theme) ── */
+
+  const defaultEdgeOptions = useMemo(
+    () => ({
+      animated: true,
+      style: { strokeWidth: 2, stroke: '#475569' },
+      type: 'smoothstep' as const,
+    }),
+    [],
+  );
+
+  /* ── Render ── */
 
   return (
     <EditorLayout>
@@ -244,16 +362,20 @@ export const WorkflowEditorPage = () => {
             nodeTypes={nodeTypes}
             defaultEdgeOptions={defaultEdgeOptions}
             fitView
-            deleteKeyCode="Delete"
+            deleteKeyCode={null}
           >
-            <Background variant={BackgroundVariant.Dots} color="#d1d5db" gap={16} size={1} />
+            <Background
+              variant={BackgroundVariant.Dots}
+              color="#334155"
+              gap={20}
+              size={1}
+            />
             <Controls />
             <MiniMap
-              nodeColor={(node) => {
-                const opt = NODE_TYPE_OPTIONS.find((o) => o.value === node.type);
-                return opt?.color ?? '#999';
-              }}
-              style={{ background: '#fafafa', border: '1px solid #e5e7eb' }}
+              nodeColor={(node) =>
+                NODE_META[node.type as WorkflowNodeType]?.color ?? '#64748b'
+              }
+              style={{ background: '#0f172a', border: '1px solid #334155' }}
             />
           </ReactFlow>
         </CanvasWrapper>

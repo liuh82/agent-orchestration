@@ -4,9 +4,21 @@ import { SwapOutlined } from '@ant-design/icons';
 import { BaseNode } from './BaseNode';
 import type { TransformNodeData } from '@/types/workflow';
 
-export const TransformNode = memo(({ data, selected }: NodeProps) => {
+export const TransformNode = memo(function TransformNode({
+  data,
+  selected,
+  type,
+}: NodeProps) {
   const d = data as unknown as TransformNodeData;
-  const desc = d.description || d.transformType || '数据转换';
-  return <BaseNode data={d} color="#06b6d4" icon={<SwapOutlined />} description={desc} selected={selected} />;
+  const description = `${d.mappings.length} mappings`;
+
+  return (
+    <BaseNode
+      data={data}
+      selected={selected}
+      type={type}
+      icon={<SwapOutlined />}
+      description={description}
+    />
+  );
 });
-TransformNode.displayName = 'TransformNode';

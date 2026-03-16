@@ -1,21 +1,68 @@
 import api from './client';
+import type { WorkflowDefinition } from '@/types/workflow';
+
+// WorkflowDefinition is the schema v1 object used for the `definition` field in create/update payloads.
+// It is re-exported here for convenience.
+export type { WorkflowDefinition };
+
+export interface WorkflowCreatePayload {
+  name: string;
+  description?: string;
+  definition: string; // JSON.stringify(WorkflowDefinition)
+}
+
+export interface WorkflowUpdatePayload {
+  name?: string;
+  description?: string;
+  definition?: string;
+}
+
+export interface WorkflowListResponse {
+  items: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    status: string;
+    createdAt: string;
+    updatedAt?: string;
+  }>;
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface WorkflowDetailResponse {
+  id: string;
+  name: string;
+  description?: string;
+  definition: string; // JSON string of WorkflowDefinition
+  status: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowExecutePayload {
+  name?: string;
+  variables?: Record<string, unknown>;
+}
 
 export const workflowsApi = {
   list: () => api.get('/workflows') as Promise<any>,
 
-  create: (data: Record<string, unknown>) =>
+  create: (data: WorkflowCreatePayload) =>
     api.post('/workflows', data) as Promise<any>,
 
   getById: (id: string) =>
     api.get(`/workflows/${id}`) as Promise<any>,
 
-  update: (id: string, data: Record<string, unknown>) =>
+  update: (id: string, data: WorkflowUpdatePayload) =>
     api.put(`/workflows/${id}`, data) as Promise<any>,
 
   delete: (id: string) =>
     api.delete(`/workflows/${id}`) as Promise<any>,
 
-  execute: (id: string, data?: { name?: string }) =>
+  execute: (id: string, data?: WorkflowExecutePayload) =>
     api.post(`/workflows/${id}/execute`, data) as Promise<any>,
 
   /** 执行实例操作 */
