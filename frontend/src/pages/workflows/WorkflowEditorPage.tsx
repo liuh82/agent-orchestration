@@ -60,7 +60,7 @@ const EditorBody = styled.div`
 
 const CanvasWrapper = styled.div`
   flex: 1;
-  background: #0f172a;
+  background: #ffffff;
 `;
 
 /* ── Node Type Registration (13 nodes) ── */
@@ -142,7 +142,7 @@ export const WorkflowEditorPage = () => {
     if (contentEl) {
       contentEl.style.padding = '0';
       contentEl.style.overflow = 'hidden';
-      contentEl.style.background = '#0f172a';
+      contentEl.style.background = '#f5f5f5';
     }
     if (innerEl) {
       innerEl.style.maxWidth = 'none';
