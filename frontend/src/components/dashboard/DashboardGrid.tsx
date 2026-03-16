@@ -1,5 +1,3 @@
-
-import { ResponsiveGridLayout, useContainerWidth, verticalCompactor } from 'react-grid-layout';
 import styled from 'styled-components';
 import { colors } from '@/styles/tokens/color';
 import { spacing } from '@/styles/tokens/spacing';
@@ -13,14 +11,26 @@ import { AgentStatusCard } from './cards/AgentStatusCard';
 import { RecentTasksCard } from './cards/RecentTasksCard';
 import { useDashboardStore } from '@/stores/useDashboardStore';
 import type { CardType } from '@/stores/useDashboardStore';
-import 'react-grid-layout/css/styles.css';
+
+const Grid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: ${spacing[4]};
+  margin-bottom: ${spacing[4]};
+
+  @media (max-width: 996px) {
+    grid-template-columns: 1fr;
+  }
+`;
 
 const CardWrapper = styled.div`
   background: ${colors.surface.DEFAULT};
   border: 1px solid ${colors.border.DEFAULT};
   border-radius: ${radius.lg};
   padding: ${spacing[4]};
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
 `;
 
 const CardHeader = styled.div`
@@ -28,12 +38,18 @@ const CardHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   margin-bottom: ${spacing[3]};
+  flex-shrink: 0;
 `;
 
 const CardTitle = styled.span`
   font-size: 13px;
   font-weight: ${typography.fontWeight.medium};
   color: ${colors.text.secondary};
+`;
+
+const CardBody = styled.div`
+  flex: 1;
+  overflow: auto;
 `;
 
 const CARD_META: Record<string, { title: string }> = {
@@ -59,42 +75,28 @@ interface DashboardGridProps {
 }
 
 export const DashboardGrid = ({ cardData }: DashboardGridProps) => {
-  const { layouts, cards, collapsedCards } = useDashboardStore();
-  const { width, containerRef } = useContainerWidth();
-
-  const layoutItems = useMemo(() => {
-    return cards.map((card) => {
-      const Comp = CARD_COMPONENTS[card.type];
-      const meta = CARD_META[card.type];
-      const isCollapsed = collapsedCards.has(card.id);
-
-      return (
-        <CardWrapper key={card.id} style={isCollapsed ? { height: 60 } : undefined}>
-          <CardHeader>
-            <CardTitle>{meta?.title ?? card.type}</CardTitle>
-          </CardHeader>
-          {!isCollapsed && Comp && <Comp data={cardData[card.type]} />}
-        </CardWrapper>
-      );
-    });
-  }, [cards, cardData, collapsedCards]);
+  const { cards, collapsedCards } = useDashboardStore();
 
   return (
-    <div ref={containerRef as React.RefObject<HTMLDivElement>}>
-      <ResponsiveGridLayout
-        className="dashboard-grid"
-        layouts={layouts}
-        breakpoints={{ lg: 1200, md: 996, sm: 768 }}
-        cols={{ lg: 12, md: 10, sm: 6 }}
-        rowHeight={80}
-        width={width}
-        dragConfig={{ enabled: false }}
-        resizeConfig={{ enabled: false }}
-        compactor={verticalCompactor}
-        margin={[Number(spacing[4]), Number(spacing[4])]}
-      >
-        {layoutItems}
-      </ResponsiveGridLayout>
-    </div>
+    <Grid>
+      {cards.map((card) => {
+        const Comp = CARD_COMPONENTS[card.type];
+        const meta = CARD_META[card.type];
+        const isCollapsed = collapsedCards.has(card.id);
+
+        return (
+          <CardWrapper key={card.id}>
+            <CardHeader>
+              <CardTitle>{meta?.title ?? card.type}</CardTitle>
+            </CardHeader>
+            {!isCollapsed && (
+              <CardBody>
+                {Comp && <Comp data={cardData[card.type]} />}
+              </CardBody>
+            )}
+          </CardWrapper>
+        );
+      })}
+    </Grid>
   );
 };
