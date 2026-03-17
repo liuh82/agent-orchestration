@@ -25,6 +25,7 @@ import { colors } from '@/styles/tokens/color';
 import { spacing } from '@/styles/tokens/spacing';
 import { typography } from '@/styles/tokens/typography';
 import { useWorkflowStore } from '@/stores/useWorkflowStore';
+import { workflowsApi } from '@/api/workflows';
 import type {
   WorkflowNodeType,
   NodeData,
@@ -40,6 +41,7 @@ import type {
   CodeNodeData,
   TransformNodeData,
   SubWorkflowNodeData,
+  SubWorkflowOutputMapping,
   OutputNodeData,
   ContextOutputNodeData,
   ContextOutputTarget,
@@ -1134,55 +1136,148 @@ interface SubWorkflowFormProps {
 
 const SubWorkflowForm: React.FC<SubWorkflowFormProps> = ({ data, onUpdate }) => {
   const params: SubWorkflowParamMapping[] = data.parameterMapping ?? [];
+  const outputs: SubWorkflowOutputMapping[] = data.outputMappings ?? [];
+  const [workflowList, setWorkflowList] = useState<Array<{ id: string; name: string }>>([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [manualInput, setManualInput] = useState(false);
 
+  // Fetch workflow list on mount
+  useEffect(() => {
+    let cancelled = false;
+    setListLoading(true);
+    workflowsApi
+      .list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const items = res?.data?.items ?? res?.items ?? [];
+        setWorkflowList(items.map((w: any) => ({ id: w.id, name: w.name })));
+        if (items.length === 0) setManualInput(true);
+      })
+      .catch(() => {
+        if (!cancelled) setManualInput(true);
+      })
+      .finally(() => {
+        if (!cancelled) setListLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleWorkflowSelect = useCallback(
+    (workflowId: string) => {
+      const selected = workflowList.find((w) => w.id === workflowId);
+      onUpdate({
+        workflowId,
+        workflowName: selected?.name,
+      });
+    },
+    [workflowList, onUpdate],
+  );
+
+  // -- Param mappings --
   const addParam = useCallback(() => {
-    onUpdate({
-      parameterMapping: [...params, { sourcePath: '', targetVar: '' }],
-    });
+    onUpdate({ parameterMapping: [...params, { sourcePath: '', targetVar: '' }] });
   }, [params, onUpdate]);
 
   const removeParam = useCallback(
     (index: number) => {
-      onUpdate({
-        parameterMapping: params.filter((_, i) => i !== index),
-      });
+      onUpdate({ parameterMapping: params.filter((_, i) => i !== index) });
     },
     [params, onUpdate],
   );
 
   const updateParam = useCallback(
     (index: number, updated: SubWorkflowParamMapping) => {
-      onUpdate({
-        parameterMapping: params.map((p, i) => (i === index ? updated : p)),
-      });
+      onUpdate({ parameterMapping: params.map((p, i) => (i === index ? updated : p)) });
     },
     [params, onUpdate],
+  );
+
+  // -- Output mappings --
+  const addOutput = useCallback(() => {
+    onUpdate({ outputMappings: [...outputs, { sourceField: '', targetVar: '' }] });
+  }, [outputs, onUpdate]);
+
+  const removeOutput = useCallback(
+    (index: number) => {
+      onUpdate({ outputMappings: outputs.filter((_, i) => i !== index) });
+    },
+    [outputs, onUpdate],
+  );
+
+  const updateOutput = useCallback(
+    (index: number, updated: SubWorkflowOutputMapping) => {
+      onUpdate({ outputMappings: outputs.map((o, i) => (i === index ? updated : o)) });
+    },
+    [outputs, onUpdate],
   );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] as string }}>
       <SectionTitle>子工作流配置</SectionTitle>
 
-      <Form.Item label="Workflow ID" style={{ marginBottom: spacing[2] as string }}>
-        <Input
-          value={data.workflowId}
-          onChange={(e) => onUpdate({ workflowId: e.target.value })}
-          placeholder="输入工作流 ID"
-          size="small"
-          style={LIGHT_SELECT_STYLE}
-        />
-      </Form.Item>
-
-      {data.workflowName && (
-        <Form.Item label="Workflow 名称" style={{ marginBottom: spacing[2] as string }}>
+      {/* Workflow selector */}
+      {manualInput ? (
+        <Form.Item label="Workflow ID" style={{ marginBottom: spacing[2] as string }}>
           <Input
-            value={data.workflowName}
-            disabled
+            value={data.workflowId}
+            onChange={(e) => onUpdate({ workflowId: e.target.value })}
+            placeholder="输入工作流 ID"
             size="small"
             style={LIGHT_SELECT_STYLE}
           />
         </Form.Item>
+      ) : (
+        <Form.Item label="选择子工作流" style={{ marginBottom: spacing[2] as string }}>
+          <div style={{ display: 'flex', gap: spacing[1] as string }}>
+            <Select
+              value={data.workflowId || undefined}
+              onChange={handleWorkflowSelect}
+              placeholder="选择工作流"
+              size="small"
+              loading={listLoading}
+              showSearch
+              optionFilterProp="label"
+              options={workflowList.map((w) => ({ label: w.name, value: w.id }))}
+              style={{ flex: 1, ...LIGHT_SELECT_STYLE }}
+              popupMatchSelectWidth={false}
+            />
+            <Button size="small" onClick={() => setManualInput(true)} title="手动输入">
+              编辑
+            </Button>
+          </div>
+        </Form.Item>
       )}
+
+      {!manualInput && data.workflowName && (
+        <Form.Item label="工作流名称" style={{ marginBottom: spacing[2] as string }}>
+          <Input value={data.workflowName} disabled size="small" style={LIGHT_SELECT_STYLE} />
+        </Form.Item>
+      )}
+
+      <Form.Item label="执行模式" style={{ marginBottom: spacing[2] as string }}>
+        <Radio.Group
+          value={data.executionMode ?? 'sync'}
+          onChange={(e) => onUpdate({ executionMode: e.target.value })}
+          size="small"
+        >
+          <Radio.Button value="sync">同步等待</Radio.Button>
+          <Radio.Button value="async">异步触发</Radio.Button>
+        </Radio.Group>
+      </Form.Item>
+
+      <Form.Item label="失败策略" style={{ marginBottom: spacing[2] as string }}>
+        <Select
+          value={data.onError ?? 'stop'}
+          onChange={(val) => onUpdate({ onError: val as SubWorkflowNodeData['onError'] })}
+          size="small"
+          style={LIGHT_SELECT_STYLE}
+          options={[
+            { value: 'stop', label: '停止工作流' },
+            { value: 'skip', label: '跳过此节点' },
+            { value: 'retry', label: '重试' },
+          ]}
+        />
+      </Form.Item>
 
       <Form.Item label="最大嵌套深度" style={{ marginBottom: spacing[2] as string }}>
         <InputNumber
@@ -1195,27 +1290,24 @@ const SubWorkflowForm: React.FC<SubWorkflowFormProps> = ({ data, onUpdate }) => 
         />
       </Form.Item>
 
-      <SectionTitle>参数映射</SectionTitle>
+      {/* Parameter mappings */}
+      <SectionTitle>输入参数映射</SectionTitle>
 
       {params.map((p, index) => (
-        <DynamicRow key={index}>
+        <DynamicRow key={`param-${index}`}>
           <DynamicRowField>
             <div style={{ display: 'flex', gap: spacing[1] as string }}>
               <Input
                 value={p.sourcePath}
-                onChange={(e) =>
-                  updateParam(index, { ...p, sourcePath: e.target.value })
-                }
-                placeholder="来源路径"
+                onChange={(e) => updateParam(index, { ...p, sourcePath: e.target.value })}
+                placeholder="上游字段名"
                 size="small"
                 style={{ width: '50%', ...LIGHT_SELECT_STYLE }}
               />
               <Input
                 value={p.targetVar}
-                onChange={(e) =>
-                  updateParam(index, { ...p, targetVar: e.target.value })
-                }
-                placeholder="目标变量"
+                onChange={(e) => updateParam(index, { ...p, targetVar: e.target.value })}
+                placeholder="子工作流参数"
                 size="small"
                 style={{ width: '50%', ...LIGHT_SELECT_STYLE }}
               />
@@ -1230,13 +1322,44 @@ const SubWorkflowForm: React.FC<SubWorkflowFormProps> = ({ data, onUpdate }) => 
           />
         </DynamicRow>
       ))}
-      <AddRowButton
-        type="dashed"
-        size="small"
-        icon={<PlusOutlined />}
-        onClick={addParam}
-      >
-        添加参数映射
+      <AddRowButton type="dashed" size="small" icon={<PlusOutlined />} onClick={addParam}>
+        添加输入映射
+      </AddRowButton>
+
+      {/* Output mappings */}
+      <SectionTitle>输出映射</SectionTitle>
+
+      {outputs.map((o, index) => (
+        <DynamicRow key={`out-${index}`}>
+          <DynamicRowField>
+            <div style={{ display: 'flex', gap: spacing[1] as string }}>
+              <Input
+                value={o.sourceField}
+                onChange={(e) => updateOutput(index, { ...o, sourceField: e.target.value })}
+                placeholder="子工作流输出字段"
+                size="small"
+                style={{ width: '50%', ...LIGHT_SELECT_STYLE }}
+              />
+              <Input
+                value={o.targetVar}
+                onChange={(e) => updateOutput(index, { ...o, targetVar: e.target.value })}
+                placeholder="当前工作流变量"
+                size="small"
+                style={{ width: '50%', ...LIGHT_SELECT_STYLE }}
+              />
+            </div>
+          </DynamicRowField>
+          <DeleteRowButton
+            type="text"
+            danger
+            size="small"
+            icon={<MinusCircleOutlined />}
+            onClick={() => removeOutput(index)}
+          />
+        </DynamicRow>
+      ))}
+      <AddRowButton type="dashed" size="small" icon={<PlusOutlined />} onClick={addOutput}>
+        添加输出映射
       </AddRowButton>
     </div>
   );

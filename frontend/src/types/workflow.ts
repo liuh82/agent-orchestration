@@ -142,12 +142,20 @@ export interface SubWorkflowParamMapping {
   targetVar: string;
 }
 
+export interface SubWorkflowOutputMapping {
+  sourceField: string;
+  targetVar: string;
+}
+
 export interface SubWorkflowNodeData {
   label: string;
   workflowId: string;
   workflowName?: string;
   parameterMapping?: SubWorkflowParamMapping[];
+  outputMappings?: SubWorkflowOutputMapping[];
   maxDepth?: number;
+  executionMode?: 'sync' | 'async';
+  onError?: 'stop' | 'skip' | 'retry';
 }
 
 // --- Data Nodes ---
@@ -434,7 +442,10 @@ export const NODE_META: Record<WorkflowNodeType, NodeMeta> = {
       label: '子工作流',
       workflowId: '',
       parameterMapping: [],
+      outputMappings: [],
       maxDepth: 5,
+      executionMode: 'sync',
+      onError: 'stop',
     }),
     handles: {
       inputs: [{ id: 'source', type: 'target' }],
