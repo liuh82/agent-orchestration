@@ -1,95 +1,107 @@
 # Nexus 工作流改造 — 阶段6: 连线样式增强
 
 > 请在 agent-orchestration 项目根目录执行。
-> 无前置依赖，可与任何阶段并行执行。
+> 无前置依赖，可与阶段1-5并行执行。
 
 ## 必读文件
 1. CLAUDE.md — 项目规范
-2. `docs/dev-prompts/v2/workflow-node-redesign.md` — §4 连线样式规范
-3. `frontend/src/pages/workflows/WorkflowEditorPage.tsx` — 编辑器主页面
-4. `frontend/src/components/workflow/EditorToolbar.tsx` — 工具栏
-5. `frontend/src/types/workflow.ts` — WorkflowEdge 类型
+2. `docs/dev-prompts/v2/workflow-node-redesign.md` — §4 连线样式增强
+3. `frontend/src/types/workflow.ts` — 找到 EdgeData 或 edge 相关类型
+4. `frontend/src/pages/workflows/WorkflowEditorPage.tsx` — 编辑器主页面，找到 edgeTypes 和 defaultEdgeOptions
+5. `frontend/src/stores/useWorkflowStore.ts` — Store 中与 edges 相关的逻辑
 
 ## 任务目标
-增强工作流编辑器中的连线视觉表现，让不同类型的连线一眼可辨。
+增强工作流编辑器的连线视觉表现，让不同类型的连线有区分度。
 
-### 1. 连线类型配色
-根据 sourceHandle（连接端口）或 source node type，为连线设置不同颜色：
+### 1. 自定义 Edge 组件
+创建 `frontend/src/components/workflow/edges/` 目录：
 
-| 连线类型 | 颜色 | 虚线 | 说明 |
-|---------|------|------|------|
-| 普通数据流 | `#666`（灰色） | 实线 | 默认 |
-| fork 分支 | `#6366f1`（靛蓝） | 实线 | fork → 下游 |
-| join 合并 | `#6366f1`（靛蓝） | 实线 | 上游 → join |
-| 条件分支 true | `#22c55e`（绿色） | 实线 | if true / switch case |
-| 条件分支 false | `#ef4444`（红色） | 实线 | if false |
-| 条件默认 | `#f59e0b`（琥珀） | 虚线 | switch default |
-| 循环 body | `#06b6d4`（青色） | 实线 | loop body |
-| 循环 done | `#06b6d4`（青色） | 虚线 | loop done |
-| 上下文传递 | `#f59e0b`（琥珀） | 虚线 | context_output |
-| 错误/异常 | `#ef4444`（红色） | 虚线 | onError=skip 路径 |
+#### 1a. ConditionalEdge（条件连线）
+文件：`frontend/src/components/workflow/edges/ConditionalEdge.tsx`
 
-### 2. 实现
-在 `WorkflowEditorPage.tsx` 或单独新建 `edgeUtils.ts`：
+用于 if/switch 节点的条件分支连线：
+- 颜色：根据 sourceHandle 变化
+  - `true` / `case_0` → `#10b981`（绿色）
+  - `false` / `default` → `#ef4444`（红色）
+  - `case_1` ~ `case_N` → 循环使用调色板 `['#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899']`
+- 样式：虚线（strokeDasharray: "8 4"）
+- 标签：在连线中段显示条件文字（如 "true"、"case: 代码审查"）
+- 动画：流动效果（strokeDashoffset 动画）
 
+#### 1b. ParallelEdge（并行连线）
+文件：`frontend/src/components/workflow/edges/ParallelEdge.tsx`
+
+用于 parallel/fork/join 的并行分支连线：
+- 颜色：`#3b82f6`（蓝色）
+- 样式：实线但较粗（strokeWidth: 2.5）
+- 标签：显示分支索引（如 "Branch 0"、"Branch 1"）
+- 动画：脉冲效果（opacity 呼吸）
+
+#### 1c. NormalEdge（默认连线增强）
+文件：`frontend/src/components/workflow/edges/NormalEdge.tsx`
+
+替代现有默认连线，保持简洁但有品牌感：
+- 颜色：`#94a3b8`（slate-400）
+- 样式：实线（strokeWidth: 1.5）
+- 无标签、无动画
+- hover 时变为 `#64748b` 并显示 source → target 提示
+
+### 2. 类型定义
+在 `workflow.ts` 中添加：
 ```typescript
-export function getEdgeStyle(edge: Edge, nodes: Node[]): { stroke: string; animated?: boolean; strokeDasharray?: string } {
-    const sourceHandle = edge.sourceHandle || '';
-    const sourceNode = nodes.find(n => n.id === edge.source);
-    
-    // fork/join 分支
-    if (sourceHandle.startsWith('branch_')) {
-        return { stroke: '#6366f1' };
-    }
-    
-    // if 条件
-    if (sourceHandle === 'true') return { stroke: '#22c55e' };
-    if (sourceHandle === 'false') return { stroke: '#ef4444' };
-    
-    // switch case
-    if (sourceHandle.startsWith('case_')) return { stroke: '#22c55e' };
-    if (sourceHandle === 'default') return { stroke: '#f59e0b', strokeDasharray: '5 5' };
-    
-    // loop
-    if (sourceHandle === 'body') return { stroke: '#06b6d4' };
-    if (sourceHandle === 'done') return { stroke: '#06b6d4', strokeDasharray: '5 5' };
-    
-    // context_output
-    if (sourceNode?.type === 'context_output') {
-        return { stroke: '#f59e0b', strokeDasharray: '5 5' };
-    }
-    
-    // 默认
-    return { stroke: '#666' };
+export interface CustomEdgeData {
+    label?: string;
+    edgeType?: 'normal' | 'conditional' | 'parallel' | 'loop';
+    animated?: boolean;
+    color?: string;
+    sourceNodeType?: string;  // 用于自动推断 edgeType
 }
+
+// Edge 类型映射规则
+export const EDGE_TYPE_RULES: Record<string, string> = {
+    if: 'conditional',
+    switch: 'conditional',
+    parallel: 'parallel',
+    fork: 'parallel',
+    join: 'parallel',
+    loop: 'loop',
+};
 ```
 
-在 React Flow 的 defaultEdgeOptions 或每条 Edge 的 style 属性上应用。
+### 3. 编辑器注册
+在 `WorkflowEditorPage.tsx` 中：
+```typescript
+import { ConditionalEdge, ParallelEdge, NormalEdge } from '../components/workflow/edges';
 
-### 3. 连线标签（可选增强）
-对于条件分支，在连线上显示标签文字：
-- if true → "✓" 绿色
-- if false → "✗" 红色
-- switch case → case 名称
-- fork branch → "分支 N"
-- loop body → "循环体"
-- loop done → "完成"
+const edgeTypes = {
+    conditional: ConditionalEdge,
+    parallel: ParallelEdge,
+    normal: NormalEdge,
+};
+```
 
-使用 React Flow 的 `edgeTypes` 自定义带标签的 Edge 组件。
+### 4. Store 自动推断
+在 `useWorkflowStore.ts` 中，当添加 edge 时：
+1. 查找 source 节点的 type
+2. 根据 `EDGE_TYPE_RULES` 自动设置 edge 的 type
+3. 如果用户手动修改了 edge type，优先使用用户设置
 
-### 4. 工具栏图例
-在 EditorToolbar 底部或编辑器角落添加一个小图例，显示连线颜色含义。
+### 5. 连线交互增强
+- **右键连线**：弹出菜单（删除、更改颜色、更改类型）
+- **拖拽连线**：连接时高亮可连接的 handle
+- **选中连线**：显示 source → target 信息面板
 
 ## 完成标准
-- [ ] 不同类型的连线颜色正确区分
-- [ ] 条件分支连线实线/虚线正确
-- [ ] fork/join 连线靛蓝色
-- [ ] 可选：连线标签显示
-- [ ] 可选：图例
+- [ ] 3种自定义 Edge 组件创建完成
+- [ ] Edge 类型自动推断正常工作
+- [ ] 条件连线根据 sourceHandle 显示不同颜色和标签
+- [ ] 并行连线有分支标签
+- [ ] 编辑器中 edges 视觉区分明显
 - [ ] 前端 TypeScript 无类型错误
 - [ ] 不要 git commit
 
 ## 不要做的事
-- 不要修改后端任何文件
-- 不要修改节点的连线逻辑
+- 不要修改 backend/ 下任何文件
+- 不要修改现有的节点组件
+- 不要使用复杂的动画库（用 CSS animation 即可）
 - 不要 git commit
