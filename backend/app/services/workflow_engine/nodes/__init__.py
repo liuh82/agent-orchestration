@@ -18,3 +18,5 @@ from .sub_workflow_node import SubWorkflowNode
 from .http_node import HttpRequestNode
 from .code_node import CodeNode
 from .output_node import OutputNode
+from .fork import ForkNode
+from .join import JoinNode

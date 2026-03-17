@@ -27,7 +27,9 @@ _variable_resolvers: Dict[str, VariableResolver] = {}
 # Per-execution workflow definitions (needed for resume / loop handling)
 _execution_definitions: Dict[str, dict] = {}
 # Per-execution tracking of completed node IDs
-_completed_nodes: Dict[str, Set[str]] = set()
+_completed_nodes: Dict[str, Set[str]] = {}
+# Per-execution join node pending inputs: { execution_id: { join_node_id: { source_node_id: output } } }
+_pending_join_inputs: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
 
 class WorkflowEngine:
@@ -124,6 +126,7 @@ class WorkflowEngine:
 
         # 8. Schedule start nodes (fire-and-forget via asyncio task)
         _completed_nodes[execution_id] = set()
+        _pending_join_inputs[execution_id] = {}
 
         asyncio.create_task(
             self._schedule_nodes(
@@ -348,18 +351,6 @@ class WorkflowEngine:
         next_nodes = next_info["nodes"]
         routing = next_info.get("routing", {})
 
-        if not next_nodes:
-            # Publish progress and check completion
-            total_nodes = len([n for n in all_nodes if not n.get("disabled", False)])
-            await WorkflowEventPublisher.publish_progress(
-                execution_id,
-                current_node="",
-                completed_nodes=len(completed),
-                total_nodes=total_nodes,
-            )
-            self._check_completion(execution_id, db)
-            return
-
         # 11. Handle loop routing
         if node_type == "loop" and result.output_data:
             loop_done = result.output_data.get("done", False)
@@ -376,20 +367,66 @@ class WorkflowEngine:
         new_upstream = dict(upstream_outputs)
         new_upstream[node_id] = result.output_data or {}
 
-        # 13. Publish progress
-        total_nodes = len([n for n in all_nodes if not n.get("disabled", False)])
-        await WorkflowEventPublisher.publish_progress(
-            execution_id,
-            current_node=next_nodes[0]["id"] if next_nodes else "",
-            completed_nodes=len(completed),
-            total_nodes=total_nodes,
-        )
+        # 12a. Handle fork downstream: inject branch info per target
+        if node_type == "fork":
+            fork_mode = node_config.get("mode", "broadcast")
+            branch_data_list = node_config.get("branchData", [])
+            for e in outgoing:
+                handle = e.get("sourceHandle", "")
+                target_id = e.get("target") or e.get("to", "")
+                if handle.startswith("branch_"):
+                    branch_index = handle
+                    # In distribute mode, inject per-branch data
+                    if fork_mode == "distribute" and branch_data_list:
+                        idx = int(branch_index.split("_")[1])
+                        if idx < len(branch_data_list) and isinstance(branch_data_list[idx], dict):
+                            new_upstream["_fork_branch_data"] = branch_data_list[idx].get("data", "")
 
-        # 14. Schedule next nodes
-        await self._schedule_nodes(
-            execution_id, next_nodes, all_nodes, edges,
-            input_data, db, workflow_config, new_upstream,
-        )
+        # 12b. Handle join downstream: multi-input wait mechanism
+        # Check if any downstream node is a join — if so, use join-aware scheduling
+        join_targets = []
+        normal_targets = []
+        for next_node in next_nodes:
+            if next_node.get("type") == "join":
+                join_targets.append(next_node)
+            else:
+                normal_targets.append(next_node)
+
+        # Schedule non-join targets immediately
+        if normal_targets:
+            total_nodes = len([n for n in all_nodes if not n.get("disabled", False)])
+            await WorkflowEventPublisher.publish_progress(
+                execution_id,
+                current_node=normal_targets[0]["id"] if normal_targets else "",
+                completed_nodes=len(completed),
+                total_nodes=total_nodes,
+            )
+            await self._schedule_nodes(
+                execution_id, normal_targets, all_nodes, edges,
+                input_data, db, workflow_config, new_upstream,
+            )
+
+        # Handle join targets: accumulate inputs and fire when all upstreams complete
+        for join_node_def in join_targets:
+            join_node_id = join_node_def["id"]
+            await self._handle_join_upstream(
+                execution_id, join_node_id, join_node_def,
+                node_id, result, all_nodes, edges,
+                input_data, db, workflow_config, new_upstream, completed,
+            )
+
+        # If no targets at all, check completion
+        if not next_nodes:
+            total_nodes = len([n for n in all_nodes if not n.get("disabled", False)])
+            await WorkflowEventPublisher.publish_progress(
+                execution_id,
+                current_node="",
+                completed_nodes=len(completed),
+                total_nodes=total_nodes,
+            )
+            self._check_completion(execution_id, db)
+
+        return
 
     async def _handle_loop_body(
         self,
@@ -465,6 +502,83 @@ class WorkflowEngine:
                 execution_id, loop_def, all_nodes, edges,
                 input_data, db, new_upstream, workflow_config,
             )
+
+    async def _handle_join_upstream(
+        self,
+        execution_id: str,
+        join_node_id: str,
+        join_node_def: dict,
+        source_node_id: str,
+        source_result: NodeResult,
+        all_nodes: List[dict],
+        edges: List[dict],
+        input_data: dict,
+        db: Session,
+        workflow_config: Dict[str, Any],
+        upstream_outputs: Dict[str, Any],
+        completed: Set[str],
+    ):
+        """Accumulate inputs for a join node and execute it when all upstreams complete.
+
+        When a branch completes and its downstream is a join node, this method:
+        1. Stores the branch output in _pending_join_inputs
+        2. Counts how many upstream edges the join node has
+        3. When all upstreams have reported, executes the join node
+        """
+        # Initialize pending dict for this join node
+        if execution_id not in _pending_join_inputs:
+            _pending_join_inputs[execution_id] = {}
+        if join_node_id not in _pending_join_inputs[execution_id]:
+            _pending_join_inputs[execution_id][join_node_id] = {}
+
+        # Store this branch's output
+        _pending_join_inputs[execution_id][join_node_id][source_node_id] = (
+            source_result.output_data or {}
+        )
+
+        # Calculate how many incoming edges the join node has
+        incoming_edges = [
+            e for e in edges
+            if (e.get("target") or e.get("to", "")) == join_node_id
+        ]
+        total_upstream = len(incoming_edges)
+
+        # Count how many have reported
+        reported = len(_pending_join_inputs[execution_id][join_node_id])
+
+        logger.debug(
+            "Join node %s: %d/%d upstream branches completed",
+            join_node_id, reported, total_upstream,
+        )
+
+        # Check if join mode allows early execution
+        join_config = join_node_def.get("data", join_node_def.get("config", {}))
+        join_mode = join_config.get("mode", "all")
+
+        should_execute = False
+        if join_mode == "any":
+            should_execute = reported >= 1
+        elif join_mode == "n_of_m":
+            required = join_config.get("requiredCount", total_upstream)
+            should_execute = reported >= required
+        else:  # "all"
+            should_execute = reported >= total_upstream
+
+        if not should_execute:
+            return
+
+        # All required upstreams completed — execute the join node
+        branch_outputs = _pending_join_inputs[execution_id].pop(join_node_id, {})
+
+        # Build upstream for join: include all collected branch outputs
+        join_input_data = dict(input_data)
+        join_input_data["_branch_outputs"] = branch_outputs
+
+        # Execute the join node
+        await self._execute_node(
+            execution_id, join_node_def, all_nodes, edges,
+            join_input_data, db, upstream_outputs, workflow_config,
+        )
 
     def _get_next_nodes_v1(
         self,
@@ -768,6 +882,7 @@ class WorkflowEngine:
         _variable_resolvers.pop(execution_id, None)
         _execution_definitions.pop(execution_id, None)
         _completed_nodes.pop(execution_id, None)
+        _pending_join_inputs.pop(execution_id, None)
 
 
 # Global singleton
