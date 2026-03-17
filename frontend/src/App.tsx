@@ -22,6 +22,9 @@ const WorkflowEditorPage = React.lazy(() => import('@/pages/workflows/WorkflowEd
 const WorkflowMonitorPage = React.lazy(() => import('@/pages/workflows/WorkflowMonitorPage'));
 const TaskDetailPage = React.lazy(() => import('@/pages/tasks/TaskDetailPage'));
 
+// 懒加载页面 — Help
+const HelpPage = React.lazy(() => import('@/pages/HelpPage'));
+
 // 懒加载页面 — Settings
 const SettingsPage = React.lazy(() => import('@/pages/settings/SettingsPage'));
 const NotificationPage = React.lazy(() => import('@/pages/settings/NotificationPage'));
@@ -60,6 +63,7 @@ function App() {
               <Route path="workflows/monitor/:executionId" element={<WorkflowMonitorPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/notifications" element={<NotificationPage />} />
+              <Route path="help" element={<HelpPage />} />
             </Route>
 
             {/* 已登录 - 后台 */}

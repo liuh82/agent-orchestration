@@ -8,6 +8,7 @@ import {
   RedoOutlined,
   ImportOutlined,
   ExportOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -15,6 +16,7 @@ import { colors } from '@/styles/tokens/color';
 import { spacing } from '@/styles/tokens/spacing';
 import { useWorkflowStore } from '@/stores/useWorkflowStore';
 import { workflowsApi } from '@/api/workflows';
+import { WorkflowHelpContent } from '@/components/workflow/WorkflowHelpContent';
 
 const { TextArea } = Input;
 
@@ -69,6 +71,7 @@ export const EditorToolbar = ({ onSave, isSaving }: EditorToolbarProps) => {
   const [templateForm] = Form.useForm();
   const [executing, setExecuting] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const handleExport = () => {
     const def = useWorkflowStore.getState().saveDefinition();
@@ -182,6 +185,9 @@ export const EditorToolbar = ({ onSave, isSaving }: EditorToolbarProps) => {
           <Button size="small" type="primary" icon={<PlayCircleOutlined />} onClick={() => setExecuteModalOpen(true)}>
             生成流程
           </Button>
+          <Button size="small" type="text" icon={<QuestionCircleOutlined />} onClick={() => setHelpOpen(true)}>
+            帮助
+          </Button>
         </Right>
       </Toolbar>
 
@@ -227,6 +233,19 @@ export const EditorToolbar = ({ onSave, isSaving }: EditorToolbarProps) => {
             ]} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Help Modal */}
+      <Modal
+        title="工作流编辑器 — 使用帮助"
+        open={helpOpen}
+        onCancel={() => setHelpOpen(false)}
+        footer={null}
+        width={720}
+      >
+        <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          <WorkflowHelpContent />
+        </div>
       </Modal>
     </>
   );

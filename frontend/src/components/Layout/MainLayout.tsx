@@ -11,6 +11,7 @@ import {
   MenuUnfoldOutlined,
   UserOutlined,
   LogoutOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons';
 import styled from 'styled-components';
 import { useAuthStore } from '@/stores/auth';
@@ -169,6 +170,11 @@ const menuItems: MenuProps['items'] = [
     key: '/settings',
     icon: <SettingOutlined />,
     label: '设置',
+  },
+  {
+    key: '/help',
+    icon: <QuestionCircleOutlined />,
+    label: '帮助',
   },
 ];
 
