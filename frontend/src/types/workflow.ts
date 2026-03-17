@@ -21,7 +21,9 @@ export type WorkflowNodeType =
   | 'http_request'
   | 'code'
   | 'transform'
-  | 'output';
+  | 'output'
+  | 'context_output'
+  | 'result_output';
 
 /* ── 2. Node Category ── */
 
@@ -181,6 +183,29 @@ export interface OutputNodeData {
   outputPath?: string;
 }
 
+// --- Context Output Node ---
+
+export interface ContextOutputTarget {
+  field: 'summary' | 'notes' | 'context' | 'tags' | 'custom';
+  source: string;
+  template?: string;
+}
+
+export interface ContextOutputNodeData {
+  label: string;
+  targets: ContextOutputTarget[];
+  appendMode: boolean;
+}
+
+// --- Result Output Node ---
+
+export interface ResultOutputNodeData {
+  label: string;
+  outputFormat: 'json' | 'markdown' | 'plain_text' | 'structured';
+  resultField: string;
+  onComplete: 'mark_done' | 'mark_done_and_notify' | 'none';
+}
+
 /* ── 4. Node Data Union ── */
 
 export type NodeData =
@@ -197,7 +222,9 @@ export type NodeData =
   | HttpRequestNodeData
   | CodeNodeData
   | TransformNodeData
-  | OutputNodeData;
+  | OutputNodeData
+  | ContextOutputNodeData
+  | ResultOutputNodeData;
 
 /* ── 5. Handle Definitions ── */
 
@@ -475,6 +502,41 @@ export const NODE_META: Record<WorkflowNodeType, NodeMeta> = {
       outputs: [],
     },
   },
+
+  context_output: {
+    type: 'context_output',
+    label: '上下文输出',
+    category: 'output' as NodeCategory,
+    color: '#f59e0b',
+    icon: 'FileTextOutlined',
+    defaultData: (): ContextOutputNodeData => ({
+      label: '上下文输出',
+      targets: [],
+      appendMode: true,
+    }),
+    handles: {
+      inputs: [{ id: 'source', type: 'target' }],
+      outputs: [{ id: 'target', type: 'source' }],
+    },
+  },
+
+  result_output: {
+    type: 'result_output',
+    label: '结果输出',
+    category: 'output' as NodeCategory,
+    color: '#10b981',
+    icon: 'CheckCircleOutlined',
+    defaultData: (): ResultOutputNodeData => ({
+      label: '结果输出',
+      outputFormat: 'markdown',
+      resultField: 'result',
+      onComplete: 'mark_done',
+    }),
+    handles: {
+      inputs: [{ id: 'source', type: 'target' }],
+      outputs: [{ id: 'target', type: 'source' }],
+    },
+  },
 };
 
 /* ── 8. Node Categories (for sidebar panel) ── */
@@ -521,7 +583,7 @@ export const NODE_CATEGORIES: NodeCategoryDef[] = [
     key: 'output',
     label: '输出',
     color: '#ec4899',
-    nodeTypes: ['output'],
+    nodeTypes: ['output', 'context_output', 'result_output'],
   },
 ];
 

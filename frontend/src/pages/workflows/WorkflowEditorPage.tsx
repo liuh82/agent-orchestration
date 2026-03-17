@@ -37,6 +37,8 @@ import {
   CodeNode,
   TransformNode,
   OutputNode,
+  ContextOutputNode,
+  ResultOutputNode,
 } from '@/components/workflow/nodes';
 import type {
   NodeDataRf,
@@ -81,6 +83,8 @@ const nodeTypes: Record<string, any> = {
   code: CodeNode,
   transform: TransformNode,
   output: OutputNode,
+  context_output: ContextOutputNode,
+  result_output: ResultOutputNode,
 };
 
 /* ── Dagre Auto-Layout (exported for toolbar / menu usage) ── */

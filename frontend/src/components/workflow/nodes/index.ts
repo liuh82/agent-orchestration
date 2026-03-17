@@ -14,3 +14,5 @@ export { HttpRequestNode } from './HttpRequestNode';
 export { CodeNode } from './CodeNode';
 export { TransformNode } from './TransformNode';
 export { OutputNode } from './OutputNode';
+export { ContextOutputNode } from './ContextOutputNode';
+export { ResultOutputNode } from './ResultOutputNode';

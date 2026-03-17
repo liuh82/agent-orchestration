@@ -40,6 +40,9 @@ import type {
   TransformNodeData,
   SubWorkflowNodeData,
   OutputNodeData,
+  ContextOutputNodeData,
+  ContextOutputTarget,
+  ResultOutputNodeData,
   ConditionOperator,
   ConditionRule,
   SwitchCase,
@@ -1284,6 +1287,176 @@ const InputForm: React.FC<InputFormProps> = ({ data, onUpdate }) => {
 };
 
 /* ================================================================
+ *  Context Output Form
+ * ================================================================ */
+
+const CONTEXT_OUTPUT_FIELD_OPTIONS = [
+  { value: 'summary', label: '摘要 (summary)' },
+  { value: 'notes', label: '备注 (notes)' },
+  { value: 'context', label: '上下文 (context)' },
+  { value: 'tags', label: '标签 (tags)' },
+  { value: 'custom', label: '自定义 (custom)' },
+];
+
+interface ContextOutputFormProps {
+  data: ContextOutputNodeData;
+  onUpdate: (partial: Partial<ContextOutputNodeData>) => void;
+}
+
+const ContextOutputForm: React.FC<ContextOutputFormProps> = ({ data, onUpdate }) => {
+  const targets: ContextOutputTarget[] = data.targets ?? [];
+
+  const addTarget = useCallback(() => {
+    onUpdate({
+      targets: [...targets, { field: 'summary', source: '' }],
+    });
+  }, [targets, onUpdate]);
+
+  const removeTarget = useCallback(
+    (index: number) => {
+      onUpdate({ targets: targets.filter((_, i) => i !== index) });
+    },
+    [targets, onUpdate],
+  );
+
+  const updateTarget = useCallback(
+    (index: number, updated: ContextOutputTarget) => {
+      onUpdate({
+        targets: targets.map((t, i) => (i === index ? updated : t)),
+      });
+    },
+    [targets, onUpdate],
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] as string }}>
+      <SectionTitle>上下文输出配置</SectionTitle>
+
+      {targets.map((t, index) => (
+        <DynamicRow key={index}>
+          <DynamicRowField>
+            <div style={{ display: 'flex', gap: spacing[1] as string, marginBottom: spacing[1] as string }}>
+              <Select
+                value={t.field}
+                onChange={(val) =>
+                  updateTarget(index, { ...t, field: val as ContextOutputTarget['field'] })
+                }
+                size="small"
+                options={CONTEXT_OUTPUT_FIELD_OPTIONS}
+                style={{ width: '45%', ...LIGHT_SELECT_STYLE }}
+              />
+              <Input
+                value={t.source}
+                onChange={(e) => updateTarget(index, { ...t, source: e.target.value })}
+                placeholder="数据来源（如 input.title）"
+                size="small"
+                style={{ width: '55%', ...LIGHT_SELECT_STYLE }}
+              />
+            </div>
+            <Input
+              value={t.template ?? ''}
+              onChange={(e) => updateTarget(index, { ...t, template: e.target.value || undefined })}
+              placeholder="格式模板（可选，用 {{ value }} 引用）"
+              size="small"
+              style={{ ...LIGHT_SELECT_STYLE, fontFamily: typography.fontFamily.mono, fontSize: typography.fontSize.sm }}
+            />
+          </DynamicRowField>
+          <DeleteRowButton
+            type="text"
+            danger
+            size="small"
+            icon={<MinusCircleOutlined />}
+            onClick={() => removeTarget(index)}
+          />
+        </DynamicRow>
+      ))}
+      <AddRowButton
+        type="dashed"
+        size="small"
+        icon={<PlusOutlined />}
+        onClick={addTarget}
+      >
+        添加输出目标
+      </AddRowButton>
+
+      <Form.Item label="追加模式" style={{ marginBottom: 0 }}>
+        <Switch
+          checked={data.appendMode}
+          onChange={(checked) => onUpdate({ appendMode: checked })}
+          size="small"
+        />
+      </Form.Item>
+    </div>
+  );
+};
+
+/* ================================================================
+ *  Result Output Form
+ * ================================================================ */
+
+const RESULT_FORMAT_OPTIONS = [
+  { value: 'json', label: 'JSON' },
+  { value: 'markdown', label: 'Markdown' },
+  { value: 'plain_text', label: '纯文本' },
+  { value: 'structured', label: '结构化 (JSON)' },
+];
+
+const ON_COMPLETE_OPTIONS = [
+  { value: 'mark_done', label: '标记完成' },
+  { value: 'mark_done_and_notify', label: '标记完成 + 通知' },
+  { value: 'none', label: '不做操作' },
+];
+
+interface ResultOutputFormProps {
+  data: ResultOutputNodeData;
+  onUpdate: (partial: Partial<ResultOutputNodeData>) => void;
+}
+
+const ResultOutputForm: React.FC<ResultOutputFormProps> = ({ data, onUpdate }) => {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] as string }}>
+      <SectionTitle>结果输出配置</SectionTitle>
+
+      <Form.Item label="输出格式" style={{ marginBottom: spacing[2] as string }}>
+        <Select
+          value={data.outputFormat}
+          onChange={(val) =>
+            onUpdate({ outputFormat: val as ResultOutputNodeData['outputFormat'] })
+          }
+          size="small"
+          options={RESULT_FORMAT_OPTIONS}
+          style={LIGHT_SELECT_STYLE}
+        />
+      </Form.Item>
+
+      <Form.Item label="结果字段名" style={{ marginBottom: spacing[2] as string }}>
+        <Input
+          value={data.resultField}
+          onChange={(e) => onUpdate({ resultField: e.target.value })}
+          placeholder="result"
+          size="small"
+          style={LIGHT_SELECT_STYLE}
+        />
+      </Form.Item>
+
+      <Form.Item label="完成后动作" style={{ marginBottom: 0 }}>
+        <Radio.Group
+          value={data.onComplete}
+          onChange={(e) => onUpdate({ onComplete: e.target.value })}
+          size="small"
+        >
+          {ON_COMPLETE_OPTIONS.map((opt) => (
+            <Radio key={opt.value} value={opt.value}>
+              {opt.label}
+            </Radio>
+          ))}
+        </Radio.Group>
+      </Form.Item>
+    </div>
+  );
+};
+
+/* ================================================================
  *  Node Icon Map
  * ================================================================ */
 
@@ -1301,6 +1474,8 @@ import {
   GlobalOutlined,
   SendOutlined,
   SwapOutlined,
+  FileTextOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 
 import type { ReactNode } from 'react';
@@ -1320,6 +1495,8 @@ const NODE_ICON_MAP: Record<WorkflowNodeType, ReactNode> = {
   code: <CodeOutlined />,
   transform: <SwapOutlined />,
   output: <SendOutlined />,
+  context_output: <FileTextOutlined />,
+  result_output: <CheckCircleOutlined />,
 };
 
 /* ================================================================
@@ -1483,6 +1660,20 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ agents }) => {
         return (
           <OutputForm
             data={getTypedData<OutputNodeData>(nodeData)}
+            onUpdate={(partial) => updateNodeData(selectedNode.id, partial)}
+          />
+        );
+      case 'context_output':
+        return (
+          <ContextOutputForm
+            data={getTypedData<ContextOutputNodeData>(nodeData)}
+            onUpdate={(partial) => updateNodeData(selectedNode.id, partial)}
+          />
+        );
+      case 'result_output':
+        return (
+          <ResultOutputForm
+            data={getTypedData<ResultOutputNodeData>(nodeData)}
             onUpdate={(partial) => updateNodeData(selectedNode.id, partial)}
           />
         );
