@@ -40,12 +40,13 @@ import {
   ContextOutputNode,
   ResultOutputNode,
 } from '@/components/workflow/nodes';
+import { ConditionalEdge, ParallelEdge, NormalEdge } from '@/components/workflow/edges';
 import type {
   NodeDataRf,
   WorkflowNodeType,
   ReactFlowNode,
 } from '@/types/workflow';
-import { NODE_META } from '@/types/workflow';
+import { NODE_META, EDGE_TYPE_RULES } from '@/types/workflow';
 
 /* ── Styled Components ── */
 
@@ -85,6 +86,14 @@ const nodeTypes: Record<string, any> = {
   output: OutputNode,
   context_output: ContextOutputNode,
   result_output: ResultOutputNode,
+};
+
+/* ── Edge Type Registration ── */
+
+const edgeTypes: Record<string, any> = {
+  conditional: ConditionalEdge,
+  parallel: ParallelEdge,
+  normal: NormalEdge,
 };
 
 /* ── Dagre Auto-Layout (exported for toolbar / menu usage) ── */
@@ -234,15 +243,37 @@ export const WorkflowEditorPage = () => {
 
   const onConnect = useCallback(
     (params: Connection) => {
+      // Auto-infer edge type from source node type
+      const sourceNode = localNodes.find((n) => n.id === params.source);
+      const sourceNodeType = sourceNode?.type as WorkflowNodeType | undefined;
+      const inferredEdgeType = sourceNodeType ? EDGE_TYPE_RULES[sourceNodeType] : undefined;
+
+      let edgeType: string;
+      let edgeStyle: React.CSSProperties;
+
+      if (inferredEdgeType === 'conditional') {
+        edgeType = 'conditional';
+        edgeStyle = {};
+      } else if (inferredEdgeType === 'parallel') {
+        edgeType = 'parallel';
+        edgeStyle = {};
+      } else if (inferredEdgeType === 'loop') {
+        edgeType = 'conditional';
+        edgeStyle = {};
+      } else {
+        edgeType = 'normal';
+        edgeStyle = {};
+      }
+
       const newEdge = {
         ...params,
-        animated: true,
-        style: { strokeWidth: 2, stroke: '#cbd5e1' },
-        type: 'smoothstep' as const,
+        type: edgeType,
+        style: edgeStyle,
+        data: { sourceNodeType, sourceHandle: params.sourceHandle },
       };
       setLocalEdges((eds) => addEdge(newEdge, eds));
     },
-    [setLocalEdges],
+    [localNodes, setLocalEdges],
   );
 
   const onNodeClick: NodeMouseHandler = useCallback(
@@ -366,9 +397,8 @@ export const WorkflowEditorPage = () => {
 
   const defaultEdgeOptions = useMemo(
     () => ({
-      animated: true,
-      style: { strokeWidth: 2, stroke: '#cbd5e1' },
-      type: 'smoothstep' as const,
+      type: 'normal' as const,
+      style: { strokeWidth: 1.5, stroke: '#94a3b8' },
     }),
     [],
   );
@@ -392,6 +422,7 @@ export const WorkflowEditorPage = () => {
             onDrop={onDrop}
             onDragOver={onDragOver}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             defaultEdgeOptions={defaultEdgeOptions}
             fitView
             deleteKeyCode={null}

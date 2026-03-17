@@ -557,6 +557,26 @@ export const NODE_META: Record<WorkflowNodeType, NodeMeta> = {
   },
 };
 
+/* ── 7b. Edge Data & Type Rules ── */
+
+export interface CustomEdgeData {
+  label?: string;
+  edgeType?: 'normal' | 'conditional' | 'parallel' | 'loop';
+  animated?: boolean;
+  color?: string;
+  sourceNodeType?: string;
+  sourceHandle?: string;
+}
+
+export const EDGE_TYPE_RULES: Record<string, CustomEdgeData['edgeType']> = {
+  if: 'conditional',
+  switch: 'conditional',
+  parallel: 'parallel',
+  fork: 'parallel',
+  join: 'parallel',
+  loop: 'loop',
+};
+
 /* ── 8. Node Categories (for sidebar panel) ── */
 
 export interface NodeCategoryDef {

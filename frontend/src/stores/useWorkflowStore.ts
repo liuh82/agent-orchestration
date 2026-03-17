@@ -9,6 +9,7 @@ import type {
   WorkflowEdge,
   NodeRunStatus,
 } from '@/types/workflow';
+import { EDGE_TYPE_RULES } from '@/types/workflow';
 
 /* ================================================================
  *  Workflow Editor Store
@@ -215,17 +216,35 @@ export const useWorkflowStore = create<WorkflowEditorState>((set, get) => ({
         data: n.data as NodeDataRf,
         disabled: n.disabled,
       }));
-      const rfEdges: Edge[] = def.edges.map((e) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        sourceHandle: e.sourceHandle,
-        targetHandle: e.targetHandle,
-        label: e.label,
-        type: 'smoothstep',
-        animated: true,
-        style: { strokeWidth: 2 },
-      }));
+
+      // Build a node-type lookup for edge inference
+      const nodeTypeMap = new Map(def.nodes.map((n) => [n.id, n.type]));
+
+      const rfEdges: Edge[] = def.edges.map((e) => {
+        const sourceNodeType = nodeTypeMap.get(e.source);
+        const inferredType = sourceNodeType ? EDGE_TYPE_RULES[sourceNodeType] : undefined;
+
+        let edgeType: string;
+        if (inferredType === 'conditional' || inferredType === 'loop') {
+          edgeType = 'conditional';
+        } else if (inferredType === 'parallel') {
+          edgeType = 'parallel';
+        } else {
+          edgeType = 'normal';
+        }
+
+        return {
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
+          label: e.label,
+          type: edgeType,
+          data: { sourceNodeType, sourceHandle: e.sourceHandle },
+          style: {},
+        };
+      });
       set({
         workflowName: def.name,
         workflowDescription: def.description,
