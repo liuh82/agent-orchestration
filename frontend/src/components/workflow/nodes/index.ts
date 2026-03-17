@@ -3,6 +3,7 @@ export type { ExtraOutput } from './BaseNode';
 export { ManualTriggerNode } from './ManualTriggerNode';
 export { CronTriggerNode } from './CronTriggerNode';
 export { WebhookTriggerNode } from './WebhookTriggerNode';
+export { InputNode } from './InputNode';
 export { AgentNode } from './AgentNode';
 export { IfNode } from './IfNode';
 export { SwitchNode } from './SwitchNode';

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Button,
+  Checkbox,
   Divider,
   Form,
   Input,
@@ -8,6 +9,7 @@ import {
   Radio,
   Select,
   Slider,
+  Switch,
   message,
 } from 'antd';
 import {
@@ -26,6 +28,7 @@ import type {
   WorkflowNodeType,
   NodeData,
   AgentNodeData,
+  InputNodeData,
   IfNodeData,
   SwitchNodeData,
   LoopNodeData,
@@ -1158,6 +1161,129 @@ const OutputForm: React.FC<OutputFormProps> = ({ data, onUpdate }) => {
 };
 
 /* ================================================================
+ *  Input Form
+ * ================================================================ */
+
+const INPUT_SOURCE_OPTIONS = [
+  { value: 'project', label: '项目' },
+  { value: 'task', label: '任务' },
+  { value: 'manual', label: '手动输入' },
+  { value: 'upstream', label: '上游数据' },
+];
+
+const SOURCE_FIELD_OPTIONS: Record<string, Array<{ value: string; label: string }>> = {
+  project: [
+    { value: 'title', label: '项目名称' },
+    { value: 'description', label: '项目描述' },
+    { value: 'documents', label: '项目文档' },
+  ],
+  task: [
+    { value: 'title', label: '任务标题' },
+    { value: 'description', label: '任务描述' },
+    { value: 'requirements', label: '需求规格' },
+    { value: 'input_files', label: '输入文件' },
+  ],
+  manual: [],
+  upstream: [],
+};
+
+interface InputFormProps {
+  data: InputNodeData;
+  onUpdate: (partial: Partial<InputNodeData>) => void;
+}
+
+const InputForm: React.FC<InputFormProps> = ({ data, onUpdate }) => {
+  const source = data.source;
+  const availableFields = SOURCE_FIELD_OPTIONS[source] ?? [];
+
+  const handleSourceChange = useCallback(
+    (newSource: InputNodeData['source']) => {
+      const newFields = SOURCE_FIELD_OPTIONS[newSource]?.map((f) => f.value) ?? [];
+      onUpdate({
+        source: newSource,
+        fields: newFields,
+      });
+    },
+    [onUpdate],
+  );
+
+  const handleFieldsChange = useCallback(
+    (checkedValues: string[]) => {
+      onUpdate({ fields: checkedValues });
+    },
+    [onUpdate],
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] as string }}>
+      <SectionTitle>输入配置</SectionTitle>
+
+      <Form.Item label="数据来源" style={{ marginBottom: spacing[2] as string }}>
+        <Radio.Group
+          value={source}
+          onChange={(e) => handleSourceChange(e.target.value)}
+          size="small"
+        >
+          {INPUT_SOURCE_OPTIONS.map((opt) => (
+            <Radio.Button key={opt.value} value={opt.value}>
+              {opt.label}
+            </Radio.Button>
+          ))}
+        </Radio.Group>
+      </Form.Item>
+
+      {availableFields.length > 0 && (
+        <Form.Item label="提取字段" style={{ marginBottom: spacing[2] as string }}>
+          <Checkbox.Group
+            value={data.fields}
+            onChange={handleFieldsChange}
+            options={availableFields}
+          />
+        </Form.Item>
+      )}
+
+      {(source === 'project' || source === 'task') && (
+        <Form.Item label="包含附件文件" style={{ marginBottom: spacing[2] as string }}>
+          <Switch
+            checked={data.includeFiles}
+            onChange={(checked) => onUpdate({ includeFiles: checked })}
+            size="small"
+          />
+        </Form.Item>
+      )}
+
+      <Form.Item
+        label="组装模板（可选）"
+        style={{ marginBottom: spacing[2] as string }}
+        extra="用 {{ field }} 引用提取的字段"
+      >
+        <Input.TextArea
+          value={data.template ?? ''}
+          onChange={(e) => onUpdate({ template: e.target.value || undefined })}
+          rows={3}
+          placeholder="例如: 请根据 {{ title }} 和 {{ description }} 完成任务"
+          style={{
+            ...LIGHT_SELECT_STYLE,
+            fontFamily: typography.fontFamily.mono,
+            fontSize: typography.fontSize.sm,
+          }}
+        />
+      </Form.Item>
+
+      <Form.Item label="输出变量名" style={{ marginBottom: 0 }}>
+        <Input
+          value={data.outputAlias}
+          onChange={(e) => onUpdate({ outputAlias: e.target.value })}
+          placeholder="input"
+          size="small"
+          style={LIGHT_SELECT_STYLE}
+        />
+      </Form.Item>
+    </div>
+  );
+};
+
+/* ================================================================
  *  Node Icon Map
  * ================================================================ */
 
@@ -1165,6 +1291,7 @@ import {
   PlayCircleOutlined,
   ClockCircleOutlined,
   ApiOutlined,
+  FolderOpenOutlined,
   RobotOutlined,
   BranchesOutlined,
   ApartmentOutlined,
@@ -1182,6 +1309,7 @@ const NODE_ICON_MAP: Record<WorkflowNodeType, ReactNode> = {
   manual_trigger: <PlayCircleOutlined />,
   cron_trigger: <ClockCircleOutlined />,
   webhook_trigger: <ApiOutlined />,
+  input: <FolderOpenOutlined />,
   agent: <RobotOutlined />,
   if: <BranchesOutlined />,
   switch: <ApartmentOutlined />,
@@ -1313,6 +1441,13 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ agents }) => {
         return (
           <WebhookTriggerForm
             data={getTypedData<WebhookTriggerNodeData>(nodeData)}
+            onUpdate={(partial) => updateNodeData(selectedNode.id, partial)}
+          />
+        );
+      case 'input':
+        return (
+          <InputForm
+            data={getTypedData<InputNodeData>(nodeData)}
             onUpdate={(partial) => updateNodeData(selectedNode.id, partial)}
           />
         );

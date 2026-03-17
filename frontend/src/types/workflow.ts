@@ -11,6 +11,7 @@ export type WorkflowNodeType =
   | 'manual_trigger'
   | 'cron_trigger'
   | 'webhook_trigger'
+  | 'input'
   | 'agent'
   | 'if'
   | 'switch'
@@ -45,6 +46,17 @@ export interface WebhookTriggerNodeData {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   path: string;
   headers?: Record<string, string>;
+}
+
+// --- Input Node ---
+
+export interface InputNodeData {
+  label: string;
+  source: 'project' | 'task' | 'manual' | 'upstream';
+  fields: string[];
+  includeFiles: boolean;
+  template?: string;
+  outputAlias: string;
 }
 
 // --- Agent Node ---
@@ -175,6 +187,7 @@ export type NodeData =
   | ManualTriggerNodeData
   | CronTriggerNodeData
   | WebhookTriggerNodeData
+  | InputNodeData
   | AgentNodeData
   | IfNodeData
   | SwitchNodeData
@@ -257,6 +270,25 @@ export const NODE_META: Record<WorkflowNodeType, NodeMeta> = {
       method: 'POST',
       path: '/webhook/my-workflow',
       headers: {},
+    }),
+    handles: {
+      inputs: [],
+      outputs: [{ id: 'target', type: 'source' }],
+    },
+  },
+
+  input: {
+    type: 'input',
+    label: '输入',
+    category: 'trigger' as NodeCategory,
+    color: '#06b6d4',
+    icon: 'FolderOpenOutlined',
+    defaultData: (): InputNodeData => ({
+      label: '输入',
+      source: 'project',
+      fields: ['title', 'description'],
+      includeFiles: true,
+      outputAlias: 'input',
     }),
     handles: {
       inputs: [],
@@ -459,7 +491,7 @@ export const NODE_CATEGORIES: NodeCategoryDef[] = [
     key: 'trigger',
     label: '触发器',
     color: '#22c55e',
-    nodeTypes: ['manual_trigger', 'cron_trigger', 'webhook_trigger'],
+    nodeTypes: ['manual_trigger', 'cron_trigger', 'webhook_trigger', 'input'],
   },
   {
     key: 'agent',
