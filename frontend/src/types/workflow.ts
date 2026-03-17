@@ -73,6 +73,13 @@ export interface AgentNodeData {
   maxTokens?: number;
   timeout?: number;
   overridableFields?: string[];
+  // Advanced settings
+  maxRetries?: number;
+  onError?: 'stop' | 'skip' | 'retry' | 'fallback';
+  fallbackValue?: string;
+  outputFilter?: string[];
+  enableCache?: boolean;
+  cacheTTL?: number;
 }
 
 // --- Logic Nodes ---

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Checkbox,
+  Collapse,
   Divider,
   Form,
   Input,
@@ -355,7 +356,7 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
         />
       </Form.Item>
 
-      <Form.Item label="Timeout (秒)" style={{ marginBottom: 0 }}>
+      <Form.Item label="Timeout (秒)" style={{ marginBottom: spacing[2] as string }}>
         <InputNumber
           value={data.timeout}
           onChange={(val) => onUpdate({ timeout: val ?? 300 })}
@@ -365,6 +366,123 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
           style={{ width: '100%', ...LIGHT_SELECT_STYLE }}
         />
       </Form.Item>
+
+      <Collapse
+        ghost
+        size="small"
+        items={[
+          {
+            key: 'advanced',
+            label: '高级设置',
+            children: (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] as string }}>
+                <Form.Item label="最大重试次数" style={{ marginBottom: spacing[2] as string }}>
+                  <InputNumber
+                    value={data.maxRetries ?? 1}
+                    onChange={(val) => onUpdate({ maxRetries: val ?? 1 })}
+                    min={0}
+                    max={5}
+                    size="small"
+                    style={{ width: '100%', ...LIGHT_SELECT_STYLE }}
+                  />
+                </Form.Item>
+
+                <Form.Item label="失败策略" style={{ marginBottom: spacing[2] as string }}>
+                  <Select
+                    value={data.onError ?? 'stop'}
+                    onChange={(val) => {
+                      const onError = val as AgentNodeData['onError'];
+                      onUpdate({
+                        onError,
+                        // Clear fallbackValue when not fallback
+                        ...(onError !== 'fallback' ? { fallbackValue: undefined } : {}),
+                      });
+                    }}
+                    size="small"
+                    style={LIGHT_SELECT_STYLE}
+                    options={[
+                      { value: 'stop', label: '停止工作流' },
+                      { value: 'skip', label: '跳过此节点' },
+                      { value: 'retry', label: '重试' },
+                      { value: 'fallback', label: '使用回退值' },
+                    ]}
+                  />
+                </Form.Item>
+
+                {data.onError === 'fallback' && (
+                  <Form.Item label="回退值" style={{ marginBottom: spacing[2] as string }}>
+                    <Input.TextArea
+                      value={data.fallbackValue ?? ''}
+                      onChange={(e) => onUpdate({ fallbackValue: e.target.value })}
+                      rows={3}
+                      placeholder="Agent 执行失败时使用的回退值"
+                      style={LIGHT_SELECT_STYLE}
+                    />
+                  </Form.Item>
+                )}
+
+                <Form.Item
+                  label="输出过滤 (JSON)"
+                  style={{ marginBottom: spacing[2] as string }}
+                  extra='指定只输出哪些字段，如 ["result", "summary"]'
+                >
+                  <Input.TextArea
+                    value={data.outputFilter ? JSON.stringify(data.outputFilter) : ''}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      if (!raw) {
+                        onUpdate({ outputFilter: undefined });
+                        return;
+                      }
+                      try {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed)) {
+                          onUpdate({ outputFilter: parsed });
+                        }
+                      } catch {
+                        // Allow user to keep editing
+                      }
+                    }}
+                    rows={2}
+                    placeholder='["result", "summary"]'
+                    style={{
+                      ...LIGHT_SELECT_STYLE,
+                      fontFamily: typography.fontFamily.mono,
+                      fontSize: typography.fontSize.sm,
+                    }}
+                  />
+                </Form.Item>
+
+                <Form.Item label="启用缓存" style={{ marginBottom: spacing[2] as string }}>
+                  <Switch
+                    checked={data.enableCache ?? false}
+                    onChange={(checked) => {
+                      onUpdate({
+                        enableCache: checked,
+                        ...(checked ? {} : { cacheTTL: undefined }),
+                      });
+                    }}
+                    size="small"
+                  />
+                </Form.Item>
+
+                {data.enableCache && (
+                  <Form.Item label="缓存 TTL (秒)" style={{ marginBottom: 0 }}>
+                    <InputNumber
+                      value={data.cacheTTL ?? 3600}
+                      onChange={(val) => onUpdate({ cacheTTL: val ?? 3600 })}
+                      min={60}
+                      max={86400}
+                      size="small"
+                      style={{ width: '100%', ...LIGHT_SELECT_STYLE }}
+                    />
+                  </Form.Item>
+                )}
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 };
