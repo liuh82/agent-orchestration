@@ -50,12 +50,16 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // 跳过 auth 相关请求的自动刷新（避免 /auth/refresh 401 时递归）
+    if (originalRequest.url?.includes('/auth/')) {
+      return Promise.reject(error.response?.data || error);
+    }
+
     // 401: 尝试用 refresh_token 刷新 access_token
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       if (isRefreshing) {
-        // 其他请求排队等待刷新完成
         return new Promise((resolve, reject) => {
           pendingRequests.push({
             resolve: (token) => {

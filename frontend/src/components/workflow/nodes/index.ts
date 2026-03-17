@@ -15,4 +15,6 @@ export { CodeNode } from './CodeNode';
 export { TransformNode } from './TransformNode';
 export { OutputNode } from './OutputNode';
 export { ContextOutputNode } from './ContextOutputNode';
+export { ForkNode } from './ForkNode';
+export { JoinNode } from './JoinNode';
 export { ResultOutputNode } from './ResultOutputNode';

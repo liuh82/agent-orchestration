@@ -17,6 +17,8 @@ export type WorkflowNodeType =
   | 'switch'
   | 'loop'
   | 'wait'
+  | 'fork'
+  | 'join'
   | 'sub_workflow'
   | 'http_request'
   | 'code'
@@ -432,6 +434,45 @@ export const NODE_META: Record<WorkflowNodeType, NodeMeta> = {
     },
   },
 
+  fork: {
+    type: 'fork' as const,
+    label: 'Fork',
+    category: 'logic' as const,
+    color: '#3b82f6',
+    icon: 'BranchesOutlined',
+    defaultData: () => ({
+      label: 'Fork',
+      mode: 'broadcast' as const,
+      branchCount: 2,
+      branchData: [] as Array<{ label: string; data: string }>,
+    }),
+    handles: {
+      inputs: [{ id: 'source', type: 'target' }],
+      outputs: [
+        { id: 'branch_0', type: 'source' },
+        { id: 'branch_1', type: 'source' },
+      ],
+    },
+  },
+  join: {
+    type: 'join' as const,
+    label: 'Join',
+    category: 'logic' as const,
+    color: '#3b82f6',
+    icon: 'ApartmentOutlined',
+    defaultData: () => ({
+      label: 'Join',
+      mode: 'all' as const,
+      mergeStrategy: 'append' as const,
+      timeout: 3600,
+      onTimeout: 'continue_with_ready' as const,
+    }),
+    handles: {
+      inputs: [{ id: 'source', type: 'target' }],
+      outputs: [{ id: 'target', type: 'source' }],
+    },
+  },
+
   sub_workflow: {
     type: 'sub_workflow',
     label: '子工作流',
@@ -603,7 +644,7 @@ export const NODE_CATEGORIES: NodeCategoryDef[] = [
     key: 'logic',
     label: '逻辑控制',
     color: '#f59e0b',
-    nodeTypes: ['if', 'switch', 'loop', 'wait'],
+    nodeTypes: ['if', 'switch', 'loop', 'wait', 'fork', 'join'],
   },
   {
     key: 'workflow',

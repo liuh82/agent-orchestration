@@ -1738,6 +1738,8 @@ const NODE_ICON_MAP: Record<WorkflowNodeType, ReactNode> = {
   output: <SendOutlined />,
   context_output: <FileTextOutlined />,
   result_output: <CheckCircleOutlined />,
+  fork: <BranchesOutlined />,
+  join: <ApartmentOutlined />,
 };
 
 /* ================================================================
@@ -1929,6 +1931,62 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ agents }) => {
           >
             手动触发节点无需额外配置
           </div>
+        );
+      case 'fork':
+        return (
+          <Form layout="vertical" size="small">
+            <Form.Item label="分发模式">
+              <Select
+                value={(nodeData as any).mode ?? 'broadcast'}
+                onChange={(val) => updateNodeData(selectedNode.id, { mode: val } as any)}
+                options={[
+                  { value: 'broadcast', label: '广播（所有分支收到相同数据）' },
+                  { value: 'distribute', label: '分发（每个分支收到不同数据）' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item label="分支数量">
+              <InputNumber
+                min={2}
+                max={10}
+                value={(nodeData as any).branchCount ?? 2}
+                onChange={(val) => updateNodeData(selectedNode.id, { branchCount: val ?? 2 } as any)}
+              />
+            </Form.Item>
+          </Form>
+        );
+      case 'join':
+        return (
+          <Form layout="vertical" size="small">
+            <Form.Item label="等待模式">
+              <Select
+                value={(nodeData as any).mode ?? 'all'}
+                onChange={(val) => updateNodeData(selectedNode.id, { mode: val } as any)}
+                options={[
+                  { value: 'all', label: '等待全部' },
+                  { value: 'any', label: '任意一个完成' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item label="合并策略">
+              <Select
+                value={(nodeData as any).mergeStrategy ?? 'append'}
+                onChange={(val) => updateNodeData(selectedNode.id, { mergeStrategy: val } as any)}
+                options={[
+                  { value: 'append', label: '追加（保留分支结构）' },
+                  { value: 'merge', label: '合并（深度合并所有输出）' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item label="超时时间（秒）">
+              <InputNumber
+                min={10}
+                max={86400}
+                value={(nodeData as any).timeout ?? 3600}
+                onChange={(val) => updateNodeData(selectedNode.id, { timeout: val ?? 3600 } as any)}
+              />
+            </Form.Item>
+          </Form>
         );
       default:
         return null;

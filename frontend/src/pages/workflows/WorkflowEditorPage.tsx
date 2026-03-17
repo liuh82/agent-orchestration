@@ -39,6 +39,8 @@ import {
   OutputNode,
   ContextOutputNode,
   ResultOutputNode,
+  ForkNode,
+  JoinNode,
 } from '@/components/workflow/nodes';
 import { ConditionalEdge, ParallelEdge, NormalEdge } from '@/components/workflow/edges';
 import type {
@@ -85,7 +87,11 @@ const nodeTypes: Record<string, any> = {
   transform: TransformNode,
   output: OutputNode,
   context_output: ContextOutputNode,
+  fork: ForkNode,
+  join: JoinNode,
   result_output: ResultOutputNode,
+  ForkNode,
+  JoinNode,
 };
 
 /* ── Edge Type Registration ── */
