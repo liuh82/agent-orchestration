@@ -1,0 +1,30 @@
+{
+  "name": "oc-bridge",
+  "version": "1.0.0",
+  "description": "Nexus Bridge client — connects local AI agents to Nexus orchestration platform",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "oc-bridge": "./bin/oc-bridge"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "uuid": "^9.0.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/uuid": "^9.0.8",
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.15.0",
+    "typescript": "^5.5.0"
+  }
+}
