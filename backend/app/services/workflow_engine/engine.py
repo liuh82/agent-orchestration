@@ -284,9 +284,14 @@ class WorkflowEngine:
             duration_ms=result.duration_ms,
         )
 
-        # 7. Store node output in resolver
+        # 7. Store node output in resolver (with optional outputAlias)
         if resolver and result.status == NodeStatus.SUCCESS:
-            resolver.set_node_output(node_id, result.output_data or {})
+            output = result.output_data or {}
+            # Extract alias: from result metadata or from node config
+            alias = output.pop("_output_alias", None) if isinstance(output, dict) else None
+            if not alias:
+                alias = node_config.get("outputAlias")
+            resolver.set_node_output(node_id, output, alias=alias)
 
         # Track completed nodes
         completed = _completed_nodes.get(execution_id, set())
@@ -371,7 +376,12 @@ class WorkflowEngine:
         if node_type == "fork":
             fork_mode = node_config.get("mode", "broadcast")
             branch_data_list = node_config.get("branchData", [])
-            for e in outgoing:
+            # Compute outgoing edges for this node (outgoing is only defined in _get_next_nodes_v1)
+            fork_outgoing = [
+                e for e in edges
+                if (e.get("source") or e.get("from", "")) == node_id
+            ]
+            for e in fork_outgoing:
                 handle = e.get("sourceHandle", "")
                 target_id = e.get("target") or e.get("to", "")
                 if handle.startswith("branch_"):

@@ -26,6 +26,7 @@ def resolve_variable(
     loop_context: Optional[Dict[str, Any]] = None,
     execution_context: Optional[Dict[str, Any]] = None,
     env_vars: Optional[Dict[str, str]] = None,
+    alias_map: Optional[Dict[str, str]] = None,
 ) -> Any:
     """Resolve a single variable expression (without {{ }}).
 
@@ -36,6 +37,7 @@ def resolve_variable(
         loop_context: Current loop state {current_index, current_item}
         execution_context: Execution context {user_id, task_id, execution_id}
         env_vars: Environment variables (defaults to os.environ)
+        alias_map: Optional alias -> node_id mapping for outputAlias support
 
     Returns:
         Resolved value or None if not found
@@ -57,14 +59,16 @@ def resolve_variable(
     # Priority 2: Node outputs — two supported syntaxes:
     #   {{ node_id.output.field }}  (with explicit .output)
     #   {{ node_id.field }}          (without .output, treated as shorthand)
+    # Also supports outputAlias: {{ myAlias.field }} resolves via alias_map
     if root not in ("workflow", "env", "context"):
-        node_id = root
+        # Check alias map first
+        actual_id = alias_map.get(root, root) if alias_map else root
         rest = path
         # If the second part is literally "output", skip it
         if rest and rest[0] == "output":
             rest = rest[1:]
-        if node_id in node_outputs:
-            return _navigate_path(node_outputs[node_id], rest)
+        if actual_id in node_outputs:
+            return _navigate_path(node_outputs[actual_id], rest)
         return None
 
     # Priority 3: Workflow variables
@@ -112,6 +116,7 @@ def resolve_template(
     loop_context: Optional[Dict[str, Any]] = None,
     execution_context: Optional[Dict[str, Any]] = None,
     env_vars: Optional[Dict[str, str]] = None,
+    alias_map: Optional[Dict[str, str]] = None,
 ) -> str:
     """Resolve all {{ }} template expressions in a string.
 
@@ -125,6 +130,7 @@ def resolve_template(
         value = resolve_variable(
             expr, node_outputs, workflow_variables,
             loop_context, execution_context, env_vars,
+            alias_map=alias_map,
         )
         if value is None:
             return ""
@@ -145,18 +151,21 @@ def resolve_template_deep(
     loop_context: Optional[Dict[str, Any]] = None,
     execution_context: Optional[Dict[str, Any]] = None,
     env_vars: Optional[Dict[str, str]] = None,
+    alias_map: Optional[Dict[str, str]] = None,
 ) -> Any:
     """Recursively resolve {{ }} expressions in nested data structures."""
     if isinstance(data, str):
         return resolve_template(
             data, node_outputs, workflow_variables,
             loop_context, execution_context, env_vars,
+            alias_map=alias_map,
         )
     if isinstance(data, dict):
         return {
             k: resolve_template_deep(
                 v, node_outputs, workflow_variables,
                 loop_context, execution_context, env_vars,
+                alias_map=alias_map,
             )
             for k, v in data.items()
         }
@@ -165,6 +174,7 @@ def resolve_template_deep(
             resolve_template_deep(
                 item, node_outputs, workflow_variables,
                 loop_context, execution_context, env_vars,
+                alias_map=alias_map,
             )
             for item in data
         ]
@@ -185,21 +195,32 @@ class VariableResolver:
         self.env_vars = env_vars
         self._node_outputs: Dict[str, Any] = {}
         self._loop_context: Optional[Dict[str, Any]] = None
+        # alias -> node_id mapping for outputAlias support
+        self._alias_map: Dict[str, str] = {}
 
-    def set_node_output(self, node_id: str, output: Any):
-        """Store a node's output for later reference."""
+    def set_node_output(self, node_id: str, output: Any, alias: Optional[str] = None):
+        """Store a node's output for later reference.
+
+        Args:
+            node_id: The node's unique identifier.
+            output: The node's output data.
+            alias: Optional alias name; if set, {{ alias.xxx }} will resolve to this node's output.
+        """
         self._node_outputs[node_id] = output
+        if alias and alias != node_id:
+            self._alias_map[alias] = node_id
 
     def set_loop_context(self, context: Optional[Dict[str, Any]]):
         """Set the current loop context."""
         self._loop_context = context
 
     def resolve(self, expression: str) -> Any:
-        """Resolve a single variable expression."""
+        """Resolve a single variable expression, with alias support."""
         return resolve_variable(
             expression, self._node_outputs,
             self.workflow_variables, self._loop_context,
             self.execution_context, self.env_vars,
+            alias_map=self._alias_map,
         )
 
     def resolve_template(self, template: str) -> str:
@@ -208,6 +229,7 @@ class VariableResolver:
             template, self._node_outputs,
             self.workflow_variables, self._loop_context,
             self.execution_context, self.env_vars,
+            alias_map=self._alias_map,
         )
 
     def resolve_deep(self, data: Any) -> Any:
@@ -216,6 +238,7 @@ class VariableResolver:
             data, self._node_outputs,
             self.workflow_variables, self._loop_context,
             self.execution_context, self.env_vars,
+            alias_map=self._alias_map,
         )
 
     def get_node_outputs(self) -> Dict[str, Any]:
@@ -223,4 +246,5 @@ class VariableResolver:
 
     def clear(self):
         self._node_outputs.clear()
+        self._alias_map.clear()
         self._loop_context = None

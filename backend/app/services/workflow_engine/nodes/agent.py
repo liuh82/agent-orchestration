@@ -75,6 +75,40 @@ class AgentNodeExecutor(BaseNodeExecutor):
                 "description": "Fields that can be overridden at task creation time",
                 "items": {"type": "string"},
             },
+            "agentSelectMode": {
+                "type": "string",
+                "title": "Agent Select Mode",
+                "description": "How to select agent: 'select' (from list) or 'manual' (free input)",
+                "default": "select",
+                "enum": ["select", "manual"],
+            },
+            "workDir": {
+                "type": "string",
+                "title": "Working Directory",
+                "description": "Working directory for agent execution (absolute or relative to project)",
+            },
+            "envVars": {
+                "type": "string",
+                "title": "Environment Variables",
+                "description": "JSON string of extra env vars, e.g. '{\"NODE_ENV\": \"production\"}'",
+            },
+            "outputFormat": {
+                "type": "string",
+                "title": "Output Format",
+                "description": "Agent output format: 'text', 'json', 'markdown'",
+                "default": "text",
+            },
+            "outputAlias": {
+                "type": "string",
+                "title": "Output Alias",
+                "description": "Alias name for referencing this node's output in downstream nodes (default: node_id)",
+            },
+            "gitEnabled": {
+                "type": "boolean",
+                "title": "Enable Git Integration",
+                "description": "Whether to create git branch and commit changes for this agent task",
+                "default": False,
+            },
         },
     }
 
@@ -85,6 +119,10 @@ class AgentNodeExecutor(BaseNodeExecutor):
         temperature = context.node_config.get("temperature", 0.7)
         max_tokens = context.node_config.get("maxTokens", 4096)
         timeout = context.node_config.get("timeout", 300)
+        work_dir = context.node_config.get("workDir", "")
+        output_format = context.node_config.get("outputFormat", "text")
+        output_alias = context.node_config.get("outputAlias", "")
+        # TODO: gitEnabled — Git integration is P1, not yet implemented
 
         if not agent_id and not prompt:
             return NodeResult(
@@ -104,8 +142,15 @@ class AgentNodeExecutor(BaseNodeExecutor):
         try:
             result = await self._dispatch_agent(
                 context, agent_id, rendered_prompt, model,
-                temperature, max_tokens, timeout,
+                temperature, max_tokens, timeout, work_dir,
             )
+
+            # Inject outputAlias into result for engine alias mapping
+            if output_alias and result.output_data:
+                result.output_data["_output_alias"] = output_alias
+
+            # TODO: Apply outputFormat to format result content
+
             return result
         except asyncio.TimeoutError:
             return NodeResult(
@@ -128,6 +173,7 @@ class AgentNodeExecutor(BaseNodeExecutor):
         temperature: float,
         max_tokens: int,
         timeout: int,
+        work_dir: str = "",
     ) -> NodeResult:
         """Dispatch task to agent. Falls back to simulated output if no gateway."""
         start = time.time()
