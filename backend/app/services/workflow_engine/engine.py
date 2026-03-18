@@ -30,6 +30,9 @@ _execution_definitions: Dict[str, dict] = {}
 _completed_nodes: Dict[str, Set[str]] = {}
 # Per-execution join node pending inputs: { execution_id: { join_node_id: { source_node_id: output } } }
 _pending_join_inputs: Dict[str, Dict[str, Dict[str, Any]]] = {}
+# Per-execution join node accumulated upstream_outputs per branch:
+# { execution_id: { join_node_id: { source_node_id: upstream_outputs } } }
+_pending_join_upstreams: Dict[str, Dict[str, Dict[str, Dict[str, Any]]]] = {}
 
 
 class WorkflowEngine:
@@ -127,6 +130,7 @@ class WorkflowEngine:
         # 8. Schedule start nodes (fire-and-forget via asyncio task)
         _completed_nodes[execution_id] = set()
         _pending_join_inputs[execution_id] = {}
+        _pending_join_upstreams[execution_id] = {}
 
         asyncio.create_task(
             self._schedule_nodes(
@@ -532,18 +536,29 @@ class WorkflowEngine:
 
         When a branch completes and its downstream is a join node, this method:
         1. Stores the branch output in _pending_join_inputs
-        2. Counts how many upstream edges the join node has
-        3. When all upstreams have reported, executes the join node
+        2. Stores the branch's upstream_outputs in _pending_join_upstreams
+        3. Counts how many upstream edges the join node has
+        4. When all upstreams have reported, merges all branch upstreams and executes
         """
-        # Initialize pending dict for this join node
+        # Initialize pending dicts for this join node
         if execution_id not in _pending_join_inputs:
             _pending_join_inputs[execution_id] = {}
         if join_node_id not in _pending_join_inputs[execution_id]:
             _pending_join_inputs[execution_id][join_node_id] = {}
 
+        if execution_id not in _pending_join_upstreams:
+            _pending_join_upstreams[execution_id] = {}
+        if join_node_id not in _pending_join_upstreams[execution_id]:
+            _pending_join_upstreams[execution_id][join_node_id] = {}
+
         # Store this branch's output
         _pending_join_inputs[execution_id][join_node_id][source_node_id] = (
             source_result.output_data or {}
+        )
+
+        # Store this branch's upstream_outputs (deep copy to avoid mutations)
+        _pending_join_upstreams[execution_id][join_node_id][source_node_id] = (
+            dict(upstream_outputs)
         )
 
         # Calculate how many incoming edges the join node has
@@ -579,15 +594,21 @@ class WorkflowEngine:
 
         # All required upstreams completed — execute the join node
         branch_outputs = _pending_join_inputs[execution_id].pop(join_node_id, {})
+        branch_upstreams = _pending_join_upstreams[execution_id].pop(join_node_id, {})
+
+        # Merge upstream_outputs from all branches so join has complete context
+        merged_upstream: Dict[str, Any] = {}
+        for bid, bup in branch_upstreams.items():
+            merged_upstream.update(bup)
 
         # Build upstream for join: include all collected branch outputs
         join_input_data = dict(input_data)
         join_input_data["_branch_outputs"] = branch_outputs
 
-        # Execute the join node
+        # Execute the join node with merged upstream_outputs
         await self._execute_node(
             execution_id, join_node_def, all_nodes, edges,
-            join_input_data, db, upstream_outputs, workflow_config,
+            join_input_data, db, merged_upstream, workflow_config,
         )
 
     def _get_next_nodes_v1(
@@ -893,6 +914,7 @@ class WorkflowEngine:
         _execution_definitions.pop(execution_id, None)
         _completed_nodes.pop(execution_id, None)
         _pending_join_inputs.pop(execution_id, None)
+        _pending_join_upstreams.pop(execution_id, None)
 
 
 # Global singleton
