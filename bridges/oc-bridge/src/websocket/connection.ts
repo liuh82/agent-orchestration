@@ -12,7 +12,6 @@ import type {
   BridgeRegister,
   Pong,
   TaskSubmit,
-  TaskAck,
   TaskCancel,
 } from "./types.js";
 
@@ -197,8 +196,7 @@ export class WSConnection {
       case "task.submit":
         logger.info(`Task submitted: ${msg.taskId}`);
         this.eventHandler({ type: "task.submit", task: msg });
-        // Phase 1: just acknowledge — Phase 2 will execute
-        this.send({ type: "task.ack", taskId: msg.taskId, ts: Date.now() } as TaskAck);
+        // TaskManager handles ack + execution
         break;
 
       case "task.cancel":

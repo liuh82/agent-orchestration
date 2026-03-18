@@ -1,10 +1,12 @@
 /**
- * `oc-bridge start` — connect to Nexus Gateway and stay running.
+ * `oc-bridge start` — connect to Nexus Gateway and start accepting tasks.
  */
 import { Command } from "commander";
 import { loadConfig } from "../storage/config.js";
 import { logger } from "../logger/index.js";
 import { WSConnection, type ConnectionEvent } from "../websocket/connection.js";
+import { TaskManager } from "../task/task-manager.js";
+import { initRegistry } from "../agent/registry.js";
 
 export function startCommand(): Command {
   return new Command("start")
@@ -23,7 +25,15 @@ export function startCommand(): Command {
 
       logger.info(`Starting oc-bridge (id: ${config.bridgeId})...`);
 
-      const conn = new WSConnection(config, handleEvent);
+      // Initialize agent registry
+      initRegistry();
+
+      // Create WSConnection — we need a reference to set up TaskManager later
+      let taskManager: TaskManager | null = null;
+
+      const conn = new WSConnection(config, (event: ConnectionEvent) => {
+        handleEvent(event, taskManager!);
+      });
 
       // Graceful shutdown
       const shutdown = () => {
@@ -36,6 +46,8 @@ export function startCommand(): Command {
 
       try {
         await conn.connect();
+        // Create TaskManager after connection is established so it can send messages
+        taskManager = new TaskManager(config.maxConcurrent, { send: (msg) => conn.send(msg) });
         logger.info("Ready — waiting for tasks...");
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -45,19 +57,18 @@ export function startCommand(): Command {
     });
 }
 
-function handleEvent(event: ConnectionEvent): void {
+function handleEvent(event: ConnectionEvent, taskManager: TaskManager): void {
   switch (event.type) {
     case "registered":
       logger.info(`Bridge registered. Resumed tasks: ${event.resumedTasks.length}`);
       break;
 
     case "task.submit":
-      // Phase 2 will implement actual task execution
-      logger.info(`Task received (Phase 1 — acknowledging only): ${event.task.taskId}`);
+      taskManager.submit(event.task);
       break;
 
     case "task.cancel":
-      logger.info(`Task cancel received: ${event.task.taskId}`);
+      taskManager.cancel(event.task.taskId);
       break;
 
     case "disconnected":
