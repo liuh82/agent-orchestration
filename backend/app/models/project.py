@@ -1,7 +1,7 @@
 """Project ORM model."""
 from typing import Optional
 
-from sqlalchemy import String, Integer, Float, Text, UniqueConstraint
+from sqlalchemy import String, Integer, Float, Text, Boolean, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -28,3 +28,8 @@ class Project(Base, TimestampMixin):
     completed_tasks: Mapped[int] = mapped_column(Integer, default=0)
     total_tokens: Mapped[int] = mapped_column(Integer, default=0)
     total_cost: Mapped[float] = mapped_column(Float, default=0.0)
+
+    # Git related fields
+    git_repo_url: Mapped[Optional[str]] = mapped_column(String(500))
+    git_default_branch: Mapped[Optional[str]] = mapped_column(String(100))
+    git_auto_merge: Mapped[bool] = mapped_column(Boolean, default=False)

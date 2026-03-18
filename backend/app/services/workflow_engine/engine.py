@@ -33,6 +33,8 @@ _pending_join_inputs: Dict[str, Dict[str, Dict[str, Any]]] = {}
 # Per-execution join node accumulated upstream_outputs per branch:
 # { execution_id: { join_node_id: { source_node_id: upstream_outputs } } }
 _pending_join_upstreams: Dict[str, Dict[str, Dict[str, Dict[str, Any]]]] = {}
+# Per-execution join node timeout tasks: { execution_id: { join_node_id: asyncio.Task } }
+_join_timeout_tasks: Dict[str, Dict[str, asyncio.Task]] = {}
 
 
 class WorkflowEngine:
@@ -579,6 +581,8 @@ class WorkflowEngine:
         # Check if join mode allows early execution
         join_config = join_node_def.get("data", join_node_def.get("config", {}))
         join_mode = join_config.get("mode", "all")
+        join_timeout = join_config.get("timeout", 3600)
+        on_timeout = join_config.get("onTimeout", "continue_with_ready")
 
         should_execute = False
         if join_mode == "any":
@@ -589,8 +593,45 @@ class WorkflowEngine:
         else:  # "all"
             should_execute = reported >= total_upstream
 
+        # Start timeout timer on first branch arrival
+        if reported == 1 and join_timeout > 0:
+            async def _join_timeout_handler():
+                await asyncio.sleep(join_timeout)
+                # Check if join already executed (data was popped)
+                if join_node_id not in _pending_join_inputs.get(execution_id, {}):
+                    return
+                logger.warning(
+                    "Join node %s timed out after %ds (onTimeout=%s)",
+                    join_node_id, join_timeout, on_timeout,
+                )
+                if on_timeout == "fail":
+                    self._fail_execution(
+                        execution_id, db,
+                        f"Join node {join_node_id} timed out after {join_timeout}s",
+                    )
+                elif on_timeout == "continue_with_ready":
+                    # Execute join with whatever branches have reported so far
+                    self._execute_join_with_pending(
+                        execution_id, join_node_id, join_node_def,
+                        all_nodes, edges, input_data, db,
+                        workflow_config, completed,
+                    )
+                # "skip" — do nothing, join is abandoned
+
+            if execution_id not in _join_timeout_tasks:
+                _join_timeout_tasks[execution_id] = {}
+            _join_timeout_tasks[execution_id][join_node_id] = asyncio.create_task(
+                _join_timeout_handler(),
+            )
+
         if not should_execute:
             return
+
+        # Cancel timeout — join is executing normally
+        if execution_id in _join_timeout_tasks:
+            timeout_task = _join_timeout_tasks[execution_id].pop(join_node_id, None)
+            if timeout_task and not timeout_task.done():
+                timeout_task.cancel()
 
         # All required upstreams completed — execute the join node
         branch_outputs = _pending_join_inputs[execution_id].pop(join_node_id, {})
@@ -609,6 +650,48 @@ class WorkflowEngine:
         await self._execute_node(
             execution_id, join_node_def, all_nodes, edges,
             join_input_data, db, merged_upstream, workflow_config,
+        )
+
+    def _execute_join_with_pending(
+        self,
+        execution_id: str,
+        join_node_id: str,
+        join_node_def: dict,
+        all_nodes: List[dict],
+        edges: List[dict],
+        input_data: dict,
+        db: Session,
+        workflow_config: Dict[str, Any],
+        completed: Set[str],
+    ):
+        """Execute join with whatever branches have reported (used by timeout handler)."""
+        branch_outputs = _pending_join_inputs.get(execution_id, {}).pop(join_node_id, {})
+        branch_upstreams = _pending_join_upstreams.get(execution_id, {}).pop(join_node_id, {})
+
+        # Cancel timeout task
+        if execution_id in _join_timeout_tasks:
+            timeout_task = _join_timeout_tasks[execution_id].pop(join_node_id, None)
+            if timeout_task and not timeout_task.done():
+                timeout_task.cancel()
+
+        merged_upstream: Dict[str, Any] = {}
+        for bid, bup in branch_upstreams.items():
+            merged_upstream.update(bup)
+
+        join_input_data = dict(input_data)
+        join_input_data["_branch_outputs"] = branch_outputs
+
+        logger.info(
+            "Join node %s executing on timeout with %d/%d branches",
+            join_node_id, len(branch_outputs), "unknown",
+        )
+
+        # Schedule as a task to avoid blocking the timeout handler
+        asyncio.create_task(
+            self._execute_node(
+                execution_id, join_node_def, all_nodes, edges,
+                join_input_data, db, merged_upstream, workflow_config,
+            )
         )
 
     def _get_next_nodes_v1(
@@ -915,6 +998,7 @@ class WorkflowEngine:
         _completed_nodes.pop(execution_id, None)
         _pending_join_inputs.pop(execution_id, None)
         _pending_join_upstreams.pop(execution_id, None)
+        _join_timeout_tasks.pop(execution_id, None)
 
 
 # Global singleton

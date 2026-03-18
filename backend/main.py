@@ -21,8 +21,11 @@ async def lifespan(app: FastAPI):
     # Startup
     print("Starting heartbeat scheduler...")
     # Initialize heartbeat service
-    from app.database import get_db, engine, Base
+    from app.database import get_db, engine, Base, run_sqlite_auto_migrations
     from app.models.gateway import BridgeRecord, TaskRecord  # noqa: F401
+
+    # Auto-migrate new columns for SQLite
+    run_sqlite_auto_migrations()
 
     # Create gateway tables if not exist
     Base.metadata.create_all(bind=engine, tables=[

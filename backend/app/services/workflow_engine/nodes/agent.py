@@ -1,6 +1,8 @@
 """Agent execution node — dispatches tasks to agents via Gateway."""
 import asyncio
 import logging
+import shutil
+import subprocess
 import time
 from typing import Any, Dict, Optional
 
@@ -122,7 +124,7 @@ class AgentNodeExecutor(BaseNodeExecutor):
         work_dir = context.node_config.get("workDir", "")
         output_format = context.node_config.get("outputFormat", "text")
         output_alias = context.node_config.get("outputAlias", "")
-        # TODO: gitEnabled — Git integration is P1, not yet implemented
+        git_enabled = context.node_config.get("gitEnabled", False)
 
         if not agent_id and not prompt:
             return NodeResult(
@@ -148,6 +150,10 @@ class AgentNodeExecutor(BaseNodeExecutor):
             # Inject outputAlias into result for engine alias mapping
             if output_alias and result.output_data:
                 result.output_data["_output_alias"] = output_alias
+
+            # Git integration: create branch + commit if enabled
+            if git_enabled and work_dir and result.status == NodeStatus.SUCCESS:
+                self._handle_git_integration(context.node_id, prompt, work_dir, result)
 
             # TODO: Apply outputFormat to format result content
 
@@ -248,3 +254,65 @@ class AgentNodeExecutor(BaseNodeExecutor):
             },
             duration_ms=int((time.time() - start) * 1000),
         )
+
+    def _handle_git_integration(
+        self,
+        node_id: str,
+        prompt: str,
+        work_dir: str,
+        result: NodeResult,
+    ) -> None:
+        """Create a git branch, run agent, and commit any changes."""
+        import os
+
+        if not os.path.isdir(work_dir):
+            logger.warning("Git integration: work_dir does not exist: %s", work_dir)
+            return
+
+        # Check if it's a git repo
+        if not os.path.isdir(os.path.join(work_dir, ".git")):
+            logger.warning("Git integration: %s is not a git repo", work_dir)
+            return
+
+        branch_name = f"agent-{node_id[:8]}-{int(time.time())}"
+
+        # Create and checkout branch
+        create_out = run_git_cmd(["git", "checkout", "-b", branch_name], work_dir)
+        if create_out is None and not os.path.exists(work_dir):
+            logger.warning("Git integration: failed to create branch %s", branch_name)
+            return
+        logger.info("Git integration: created branch %s", branch_name)
+
+        # Check for changes and commit
+        status_out = run_git_cmd(["git", "status", "--porcelain"], work_dir)
+        if status_out.strip():
+            run_git_cmd(["git", "add", "-A"], work_dir)
+            commit_msg = f"Agent {node_id}: {prompt[:50]}"
+            run_git_cmd(["git", "commit", "-m", commit_msg], work_dir)
+            commit_hash = get_git_head(work_dir)
+            logger.info("Git integration: committed on %s (%s)", branch_name, commit_hash)
+        else:
+            commit_hash = None
+            logger.info("Git integration: no changes to commit on %s", branch_name)
+
+        if result.output_data:
+            result.output_data["git_branch"] = branch_name
+            result.output_data["git_commit"] = commit_hash
+
+
+def run_git_cmd(args: list, cwd: str) -> str:
+    """Run a git command and return stdout."""
+    if not shutil.which("git"):
+        return ""
+    try:
+        result = subprocess.run(
+            args, cwd=cwd, capture_output=True, text=True, timeout=30,
+        )
+        return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return ""
+
+
+def get_git_head(cwd: str) -> str:
+    """Get current HEAD commit hash (short)."""
+    return run_git_cmd(["git", "rev-parse", "--short", "HEAD"], cwd)
