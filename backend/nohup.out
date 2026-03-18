@@ -1,0 +1,15 @@
+Running with INSECURE default API key. This is acceptable ONLY in local development. Set API_KEYS env var for any shared environment.
+INFO:     Started server process [338325]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+ERROR:    [Errno 98] error while attempting to bind on address ('0.0.0.0', 8082): address already in use
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+Starting heartbeat scheduler...
+Gateway tables ensured
+Heartbeat scheduler started and jobs loaded
+Gateway WebSocket Server initialized
+Seed data initialized
+Shutting down Gateway WebSocket Server...
+Shutting down heartbeat scheduler...
+Heartbeat scheduler shutdown complete

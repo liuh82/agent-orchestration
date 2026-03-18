@@ -397,7 +397,7 @@ async def gateway_ws(
         finally:
             db.close()
 
-    def on_task_progress(bid: str, msg: dict):
+    async def on_task_progress(bid: str, msg: dict):
         """Handle task progress with a short-lived DB session."""
         db = next(get_db())
         try:
@@ -412,7 +412,7 @@ async def gateway_ws(
         finally:
             db.close()
 
-    def on_task_complete(bid: str, msg: dict):
+    async def on_task_complete(bid: str, msg: dict):
         """Handle task complete with a short-lived DB session."""
         db = next(get_db())
         try:
@@ -427,7 +427,7 @@ async def gateway_ws(
         finally:
             db.close()
 
-    def on_task_ack(bid: str, msg: dict):
+    async def on_task_ack(bid: str, msg: dict):
         """Handle task ack with a short-lived DB session."""
         db = next(get_db())
         try:

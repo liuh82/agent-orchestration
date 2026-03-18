@@ -45,9 +45,9 @@ export class ClaudeCodeExecutor extends AgentExecutor {
 
     return new Promise<ExecutionResult>((resolve) => {
       const args = [
-        "--print",
+        "--print", "--verbose",
         "--output-format", "stream-json",
-        "--prompt", task.prompt,
+        task.prompt,
       ];
 
       logger.info(`Spawning: ${claudePath} ${args.join(" ")}`);
