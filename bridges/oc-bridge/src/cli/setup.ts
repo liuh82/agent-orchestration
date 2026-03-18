@@ -9,7 +9,7 @@ import { findClaudeCli } from "../utils/platform.js";
 export function setupCommand(): Command {
   return new Command("setup")
     .description("Configure oc-bridge connection to Nexus Gateway")
-    .requiredOption("--url <url>", "Gateway WebSocket URL, e.g. ws://localhost:8082/api/v1/gateway/ws")
+    .requiredOption("--url <url>", "Gateway WebSocket URL, e.g. ws://localhost:8082/api/gateway/ws")
     .requiredOption("--token <token>", "Gateway API token")
     .option("--max-concurrent <n>", "Max concurrent tasks", "3")
     .action((opts) => {
