@@ -13,6 +13,16 @@ from .base import BaseNodeExecutor, NodeContext, NodeResult, NodeStatus
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT = 60
+_MAX_CODE_SIZE = 102400  # 100KB limit for user code
+
+# Sandboxed environment for subprocess execution — strips sensitive env vars
+_SANDBOX_ENV = {
+    "HOME": "/tmp/code_exec",
+    "PATH": "/usr/bin:/bin",
+    "PYTHONPATH": "",
+    "PYTHONSTARTUP": "",
+    "NODE_OPTIONS": "--no-warnings",
+}
 
 
 @NodeRegistry.register(
@@ -63,6 +73,12 @@ class CodeNode(BaseNodeExecutor):
             return NodeResult(
                 status=NodeStatus.FAILED,
                 error_message="code is required",
+            )
+
+        if len(code.encode("utf-8")) > _MAX_CODE_SIZE:
+            return NodeResult(
+                status=NodeStatus.FAILED,
+                error_message=f"Code exceeds maximum size ({_MAX_CODE_SIZE // 1024}KB)",
             )
 
         # Resolve {{ }} in code using upstream outputs
@@ -130,6 +146,7 @@ input_data = input_vars.get("input", {{}})
                 "python3", tmp_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=_SANDBOX_ENV,
             )
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(), timeout=timeout,
@@ -179,6 +196,7 @@ const inputData = inputVars.input || {{}};
                 "node", tmp_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=_SANDBOX_ENV,
             )
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(), timeout=timeout,
