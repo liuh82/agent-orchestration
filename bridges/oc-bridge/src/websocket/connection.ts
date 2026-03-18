@@ -1,5 +1,6 @@
 /**
- * WebSocket connection manager — handles auth, registration, and heartbeat.
+ * WebSocket connection manager — handles auth, registration, heartbeat,
+ * and automatic reconnection with exponential backoff.
  */
 import { v4 } from "uuid";
 import WebSocket from "ws";
@@ -14,6 +15,7 @@ import type {
   TaskSubmit,
   TaskCancel,
 } from "./types.js";
+import { getRetryDelay, formatDelay, DEFAULT_RETRY_POLICY } from "../utils/retry.js";
 
 const BRIDGE_VERSION = "1.0.0";
 const AUTH_TIMEOUT_MS = 10_000;
@@ -30,6 +32,11 @@ export class WSConnection {
   private config: BridgeConfig;
   private eventHandler: (event: ConnectionEvent) => void;
   private disposed = false;
+  private manualClose = false;
+
+  // Reconnection state
+  private reconnectAttempt = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(config: BridgeConfig, eventHandler: (event: ConnectionEvent) => void) {
     this.config = config;
@@ -39,11 +46,22 @@ export class WSConnection {
   /** Connect, authenticate, and register. */
   async connect(): Promise<void> {
     if (this.disposed) throw new Error("Connection disposed");
+    this.manualClose = false;
 
-    const url = this.config.serverUrl;
-    logger.info(`Connecting to ${url} ...`);
+    await this.doConnect();
+  }
 
+  /** Core connect/auth/register logic — used for initial and reconnection. */
+  private doConnect(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      if (this.disposed || this.manualClose) {
+        reject(new Error("Connection disposed or manually closed"));
+        return;
+      }
+
+      const url = this.config.serverUrl;
+      logger.info(`Connecting to ${url} ...`);
+
       const connectTimeout = setTimeout(() => {
         reject(new Error("Connection timeout"));
         this.ws?.terminate();
@@ -54,14 +72,23 @@ export class WSConnection {
       this.ws.on("error", (err) => {
         clearTimeout(connectTimeout);
         logger.error(`WebSocket error: ${err.message}`);
-        reject(err);
+        // Only reject on first attempt; reconnection failures are handled by close
+        if (this.reconnectAttempt === 0) {
+          reject(err);
+        }
       });
 
       this.ws.on("close", (code, reason) => {
         clearTimeout(connectTimeout);
+        this.ws = null;
         const msg = reason.toString() || "unknown";
         logger.warn(`WebSocket closed: code=${code}, reason=${msg}`);
         this.eventHandler({ type: "disconnected", code, reason: msg });
+
+        // Attempt reconnection unless manually closed or disposed
+        if (!this.manualClose && !this.disposed) {
+          this.scheduleReconnect();
+        }
       });
 
       this.ws.on("open", async () => {
@@ -71,15 +98,44 @@ export class WSConnection {
           await this.authenticate();
           await this.register();
           this.listen();
+
+          // Reset reconnect counter on full success
+          this.reconnectAttempt = 0;
           resolve();
         } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          logger.error(`Registration failed: ${msg}`);
-          this.eventHandler({ type: "error", error: msg });
+          const errMsg = err instanceof Error ? err.message : String(err);
+          logger.error(`Registration failed: ${errMsg}`);
+          this.eventHandler({ type: "error", error: errMsg });
           reject(err);
         }
       });
     });
+  }
+
+  /** Schedule a reconnection attempt with exponential backoff. */
+  private scheduleReconnect(): void {
+    if (this.reconnectAttempt >= DEFAULT_RETRY_POLICY.maxAttempts) {
+      logger.error(
+        `Max reconnection attempts reached (${DEFAULT_RETRY_POLICY.maxAttempts}). Giving up.`,
+      );
+      process.exit(1);
+    }
+
+    const delay = getRetryDelay(DEFAULT_RETRY_POLICY, this.reconnectAttempt);
+    this.reconnectAttempt++;
+
+    logger.info(
+      `Reconnecting in ${formatDelay(delay)} (attempt ${this.reconnectAttempt}/${DEFAULT_RETRY_POLICY.maxAttempts})...`,
+    );
+
+    this.reconnectTimer = setTimeout(async () => {
+      try {
+        await this.doConnect();
+        logger.info("Reconnected successfully");
+      } catch {
+        // doConnect already logged the error; close handler will schedule next attempt
+      }
+    }, delay);
   }
 
   /** Send auth.request message. */
@@ -196,7 +252,6 @@ export class WSConnection {
       case "task.submit":
         logger.info(`Task submitted: ${msg.taskId}`);
         this.eventHandler({ type: "task.submit", task: msg });
-        // TaskManager handles ack + execution
         break;
 
       case "task.cancel":
@@ -228,9 +283,19 @@ export class WSConnection {
     }
   }
 
-  /** Disconnect gracefully. */
+  /** Whether the WebSocket is currently open. */
+  get isOpen(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  /** Disconnect gracefully (stops reconnection). */
   disconnect(): void {
+    this.manualClose = true;
     this.disposed = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.ws) {
       this.ws.removeAllListeners();
       this.ws.close(1000, "Client shutdown");

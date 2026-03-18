@@ -1,10 +1,12 @@
 /**
  * TaskManager — queues tasks, enforces maxConcurrent, and manages lifecycle.
+ * Includes state persistence and enhanced timeout management.
  */
 import { logger } from "../logger/index.js";
 import { getExecutor } from "../agent/registry.js";
 import type { Task, ExecutionResult } from "./types.js";
 import type { TaskSubmit, TaskProgress, TaskComplete, TaskAck } from "../websocket/types.js";
+import { loadState, saveState, toPersisted } from "../storage/state.js";
 
 /** Callbacks for sending messages back over WebSocket. */
 export interface TaskMessageSender {
@@ -16,6 +18,7 @@ export class TaskManager {
   private running = new Map<string, Task>();
   private maxConcurrent: number;
   private sender: TaskMessageSender;
+  private accepting = true; // whether to accept new tasks
 
   constructor(maxConcurrent: number, sender: TaskMessageSender) {
     this.maxConcurrent = maxConcurrent;
@@ -24,6 +27,11 @@ export class TaskManager {
 
   /** Submit a new task from server. */
   submit(taskMsg: TaskSubmit): void {
+    if (!this.accepting) {
+      logger.warn(`Rejected task ${taskMsg.taskId} — bridge is shutting down`);
+      return;
+    }
+
     const task: Task = {
       taskId: taskMsg.taskId,
       prompt: taskMsg.prompt,
@@ -52,6 +60,7 @@ export class TaskManager {
       task.status = "cancelled";
       task.childProcess.kill("SIGKILL");
       logger.info(`Task cancelled: ${taskId}`);
+      this.persistState();
       return true;
     }
     // Remove from queue if pending
@@ -69,6 +78,46 @@ export class TaskManager {
     return this.running.size;
   }
 
+  /** Stop accepting new tasks (for graceful shutdown). */
+  stopAccepting(): void {
+    this.accepting = false;
+    logger.info("No longer accepting new tasks");
+  }
+
+  /** Wait for all running tasks to complete, up to a timeout. */
+  async drainRunning(timeoutMs: number): Promise<void> {
+    if (this.running.size === 0) return;
+
+    logger.info(`Waiting for ${this.running.size} running task(s) to finish (max ${timeoutMs / 1000}s)...`);
+
+    return new Promise<void>((resolve) => {
+      const forceKillTimer = setTimeout(() => {
+        logger.warn(`Grace period expired. Force-killing ${this.running.size} task(s)...`);
+        for (const task of this.running.values()) {
+          if (task.childProcess) {
+            task.childProcess.kill("SIGKILL");
+          }
+        }
+        resolve();
+      }, timeoutMs);
+
+      const checkInterval = setInterval(() => {
+        if (this.running.size === 0) {
+          clearTimeout(forceKillTimer);
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 200);
+    });
+  }
+
+  /** Save current running tasks to state.json. */
+  persistState(): void {
+    const state = loadState();
+    state.tasks = Array.from(this.running.values()).map(toPersisted);
+    saveState(state);
+  }
+
   /** Try to start queued tasks up to maxConcurrent. */
   private drain(): void {
     while (this.running.size < this.maxConcurrent && this.queue.length > 0) {
@@ -82,6 +131,9 @@ export class TaskManager {
     task.status = "running";
     task.startedAt = Date.now();
     this.running.set(task.taskId, task);
+
+    // Persist to state.json
+    this.persistState();
 
     logger.info(`Task started: ${task.taskId} (${this.running.size}/${this.maxConcurrent})`);
 
@@ -152,6 +204,9 @@ export class TaskManager {
       progress: 100,
       ts: Date.now(),
     } satisfies TaskProgress);
+
+    // Update state — remove completed/failed task from persistence
+    this.persistState();
 
     // Drain remaining queue
     this.drain();

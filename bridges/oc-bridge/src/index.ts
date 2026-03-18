@@ -2,6 +2,8 @@
 import { Command } from "commander";
 import { setupCommand } from "./cli/setup.js";
 import { startCommand } from "./cli/start.js";
+import { statusCommand } from "./cli/status.js";
+import { stopCommand } from "./cli/stop.js";
 
 const program = new Command();
 
@@ -12,5 +14,7 @@ program
 
 program.addCommand(setupCommand());
 program.addCommand(startCommand());
+program.addCommand(statusCommand());
+program.addCommand(stopCommand());
 
 program.parse();

@@ -14,7 +14,7 @@ export interface BridgeConfig {
   maxConcurrent: number;
 }
 
-const CONFIG_DIR = path.join(os.homedir(), ".oc-bridge");
+export const CONFIG_DIR = path.join(os.homedir(), ".oc-bridge");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 
 function ensureDir(): void {
