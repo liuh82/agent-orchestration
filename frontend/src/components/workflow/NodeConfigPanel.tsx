@@ -273,7 +273,7 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
       const agent = agents?.find((a) => a.id === agentId);
       if (agent) {
         setManualMode(false);
-        onUpdate({ agentId, label: data.label });
+        onUpdate({ agentId, agentSelectMode: 'select', label: data.label });
       }
     },
     [agents, data.label, onUpdate],
@@ -287,7 +287,7 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
         <Button
           size="small"
           type={!manualMode ? 'primary' : 'default'}
-          onClick={() => setManualMode(false)}
+          onClick={() => { setManualMode(false); onUpdate({ agentSelectMode: 'select' }); }}
           style={manualMode ? { background: '#f8fafc', borderColor: '#e2e8f0', color: '#334155' } : undefined}
         >
           选择 Agent
@@ -295,7 +295,7 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
         <Button
           size="small"
           type={manualMode ? 'primary' : 'default'}
-          onClick={() => setManualMode(true)}
+          onClick={() => { setManualMode(true); onUpdate({ agentSelectMode: 'manual' }); }}
           style={!manualMode ? { background: '#f8fafc', borderColor: '#e2e8f0', color: '#334155' } : undefined}
         >
           手动配置
@@ -423,8 +423,84 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
                   </Form.Item>
                 )}
 
+                {/* 输出别名 */}
                 <Form.Item
-                  label="输出过滤 (JSON)"
+                  label="输出别名"
+                  style={{ marginBottom: spacing[2] as string }}
+                  extra="下游节点可用 {{别名}} 引用此节点输出，默认为节点 ID"
+                >
+                  <Input
+                    value={data.outputAlias}
+                    onChange={(e) => onUpdate({ outputAlias: e.target.value })}
+                    placeholder="myOutput"
+                    size="small"
+                    style={LIGHT_SELECT_STYLE}
+                  />
+                </Form.Item>
+
+                {/* 输出格式 */}
+                <Form.Item label="输出格式" style={{ marginBottom: spacing[2] as string }}>
+                  <Select
+                    value={data.outputFormat ?? 'text'}
+                    onChange={(val) => onUpdate({ outputFormat: val as AgentNodeData['outputFormat'] })}
+                    size="small"
+                    style={LIGHT_SELECT_STYLE}
+                    options={[
+                      { value: 'text', label: '纯文本' },
+                      { value: 'json', label: 'JSON' },
+                      { value: 'markdown', label: 'Markdown' },
+                    ]}
+                  />
+                </Form.Item>
+
+                {/* 工作目录 */}
+                <Form.Item
+                  label="工作目录"
+                  style={{ marginBottom: spacing[2] as string }}
+                  extra="Agent 执行时的工作目录，留空则使用项目目录"
+                >
+                  <Input
+                    value={data.workDir}
+                    onChange={(e) => onUpdate({ workDir: e.target.value })}
+                    placeholder="/path/to/project"
+                    size="small"
+                    style={LIGHT_SELECT_STYLE}
+                  />
+                </Form.Item>
+
+                {/* 环境变量 */}
+                <Form.Item
+                  label="环境变量 (JSON)"
+                  style={{ marginBottom: spacing[2] as string }}
+                  extra='额外环境变量，如 {"NODE_ENV": "production"}'
+                >
+                  <Input.TextArea
+                    value={data.envVars ?? ''}
+                    onChange={(e) => onUpdate({ envVars: e.target.value })}
+                    rows={2}
+                    placeholder='{"NODE_ENV": "production"}'
+                    style={{
+                      ...LIGHT_SELECT_STYLE,
+                      fontFamily: typography.fontFamily.mono,
+                      fontSize: typography.fontSize.sm,
+                    }}
+                  />
+                </Form.Item>
+
+                {/* Git 集成 */}
+                <Form.Item
+                  label="启用 Git 集成"
+                  style={{ marginBottom: spacing[2] as string }}
+                  extra="创建分支并提交 Agent 产生的代码变更"
+                >
+                  <Switch
+                    checked={data.gitEnabled ?? false}
+                    onChange={(checked) => onUpdate({ gitEnabled: checked })}
+                    size="small"
+                  />
+                </Form.Item>
+
+                <Form.Item
                   style={{ marginBottom: spacing[2] as string }}
                   extra='指定只输出哪些字段，如 ["result", "summary"]'
                 >

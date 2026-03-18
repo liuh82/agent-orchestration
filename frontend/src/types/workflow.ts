@@ -82,6 +82,13 @@ export interface AgentNodeData {
   outputFilter?: string[];
   enableCache?: boolean;
   cacheTTL?: number;
+  // Agent advanced fields (P0 additions)
+  agentSelectMode?: 'select' | 'manual';
+  workDir?: string;
+  envVars?: string;
+  outputFormat?: 'text' | 'json' | 'markdown';
+  outputAlias?: string;
+  gitEnabled?: boolean;
 }
 
 // --- Logic Nodes ---
