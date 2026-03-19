@@ -1,16 +1,23 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './e2e',
+  baseURL: 'http://127.0.0.1:9443',
   timeout: 30000,
+  screenshotDir: 'docs/screenshots',
+  screenshot: { mode: 'only-on-failure' },
+  video: 'retain-on-failure',
+  fullyParallel: false,
   retries: 0,
   use: {
     headless: true,
     viewport: { width: 1280, height: 720 },
-    screenshot: 'only-on-failure',
-    trace: 'off',
-    baseURL: 'http://127.0.0.1:9443',
+    ignoreHTTPSErrors: true,
+    extraHTTPHeaders: {},
   },
-  outputDir: './docs/screenshots',
-  reporter: [['list']],
+  projects: [
+    {
+      name: 'chromium',
+      use: { browserName: 'chromium' },
+    },
+  ],
 });
