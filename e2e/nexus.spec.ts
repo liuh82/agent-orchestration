@@ -33,7 +33,8 @@ async function loginAsUser(page: Page) {
 }
 
 async function gotoAdmin(page: Page) {
-  await page.goto(`${BASE}/admin`);
+  await loginAsAdmin(page);
+  await page.evaluate(() => { window.location.pathname = '/admin'; });
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(2000);
 }
