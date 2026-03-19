@@ -175,7 +175,7 @@ export const GatewayPage: React.FC = () => {
   const bridges = Array.isArray(bridgesData) ? bridgesData : [];
 
   const disconnectMutation = useMutation(
-    (bridgeId: string) => api.post(`/gateway/bridges/${bridgeId}/disconnect`),
+    (bridgeId: string) => api.post(`/v1/gateway/bridges/${bridgeId}/disconnect`),
     {
       onSuccess: () => {
         void message.success('已强制断开连接');

@@ -25,7 +25,9 @@ export type WorkflowNodeType =
   | 'transform'
   | 'output'
   | 'context_output'
-  | 'result_output';
+  | 'result_output'
+  | 'notification'
+  | 'human';
 
 /* ── 2. Node Category ── */
 
@@ -230,6 +232,23 @@ export interface ResultOutputNodeData {
   onComplete: 'mark_done' | 'mark_done_and_notify' | 'none';
 }
 
+export interface NotificationNodeData {
+  label: string;
+  channel_id: string;
+  title_template?: string;
+  body_template?: string;
+  level?: 'info' | 'success' | 'warning' | 'error';
+}
+
+export interface HumanNodeData {
+  label: string;
+  title?: string;
+  description?: string;
+  assignee_id?: string;
+  timeout_hours?: number;
+  require_comment?: boolean;
+}
+
 /* ── 4. Node Data Union ── */
 
 export type NodeData =
@@ -248,7 +267,9 @@ export type NodeData =
   | TransformNodeData
   | OutputNodeData
   | ContextOutputNodeData
-  | ResultOutputNodeData;
+  | ResultOutputNodeData
+  | NotificationNodeData
+  | HumanNodeData;
 
 /* ── 5. Handle Definitions ── */
 
@@ -583,6 +604,42 @@ export const NODE_META: Record<WorkflowNodeType, NodeMeta> = {
     handles: {
       inputs: [{ id: 'source', type: 'target' }],
       outputs: [{ id: 'target', type: 'source' }],
+    },
+  },
+
+  notification: {
+    type: 'notification',
+    label: '通知',
+    category: 'action' as NodeCategory,
+    color: '#f59e0b',
+    icon: 'BellOutlined',
+    defaultData: (): NotificationNodeData => ({
+      label: '通知',
+      channel_id: '',
+      title_template: 'Workflow Notification',
+      level: 'info',
+    }),
+    handles: {
+      inputs: [{ id: 'source', type: 'target' }],
+      outputs: [{ id: 'target', type: 'source' }],
+    },
+  },
+
+  human: {
+    type: 'human',
+    label: '人工审核',
+    category: 'flow' as NodeCategory,
+    color: '#8b5cf6',
+    icon: 'UserOutlined',
+    defaultData: (): HumanNodeData => ({
+      label: '人工审核',
+      title: 'Please Review',
+      timeout_hours: 72,
+      require_comment: false,
+    }),
+    handles: {
+      inputs: [{ id: 'source', type: 'target' }],
+      outputs: [{ id: 'approved', type: 'source', label: '通过' }],
     },
   },
 

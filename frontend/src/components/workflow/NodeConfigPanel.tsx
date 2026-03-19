@@ -14,11 +14,13 @@ import {
   message,
 } from 'antd';
 import {
+  BellOutlined,
   CodeOutlined,
   DeleteOutlined,
   EditOutlined,
   MinusCircleOutlined,
   PlusOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import styled from 'styled-components';
 import { colors } from '@/styles/tokens/color';
@@ -46,6 +48,8 @@ import type {
   ContextOutputNodeData,
   ContextOutputTarget,
   ResultOutputNodeData,
+  NotificationNodeData,
+  HumanNodeData,
   ConditionOperator,
   ConditionRule,
   SwitchCase,
@@ -1201,6 +1205,141 @@ const TransformForm: React.FC<TransformFormProps> = ({ data, onUpdate }) => {
   );
 };
 
+
+/* ================================================================
+ *  Notification Form
+ * ================================================================ */
+
+interface NotificationFormProps {
+  data: NotificationNodeData;
+  onUpdate: (partial: Partial<NotificationFormProps['data']>) => void;
+}
+
+const NotificationForm: React.FC<NotificationFormProps> = ({ data, onUpdate }) => {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] as string }}>
+      <SectionTitle>通知配置</SectionTitle>
+
+      <Form.Item label="通知渠道 ID" style={{ marginBottom: 0 }}>
+        <Input
+          value={data.channel_id ?? ''}
+          onChange={(e) => onUpdate({ channel_id: e.target.value })}
+          placeholder="选择或输入渠道 ID"
+          size="small"
+          style={LIGHT_SELECT_STYLE}
+        />
+      </Form.Item>
+
+      <Form.Item label="标题模板" style={{ marginBottom: 0 }}>
+        <Input
+          value={data.title_template ?? ''}
+          onChange={(e) => onUpdate({ title_template: e.target.value })}
+          placeholder="支持 {{var}} 模板变量"
+          size="small"
+          style={LIGHT_SELECT_STYLE}
+        />
+      </Form.Item>
+
+      <Form.Item label="正文模板" style={{ marginBottom: 0 }}>
+        <Input.TextArea
+          value={data.body_template ?? ''}
+          onChange={(e) => onUpdate({ body_template: e.target.value })}
+          placeholder="支持 {{var}} 模板变量"
+          rows={3}
+          size="small"
+          style={LIGHT_SELECT_STYLE}
+        />
+      </Form.Item>
+
+      <Form.Item label="通知级别" style={{ marginBottom: 0 }}>
+        <Select
+          value={data.level ?? 'info'}
+          onChange={(val: 'info' | 'success' | 'warning' | 'error') => onUpdate({ level: val })}
+          size="small"
+          style={LIGHT_SELECT_STYLE}
+          options={[
+            { value: 'info', label: 'ℹ️ 信息' },
+            { value: 'success', label: '✅ 成功' },
+            { value: 'warning', label: '⚠️ 警告' },
+            { value: 'error', label: '❌ 错误' },
+          ]}
+        />
+      </Form.Item>
+    </div>
+  );
+};
+
+/* ================================================================
+ *  Human Review Form
+ * ================================================================ */
+
+interface HumanFormProps {
+  data: HumanNodeData;
+  onUpdate: (partial: Partial<HumanFormProps['data']>) => void;
+}
+
+const HumanForm: React.FC<HumanFormProps> = ({ data, onUpdate }) => {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] as string }}>
+      <SectionTitle>人工审核配置</SectionTitle>
+
+      <Form.Item label="审核标题" style={{ marginBottom: 0 }}>
+        <Input
+          value={data.title ?? ''}
+          onChange={(e) => onUpdate({ title: e.target.value })}
+          placeholder="请输入审核标题"
+          size="small"
+          style={LIGHT_SELECT_STYLE}
+        />
+      </Form.Item>
+
+      <Form.Item label="描述说明" style={{ marginBottom: 0 }}>
+        <Input.TextArea
+          value={data.description ?? ''}
+          onChange={(e) => onUpdate({ description: e.target.value })}
+          placeholder="给审核人的上下文说明"
+          rows={3}
+          size="small"
+          style={LIGHT_SELECT_STYLE}
+        />
+      </Form.Item>
+
+      <Form.Item label="指派用户 ID" style={{ marginBottom: 0 }}>
+        <Input
+          value={data.assignee_id ?? ''}
+          onChange={(e) => onUpdate({ assignee_id: e.target.value })}
+          placeholder="可选，留空则不指定"
+          size="small"
+          style={LIGHT_SELECT_STYLE}
+        />
+      </Form.Item>
+
+      <Form.Item label="超时时间（小时）" style={{ marginBottom: 0 }}>
+        <InputNumber
+          min={1}
+          max={720}
+          value={data.timeout_hours ?? 72}
+          onChange={(val) => onUpdate({ timeout_hours: val ?? 72 })}
+          size="small"
+          style={{ width: '100%' }}
+        />
+      </Form.Item>
+
+      <Form.Item label="要求评论" style={{ marginBottom: 0 }}>
+        <Select
+          value={data.require_comment ? 'yes' : 'no'}
+          onChange={(val) => onUpdate({ require_comment: val === 'yes' })}
+          size="small"
+          style={LIGHT_SELECT_STYLE}
+          options={[
+            { value: 'no', label: '否' },
+            { value: 'yes', label: '是 — 审核时必须填写评论' },
+          ]}
+        />
+      </Form.Item>
+    </div>
+  );
+};
 /* ================================================================
  *  Sub Workflow Form
  * ================================================================ */
@@ -1815,6 +1954,8 @@ const NODE_ICON_MAP: Record<WorkflowNodeType, ReactNode> = {
   context_output: <FileTextOutlined />,
   result_output: <CheckCircleOutlined />,
   fork: <BranchesOutlined />,
+  notification: <BellOutlined />,
+  human: <UserOutlined />,
   join: <ApartmentOutlined />,
 };
 
@@ -1993,6 +2134,20 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ agents }) => {
         return (
           <ResultOutputForm
             data={getTypedData<ResultOutputNodeData>(nodeData)}
+            onUpdate={(partial) => updateNodeData(selectedNode.id, partial)}
+          />
+        );
+      case 'notification':
+        return (
+          <NotificationForm
+            data={getTypedData<NotificationNodeData>(nodeData)}
+            onUpdate={(partial) => updateNodeData(selectedNode.id, partial)}
+          />
+        );
+      case 'human':
+        return (
+          <HumanForm
+            data={getTypedData<HumanNodeData>(nodeData)}
             onUpdate={(partial) => updateNodeData(selectedNode.id, partial)}
           />
         );
