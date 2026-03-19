@@ -85,6 +85,8 @@ export interface TaskSubmit {
   timeout: number;
   priority: string;
   preferredIde: string | null;
+  skipPermissions?: boolean;
+  allowedTools?: string[];
 }
 
 export interface TaskCancel {

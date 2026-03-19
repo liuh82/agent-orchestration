@@ -44,11 +44,25 @@ export class ClaudeCodeExecutor extends AgentExecutor {
     }, 5_000);
 
     return new Promise<ExecutionResult>((resolve) => {
-      const args = [
-        "--print", "--verbose",
+      // Build CLI arguments
+      const args: string[] = [
+        "--print",
+        "--verbose",
         "--output-format", "stream-json",
-        task.prompt,
       ];
+
+      // Permission control
+      if (task.skipPermissions) {
+        args.push("--dangerously-skip-permissions");
+      }
+      if (task.allowedTools && task.allowedTools.length > 0) {
+        for (const tool of task.allowedTools) {
+          args.push("--allowedTools", tool);
+        }
+      }
+
+      // Prompt as positional argument (must be last)
+      args.push(task.prompt);
 
       logger.info(`Spawning: ${claudePath} ${args.join(" ")}`);
       logger.debug(`cwd: ${task.projectPath}`);

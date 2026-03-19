@@ -107,6 +107,8 @@ class TaskRouter:
                 'timeout': task.timeout,
                 'priority': task.priority.value,
                 'preferredIde': task.preferred_ide,
+                'skipPermissions': task.skip_permissions,
+                'allowedTools': task.allowed_tools,
             })
             if not success:
                 raise Exception(f"Failed to send task to Bridge {bridge.bridge_id}")

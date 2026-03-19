@@ -40,6 +40,8 @@ export class TaskManager {
       timeout: taskMsg.timeout,
       priority: taskMsg.priority,
       preferredIde: taskMsg.preferredIde,
+      skipPermissions: taskMsg.skipPermissions,
+      allowedTools: taskMsg.allowedTools,
       status: "pending",
     };
 

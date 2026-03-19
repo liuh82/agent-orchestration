@@ -77,6 +77,8 @@ class TaskRequest(BaseModel):
     priority: TaskPriority = TaskPriority.NORMAL
     preferred_ide: Optional[str] = None
     callback_id: Optional[str] = None
+    skip_permissions: bool = False
+    allowed_tools: Optional[list[str]] = None
     source: str  # 'http' | 'workflow' | 'openclaw'
 
 
@@ -92,6 +94,8 @@ class TaskInfo(BaseModel):
     preferred_ide: Optional[str] = None
     source: str
     callback_id: Optional[str] = None
+    skip_permissions: bool = Field(default=False, description="Skip Claude Code permission confirmations")
+    allowed_tools: Optional[list[str]] = Field(default=None, description="Pre-approved tool list for Claude Code")
     status: str
     output: Optional[str] = None
     error: Optional[str] = None
@@ -122,6 +126,8 @@ class SubmitTaskRequest(BaseModel):
     priority: TaskPriority = TaskPriority.NORMAL
     preferred_ide: Optional[str] = None
     callback_id: Optional[str] = None
+    skip_permissions: bool = Field(default=False, description="Skip Claude Code permission confirmations")
+    allowed_tools: Optional[list[str]] = Field(default=None, description="Pre-approved tool list for Claude Code")
 
 
 class SubmitTaskResponse(BaseModel):

@@ -10,6 +10,8 @@ export interface Task {
   timeout: number;
   priority: string;
   preferredIde: string | null;
+  skipPermissions?: boolean;
+  allowedTools?: string[];
   status: TaskStatus;
   startedAt?: number;
   completedAt?: number;

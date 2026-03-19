@@ -147,6 +147,8 @@ async def submit_task(
         priority=body.priority,
         preferred_ide=body.preferred_ide,
         callback_id=body.callback_id,
+        skip_permissions=body.skip_permissions,
+        allowed_tools=body.allowed_tools,
         source=source,
     )
 
