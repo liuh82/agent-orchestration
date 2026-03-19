@@ -14,7 +14,7 @@ class WorkflowService:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_all_workflows(self) -> List[WorkflowDefinition]:
+    def get_all_workflows(self) -> List[dict]:
         """获取所有工作流"""
         result = self.db.execute(
             select(WorkflowDefinitionORM).order_by(WorkflowDefinitionORM.created_at.desc())
@@ -22,43 +22,42 @@ class WorkflowService:
         workflow_orms = result.scalars().all()
 
         workflows = []
-        for workflow_orm in workflow_orms:
-            workflow = WorkflowDefinition(
-                id=workflow_orm.id,
-                name=workflow_orm.name,
-                description=workflow_orm.description,
-                engine=workflow_orm.engine,
-                definition=workflow_orm.definition,
-                config=workflow_orm.config,
-                created_by=workflow_orm.created_by,
-                created_at=datetime.fromisoformat(workflow_orm.created_at),
-                updated_at=datetime.fromisoformat(workflow_orm.updated_at)
-            )
-            workflows.append(workflow)
+        for wo in workflow_orms:
+            workflows.append({
+                "id": wo.id,
+                "name": wo.name,
+                "description": wo.description,
+                "engine": wo.engine,
+                "definition": json.loads(wo.definition) if wo.definition else None,
+                "config": json.loads(wo.config) if wo.config else {},
+                "created_by": wo.created_by,
+                "created_at": wo.created_at,
+                "updated_at": wo.updated_at,
+            })
 
         return workflows
 
-    def get_workflow(self, workflow_id: str) -> Optional[WorkflowDefinition]:
+    def get_workflow(self, workflow_id: str) -> Optional[dict]:
         """获取单个工作流"""
         result = self.db.execute(
             select(WorkflowDefinitionORM).where(WorkflowDefinitionORM.id == workflow_id)
         )
-        workflow_orm = result.scalar_one_or_none()
+        wo = result.scalar_one_or_none()
 
-        if not workflow_orm:
+        if not wo:
             return None
 
-        return WorkflowDefinition(
-            id=workflow_orm.id,
-            name=workflow_orm.name,
-            description=workflow_orm.description,
-            engine=workflow_orm.engine,
-            definition=workflow_orm.definition,
-            config=workflow_orm.config,
-            created_by=workflow_orm.created_by,
-            created_at=datetime.fromisoformat(workflow_orm.created_at),
-            updated_at=datetime.fromisoformat(workflow_orm.updated_at)
-        )
+        return {
+            "id": wo.id,
+            "name": wo.name,
+            "description": wo.description,
+            "engine": wo.engine,
+            "definition": json.loads(wo.definition) if wo.definition else None,
+            "config": json.loads(wo.config) if wo.config else {},
+            "created_by": wo.created_by,
+            "created_at": wo.created_at,
+            "updated_at": wo.updated_at,
+        }
 
     def create_workflow(self, workflow: WorkflowDefinition) -> WorkflowDefinition:
         """创建新工作流"""

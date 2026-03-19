@@ -97,7 +97,7 @@ class TaskInfo(BaseModel):
     error: Optional[str] = None
     exit_code: Optional[int] = None
     changed_files: Optional[List[str]] = None
-    duration: Optional[int] = None
+    duration: Optional[float] = None
     progress: int = 0
     submitted_at: int
     started_at: Optional[int] = None
