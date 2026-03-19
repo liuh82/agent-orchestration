@@ -3,55 +3,24 @@
  *
  * Claude Code --output-format stream-json 每行输出一个 JSON 对象，
  * 本模块将其解析为统一的 CCEvent，并在任务完成后聚合为 StructuredResult。
+ *
+ * 类型已迁移至 agent/base.ts，此处通过 import + re-export 保持兼容。
  */
+import type {
+  CCEventType,
+  CCEvent,
+  FileChange,
+  CommandRun,
+  StructuredResult,
+} from "./base.js";
 
-/** 事件类型枚举 */
-export type CCEventType =
-  | "text"
-  | "tool_use"
-  | "tool_result"
-  | "thinking"
-  | "error"
-  | "done";
-
-/** 单条结构化事件 */
-export interface CCEvent {
-  type: CCEventType;
-  subtype?: string;
-  content: string;
-  /** 工具名称（tool_use / tool_result 时有值） */
-  toolName?: string;
-  /** 工具输入参数（tool_use 时有值） */
-  toolInput?: unknown;
-  /** 是否为错误输出 */
-  isError?: boolean;
-  /** 本条事件产生的费用（美元） */
-  costUsd?: number;
-  /** token 用量 */
-  tokenUsage?: { input: number; output: number };
-}
-
-/** 文件修改记录 */
-export interface FileChange {
-  path: string;
-  action: "created" | "edited" | "deleted";
-}
-
-/** 命令执行记录 */
-export interface CommandRun {
-  command: string;
-  exitCode: number;
-}
-
-/** 聚合结果 — 任务完成后一次性生成 */
-export interface StructuredResult {
-  filesModified: FileChange[];
-  commandsRun: CommandRun[];
-  errors: string[];
-  summary: string;
-  tokenUsage: { input: number; output: number };
-  costUsd: number;
-}
+export type {
+  CCEventType,
+  CCEvent,
+  FileChange,
+  CommandRun,
+  StructuredResult,
+};
 
 /**
  * 解析 stream-json 的单行，返回 CCEvent 或 null。

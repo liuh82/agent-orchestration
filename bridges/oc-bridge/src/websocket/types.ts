@@ -1,7 +1,7 @@
 /**
  * Protocol message types — must match backend gateway_schemas.py + ws_server.py
  */
-import type { StructuredResult } from "../agent/output-parser.js";
+import type { StructuredResult } from "../agent/base.js";
 
 // ---- Outgoing: Bridge → Server ----
 

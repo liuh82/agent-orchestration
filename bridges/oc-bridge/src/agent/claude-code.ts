@@ -4,6 +4,7 @@
  * 每行 stream-json 输出通过 output-parser.ts 解析为 CCEvent，
  * 通过 onProgress 回调实时推送给 TaskManager。
  *
+ * 实现 BaseAgent 接口，提供 CLI 参数构建、输出解析、结果聚合。
  * 支持 sandbox 模式: 将项目复制到隔离目录执行，完成后生成 diff patch。
  */
 import { spawn, execSync, execFileSync } from "node:child_process";
@@ -11,13 +12,52 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { AgentExecutor } from "./executor.js";
+import type { BaseAgent, AgentOptions, CCEvent, StructuredResult } from "./base.js";
 import { parseStreamLine, buildStructuredResult } from "./output-parser.js";
-import type { CCEvent } from "./output-parser.js";
 import { logger } from "../logger/index.js";
 import { findClaudeCli } from "../utils/platform.js";
 import type { Task, ExecutionResult } from "../task/types.js";
 
-export class ClaudeCodeExecutor extends AgentExecutor {
+export class ClaudeCodeExecutor extends AgentExecutor implements BaseAgent {
+  readonly name = "claude";
+  readonly command = "claude";
+  readonly displayName = "Claude Code";
+
+  // ---- BaseAgent 接口实现 ----
+
+  buildArgs(prompt: string, options: AgentOptions): string[] {
+    const args: string[] = [
+      "--print",
+      "--verbose",
+      "--output-format", "stream-json",
+    ];
+
+    if (options.skipPermissions) {
+      args.push("--dangerously-skip-permissions");
+    }
+    if (options.allowedTools && options.allowedTools.length > 0) {
+      for (const tool of options.allowedTools) {
+        args.push("--allowedTools", tool);
+      }
+    }
+
+    args.push(prompt);
+    return args;
+  }
+
+  parseStreamLine(line: string): CCEvent | null {
+    return parseStreamLine(line);
+  }
+
+  buildStructuredResult(events: CCEvent[]): StructuredResult {
+    return buildStructuredResult(events);
+  }
+
+  async detectPresence(): Promise<boolean> {
+    return findClaudeCli() !== null;
+  }
+
+  // ---- AgentExecutor 实现 ----
   async execute(
     task: Task,
     onProgress: (progress: number, event?: CCEvent) => void,
@@ -67,25 +107,13 @@ export class ClaudeCodeExecutor extends AgentExecutor {
     }, 5_000);
 
     return new Promise<ExecutionResult>((resolve) => {
-      // Build CLI arguments
-      const args: string[] = [
-        "--print",
-        "--verbose",
-        "--output-format", "stream-json",
-      ];
-
-      // Permission control
-      if (task.skipPermissions) {
-        args.push("--dangerously-skip-permissions");
-      }
-      if (task.allowedTools && task.allowedTools.length > 0) {
-        for (const tool of task.allowedTools) {
-          args.push("--allowedTools", tool);
-        }
-      }
-
-      // Prompt as positional argument (must be last)
-      args.push(task.prompt);
+      // Build CLI arguments via BaseAgent interface
+      const args = this.buildArgs(task.prompt, {
+        workdir: effectiveProjectPath,
+        skipPermissions: task.skipPermissions,
+        sandboxMode,
+        allowedTools: task.allowedTools,
+      });
 
       logger.info(`Spawning: ${claudePath} ${args.join(" ")}`);
       logger.debug(`cwd: ${effectiveProjectPath}`);

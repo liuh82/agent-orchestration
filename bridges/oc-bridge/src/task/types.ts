@@ -1,6 +1,6 @@
 /** Task lifecycle types. */
 
-import type { CCEvent, StructuredResult } from "../agent/output-parser.js";
+import type { CCEvent, StructuredResult } from "../agent/base.js";
 
 export type TaskStatus = "pending" | "running" | "completed" | "failed" | "timeout" | "cancelled";
 
