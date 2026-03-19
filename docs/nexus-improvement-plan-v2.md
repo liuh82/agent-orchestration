@@ -16,10 +16,20 @@
 |---|---|---|
 | Go codeagent-wrapper SSE 实时推送 | ✅ 已验证可行 | 迭代一 T1-T2 |
 | Backend interface 多后端抽象 | ✅ 扩展性设计 | 迭代一 T3（为多模型做准备）|
-| 外部模型只读 + Claude 审核 patch | ✅ 安全设计 | 迭代五（安全沙盒） |
+| 外部模型只读 + Claude 审核 patch | ✅ 安全设计 | 迭代四 T13 |
 | 双层超时（全局 + 单命令） | ✅ 已验证稳定 | 迭代三 T9 |
 | 结构化 TaskResult 提取 | ✅ 直接参考 | 迭代一 T5 |
 | 失败自动重试（3 次 + 降级） | ✅ 可靠性设计 | 迭代三 T10 |
+
+### OPSX 约束驱动方法论
+| OPSX 能力 | 价值 | 对应 Nexus 改进 |
+|---|---|---|
+| 约束推理（需求→约束集） | 消除 AI 自由发挥 | 迭代六 T19 |
+| 零决策计划（约束→可执行计划） | 执行可复现 | 迭代六 T20 |
+| 多模型交叉验证 | 发现单模型盲点 | 迭代六 T21 |
+| PBT 属性测试 | 验证约束是否满足 | 迭代六 T22 |
+| Artifact 管理体系 | 需求→规格→计划→执行 全链路追踪 | 迭代六 T19-T22 |
+| 角色提示词注入 | 外部模型遵守项目规范 | 迭代六 T20 |
 
 ---
 
@@ -365,7 +375,6 @@ def select_bridge(self, task):
     best = bridges[0]
 
     # 追加任务类型亲和性：cli 类型任务优先分配给执行过 cli 的 bridge
-    # （缓存预热优势）
     cli_bridges = [b for b in bridges if b.last_task_type == 'cli']
     if cli_bridges and task.agent_type == 'cli':
         cli_bridges.sort(key=lambda b: b.active_tasks_count)
@@ -380,12 +389,6 @@ def select_bridge(self, task):
 - `backend/app/models/gateway.py` — 新增 cost_usd 列
 - `frontend/src/pages/tasks/TaskDetailPage.tsx` — 费用显示
 - `frontend/src/pages/dashboard/DashboardPage.tsx` — 汇总统计
-
-```typescript
-// 任务详情：显示本次费用
-// 仪表板：按天/按项目/按 Agent 汇总
-// 数据来源：result_data.cost_usd（迭代一已提取）
-```
 
 ### 迭代三 CC 执行 Prompt
 
@@ -414,11 +417,8 @@ Steps:
    - Add load logging
 
 3. Database: cost_usd column on gateway_tasks + Alembic migration
-   - Save cost from result_data.cost_usd on task completion
 
-4. Frontend: Cost display in TaskDetailPage
-   - Show cost_usd in task info section
-   - Dashboard: daily cost summary
+4. Frontend: Cost display in TaskDetailPage + dashboard summary
 
 Build checks:
 - cd backend && python3 -c "from app.models.gateway_schemas import *; print('OK')"
@@ -436,33 +436,13 @@ Do NOT push.
 **参考：** CCG 的"外部模型只返回 patch，Claude 审核后才 apply"设计。
 
 ### T12: 任务执行日志分页
-**文件：**
-- `backend/app/routers/gateway.py` — `GET /api/gateway/tasks/{id}/logs?page=1&size=100`
-- `frontend/src/pages/tasks/TaskDetailPage.tsx` — 虚拟滚动
+- `GET /api/gateway/tasks/{id}/logs?page=1&size=100&event_type=tool_use`
 
-### T13: 安全沙盒模式（参考 CCG 只读外部模型设计）
-**文件：**
-- `backend/app/models/gateway_schemas.py` — 新增 sandbox_mode 字段
-- `bridges/oc-bridge/src/agent/claude-code.ts` — 沙盒模式执行
-
-```python
-class SubmitTaskRequest(BaseModel):
-    sandbox_mode: bool = False  # 沙盒模式
-
-# 沙盒模式行为：
-# 1. CC 在临时目录（/tmp/nexus-sandbox-{task_id}/）中执行
-# 2. 工作目录设为沙盒目录
-# 3. 执行完成后，列出所有修改/创建的文件
-# 4. 生成 diff 预览（沙盒文件 vs 原始文件）
-# 5. 前端展示 diff，用户确认后执行 apply（cp/rsync 回原目录）
-# 6. apply 完成后删除沙盒
-```
+### T13: 安全沙盒模式
+- 沙盒目录隔离执行 → diff 预览 → 用户确认 apply
 
 ### T14: 多 Agent 并行状态面板
-**文件：**
-- `frontend/src/pages/dashboard/DashboardPage.tsx` — 实时状态总览
-- `frontend/src/components/dashboard/BridgeStatus.tsx` — Bridge 在线/离线
-- `frontend/src/components/dashboard/TaskTimeline.tsx` — 任务时间线
+- Bridge 状态 + 任务时间线 + 实时更新
 
 ### 迭代四 CC 执行 Prompt
 
@@ -478,7 +458,6 @@ Steps:
 
 1. backend/app/routers/gateway.py — Paginated task logs:
    - GET /api/gateway/tasks/{id}/logs?page=1&size=100&event_type=tool_use
-   - Query from stored progress events
    - Filter by event_type, search in content
 
 2. Security sandbox mode:
@@ -486,12 +465,12 @@ Steps:
    - In claude-code.ts: if sandbox_mode, set workdir to /tmp/nexus-sandbox-{task_id}/
    - Copy target project files to sandbox before execution
    - After execution: diff sandbox vs original, generate patch list
-   - New API: POST /api/gateway/tasks/{id}/apply-patch (apply sandbox changes)
-   - New API: POST /api/gateway/tasks/{id}/discard-patch (delete sandbox)
+   - New API: POST /api/gateway/tasks/{id}/apply-patch
+   - New API: POST /api/gateway/tasks/{id}/discard-patch
 
 3. Frontend dashboard:
-   - BridgeStatus: online/offline indicator, active task count
-   - TaskTimeline: running/completed/failed tasks in chronological order
+   - BridgeStatus: online/offline, active task count
+   - TaskTimeline: running/completed/failed chronological order
    - Live update via polling or WebSocket
 
 Build checks:
@@ -508,21 +487,491 @@ Do NOT push.
 ## 迭代五：P2 — 增强功能
 
 ### T15: Prompt 模板管理
-- CRUD API for prompt templates
-- 前端模板编辑器
-- 任务提交时可选择模板
+- CRUD API + 前端编辑器
 
 ### T16: 任务依赖可视化
-- 前端 DAG 图（任务依赖关系）
-- 依赖状态实时更新
+- DAG 图 + 实时状态
 
 ### T17: Webhook 通知
-- 任务完成/失败时发送 webhook
-- 支持钉钉/飞书/Slack
+- 钉钉/飞书/Slack
 
 ### T18: 审计日志
-- 所有 API 调用记录
-- 前端审计日志查看页面
+- API 调用记录 + 查看页面
+
+---
+
+## 迭代六：P0 — OPSX 约束驱动体系（质量革命）
+
+**目标：** 解决 AI 编码的核心问题——质量和可复现性。让 Nexus 不仅是"怎么调度"，还能"怎么做对"。
+**参考：** OPSX（fission-ai/opsx）+ CCG spec-* 命令
+**策略：** 优先原生实现，不成就集成 OPSX。
+
+### 核心理念
+
+> **先消除所有决策点，再执行。执行阶段不需要做任何判断。**
+
+OPSX 的 4 步严格分离：
+```
+模糊需求 → 约束集(Research) → 零决策计划(Plan) → 机械执行(Impl) → 交叉验证(Review)
+```
+
+### Nexus 与 OPSX 的差距
+
+| 维度 | OPSX 现状 | Nexus 现状 | 差距 |
+|------|----------|----------|------|
+| 需求理解 | 多模型并行探索+Prompt 增强 | 直接发 prompt 给 CC | 无约束推理 |
+| 决策时机 | 全部在 Plan 阶段做完 | 执行时 CC 自己决策 | 执行不可复现 |
+| 多模型验证 | Codex+Gemini 并行分析，冲突标记 Critical | 单模型执行 | 无交叉验证 |
+| 约束管理 | openspec/ 目录存储约束集+PBT 属性 | 无约束概念 | 无质量门控 |
+| Artifact 追踪 | proposal→specs→design→tasks 全链路 | 只有 prompt+result | 无需求追溯 |
+| 可复现性 | 高（零决策计划） | 低（同一 prompt 两次不同结果） | 核心缺陷 |
+
+### T19: 约束推理节点（spec-research）
+**新增节点类型：** `spec`
+
+**文件：**
+- `backend/app/services/workflow_engine/nodes/spec_node.py`（新建）
+- `backend/app/services/workflow_engine/nodes/base.py` — 注册
+- `frontend/src/components/workflow/NodeConfigPanel.tsx` — 配置面板
+
+**设计：**
+```python
+@NodeRegistry.register("spec", label="Constraint Analysis", category="quality", icon="search")
+class SpecNode(BaseNodeExecutor):
+    """将模糊需求转化为可验证的约束集"""
+
+    CONFIG_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "label": {"type": "string", "title": "Label", "default": "约束分析"},
+            "requirement": {
+                "type": "string",
+                "title": "需求描述",
+                "description": "要实现的功能或需求"
+            },
+            "scope": {
+                "type": "string",
+                "title": "分析范围",
+                "enum": ["full", "backend", "frontend", "infrastructure"],
+                "default": "full"
+            },
+            "parallel_models": {
+                "type": "boolean",
+                "title": "多模型并行分析",
+                "description": "使用多个模型交叉分析",
+                "default": True
+            },
+            "max_constraints": {
+                "type": "integer",
+                "title": "最大约束数",
+                "default": 50
+            }
+        }
+    }
+
+    async def execute(self, context: NodeContext) -> NodeResult:
+        requirement = context.node_config["requirement"]
+        scope = context.node_config.get("scope", "full")
+
+        # Step 1: Prompt 增强（参考 CCG /ccg:enhance）
+        enhanced = await self._enhance_prompt(requirement, scope)
+
+        # Step 2: 约束提取
+        constraints = await self._extract_constraints(enhanced, scope)
+
+        # Step 3: 成功判据
+        criteria = await self._define_criteria(constraints)
+
+        return NodeResult(
+            output_data={
+                "original_requirement": requirement,
+                "enhanced_requirement": enhanced,
+                "constraints": constraints,          # [{id, text, category, priority, verifiable}]
+                "success_criteria": criteria,        # [{id, text, constraint_ids, pbt_properties}]
+                "scope": scope,
+                "artifacts": {
+                    "proposal": "...",  # 约束提案文本
+                }
+            }
+        )
+```
+
+**约束提取的 Prompt 模板：**
+```
+你是一个约束分析专家。将以下需求转化为可验证的约束集。
+
+需求：{enhanced_requirement}
+范围：{scope}
+分析维度：
+1. 功能约束 — 必须实现什么
+2. 安全约束 — 不能做什么、必须防护什么
+3. 性能约束 — 延迟、吞吐、资源限制
+4. 兼容性约束 — API 兼容、数据迁移、向后兼容
+5. 架构约束 — 代码组织、模块边界、依赖方向
+6. 测试约束 — 测试覆盖、边界条件、异常处理
+
+对每个约束，必须明确：
+- 约束文本（精确、无歧义）
+- 优先级（MUST / SHOULD / MAY）
+- 可验证性（如何验证此约束被满足）
+- 反例（违反此约束的例子）
+
+输出 JSON 数组。
+```
+
+### T20: 零决策计划节点（spec-plan）
+**新增节点类型：** `plan`
+
+**文件：**
+- `backend/app/services/workflow_engine/nodes/plan_node.py`（新建）
+
+**设计：**
+```python
+@NodeRegistry.register("plan", label="Zero-Decision Plan", category="quality", icon="clipboard")
+class PlanNode(BaseNodeExecutor):
+    """将约束集转化为零决策可执行计划"""
+
+    async def execute(self, context: NodeContext) -> NodeResult:
+        # 上游 spec 节点输出
+        constraints = context.upstream_outputs.get("constraints", [])
+        criteria = context.upstream_outputs.get("success_criteria", [])
+
+        # Step 1: 多模型实现分析（参考 CCG 并行分析）
+        if context.node_config.get("parallel_models"):
+            analysis_a = await self._analyze_with_model(constraints, model="claude")
+            analysis_b = await self._analyze_with_model(constraints, model="codex")
+            conflicts = self._find_conflicts(analysis_a, analysis_b)
+        else:
+            analysis_a = await self._analyze_with_model(constraints, model="claude")
+            conflicts = []
+
+        # Step 2: 消除歧义 → 零决策计划
+        plan = await self._build_zero_decision_plan(constraints, analysis_a, conflicts)
+
+        return NodeResult(
+            output_data={
+                "constraints": constraints,
+                "plan": plan,               # [{step, action, file, content, verification}]
+                "conflicts": conflicts,      # [{description, resolution, status}]
+                "total_steps": len(plan),
+                "artifacts": {
+                    "specs": "...",
+                    "design": "...",
+                    "tasks": "..."  # checkbox 格式
+                }
+            }
+        )
+```
+
+**零决策计划格式（每个步骤无歧义）：**
+```json
+[
+  {
+    "step": 1,
+    "action": "create_file",
+    "file": "src/models/user.py",
+    "content_template": "创建 User 模型，字段：id (UUID PK), email (unique, not null), password_hash (not null), created_at, updated_at。使用 SQLAlchemy ORM。",
+    "constraint_ids": ["C1", "C3"],
+    "verification": "python3 -c 'from src.models.user import User; print(User.__table__.columns.keys())'",
+    "estimated_diff_lines": 25
+  },
+  {
+    "step": 2,
+    "action": "edit_file",
+    "file": "src/api/routes/auth.py",
+    "content_template": "在现有 login 路由后添加 register 路由：POST /api/auth/register，接收 email+password，调用 User.create()，返回 201 + JWT token。",
+    "constraint_ids": ["C1", "C5"],
+    "verification": "pytest tests/api/test_auth.py::test_register -v"
+  }
+]
+```
+
+### T21: 交叉验证节点（spec-review）
+**新增节点类型：** `review`
+
+**文件：**
+- `backend/app/services/workflow_engine/nodes/review_node.py`（新建）
+
+**设计：**
+```python
+@NodeRegistry.register("review", label="Cross-Model Review", category="quality", icon="shield")
+class ReviewNode(BaseNodeExecutor):
+    """多模型交叉验证实现结果"""
+
+    CONFIG_SCHEMA = {
+        "properties": {
+            "review_dimensions": {
+                "type": "array",
+                "items": {"type": "string"},
+                "default": ["spec_compliance", "logic_correctness", "security", "maintainability"]
+            },
+            "fail_on_critical": {
+                "type": "boolean",
+                "default": True,
+                "description": "存在 Critical 级别问题时任务失败"
+            }
+        }
+    }
+
+    async def execute(self, context: NodeContext) -> NodeResult:
+        # 获取上游 spec 节点的约束 + plan 节点的计划
+        constraints = context.upstream_outputs.get("constraints", [])
+        plan = context.upstream_outputs.get("plan", [])
+        task_result = context.upstream_outputs.get("execution_result", {})
+
+        # 多模型并行 review（参考 CCG spec-review）
+        review_a = await self._review_with_model(constraints, plan, task_result, "claude")
+        review_b = await self._review_with_model(constraints, plan, task_result, "codex")
+
+        # 综合两个 review
+        findings = self._merge_reviews(review_a, review_b)
+
+        # 检查约束合规
+        compliance = self._check_constraint_compliance(constraints, findings)
+
+        return NodeResult(
+            status=NodeStatus.FAILED if findings["critical_count"] > 0 else NodeStatus.SUCCESS,
+            output_data={
+                "review_a": review_a,
+                "review_b": review_b,
+                "findings": findings,       # [{severity, dimension, description, file, suggestion}]
+                "compliance": compliance,   # {constraint_id: "pass"|"fail"|"partial"}
+                "critical_count": findings["critical_count"],
+                "artifacts": {
+                    "review_report": "..."
+                }
+            }
+        )
+```
+
+### T22: 约束验证 + PBT 节点（spec-verify）
+**新增节点类型：** `verify`
+
+**文件：**
+- `backend/app/services/workflow_engine/nodes/verify_node.py`（新建）
+
+**设计：**
+```python
+@NodeRegistry.register("verify", label="Constraint Verify", category="quality", icon="check-circle")
+class VerifyNode(BaseNodeExecutor):
+    """验证实现是否满足所有约束"""
+
+    CONFIG_SCHEMA = {
+        "properties": {
+            "auto_fix": {
+                "type": "boolean",
+                "default": False,
+                "description": "验证失败时自动修复（最多 3 次）"
+            },
+            "generate_pbt": {
+                "type": "boolean",
+                "default": True,
+                "description": "为约束生成 Property-Based Tests"
+            }
+        }
+    }
+
+    async def execute(self, context: NodeContext) -> NodeResult:
+        constraints = context.upstream_outputs.get("constraints", [])
+        success_criteria = context.upstream_outputs.get("success_criteria", [])
+
+        results = []
+        for criterion in success_criteria:
+            result = await self._verify_criterion(criterion, context)
+            results.append(result)
+
+        passed = sum(1 for r in results if r["status"] == "pass")
+        total = len(results)
+
+        return NodeResult(
+            status=NodeStatus.SUCCESS if passed == total else NodeStatus.FAILED,
+            output_data={
+                "results": results,
+                "passed": passed,
+                "total": total,
+                "pass_rate": passed / total if total > 0 else 0,
+                "artifacts": {
+                    "test_report": "...",
+                    "pbt_tests": "..."  # 如果启用了 generate_pbt
+                }
+            }
+        )
+```
+
+### T23: Artifact 管理体系
+**文件：**
+- `backend/app/models/spec_artifact.py`（新建）
+- `backend/app/routers/spec.py`（新建）
+
+**数据模型：**
+```python
+class SpecArtifact(Base):
+    """约束驱动开发的 artifact 管理"""
+    __tablename__ = "spec_artifacts"
+
+    id = Column(String, primary_key=True)
+    project_id = Column(String, ForeignKey("projects.id"))
+    change_id = Column(String, index=True)        # 变更 ID
+    artifact_type = Column(String)                  # proposal|specs|design|tasks|review
+    content = Column(Text)                          # Markdown 内容
+    constraints = Column(Text)                      # JSON: 约束集
+    success_criteria = Column(Text)                 # JSON: 成功判据
+    status = Column(String, default="active")       # active|archived
+    parent_artifact_id = Column(String, ForeignKey("spec_artifacts.id"))
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
+```
+
+**API：**
+```
+POST   /api/v1/specs/changes              — 创建变更
+GET    /api/v1/specs/changes              — 列出变更
+GET    /api/v1/specs/changes/{id}         — 变更详情
+POST   /api/v1/specs/changes/{id}/artifacts  — 添加 artifact
+GET    /api/v1/specs/changes/{id}/artifacts  — 列出 artifacts
+POST   /api/v1/specs/changes/{id}/archive    — 归档变更
+```
+
+### T24: 约束驱动工作流模板
+**预设工作流模板，用户一键使用：**
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   spec       │────→│   plan       │────→│   agent      │────→│   review     │────→│   verify     │
+│  约束分析    │     │  零决策计划  │     │  按计划执行  │     │  交叉验证    │     │  约束验证    │
+└──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
+     │                    │                    │                    │                    │
+     ▼                    ▼                    ▼                    ▼                    ▼
+  proposal.md         specs.md            result_data          review_report        test_report
+  constraints         tasks.md            files_modified       findings             pbt_tests
+  criteria            design.md           cost_usd             compliance           pass_rate
+```
+
+**与现有 Nexus 优势的结合：**
+- spec 节点的输出通过工作流数据流传递给 plan 节点
+- plan 节点的输出注入 agent 节点的 prompt（变量模板）
+- agent 节点执行时按计划操作（约束 + 计划作为上下文）
+- review 节点读取 constraints + agent result 做交叉验证
+- verify 节点读取 criteria 自动运行测试
+- human 节点可以在任何阶段暂停等待人工确认
+- 整个流程可视化、可追踪、可复现
+
+### 降级方案：集成 OPSX
+
+如果原生实现不理想，降级为集成方案：
+
+1. **安装 OPSX CLI** — `npm install -g opsx`
+2. **封装为工作流节点** — spec/plan/review 节点内部调用 `openspec` CLI
+3. **Artifact 同步** — OPSX 的 `openspec/` 目录内容同步到 Nexus 数据库
+4. **状态映射** — OPSX change status ↔ Nexus workflow execution status
+
+```python
+# 降级方案的 spec 节点
+class SpecNodeFallback(BaseNodeExecutor):
+    async def execute(self, context):
+        requirement = context.node_config["requirement"]
+
+        # 调用 OPSX CLI
+        proc = await asyncio.create_subprocess_exec(
+            "openspec", "new", "change", requirement[:50],
+            stdout=asyncio.subprocess.PIPE,
+            cwd=context.node_config.get("work_dir", "/tmp")
+        )
+        stdout, _ = await proc.communicate()
+
+        # 解析 OPSX 输出并同步到 Nexus
+        # ...
+```
+
+### 迭代六 CC 执行 Prompt
+
+```
+Read CLAUDE.md first. This is the highest priority constraint file.
+
+Context: Iteration 6 — OPSX Constraint-Driven Development System.
+This is the most important iteration for Nexus quality. It transforms Nexus from a "task dispatcher" into a "quality-guaranteed development system".
+Reference: OPSX (fission-ai/opsx) + CCG spec-* commands (github.com/fengshao1227/ccg-workflow).
+
+Project: /root/.openclaw/workspace/agent-orchestration
+
+## Phase A: Core Node Types (2 CC tasks)
+
+### CC Task 1: spec + plan nodes
+
+1. Create backend/app/services/workflow_engine/nodes/spec_node.py:
+   - @NodeRegistry.register("spec", label="Constraint Analysis", category="quality", icon="search")
+   - CONFIG_SCHEMA: requirement (string), scope (enum), parallel_models (bool), max_constraints (int)
+   - execute():
+     a) _enhance_prompt: expand vague requirement into structured one (goals, constraints, scope, acceptance criteria)
+     b) _extract_constraints: from enhanced prompt, extract constraints in 6 dimensions (functional, security, performance, compatibility, architecture, testing)
+     c) _define_criteria: for each constraint, define verifiable success criteria
+     d) Return: {enhanced_requirement, constraints[], success_criteria[], artifacts.proposal}
+
+   Constraints must have: {id, text, category, priority(MUST/SHOULD/MAY), verifiable, anti_pattern}
+   Criteria must have: {id, text, constraint_ids, verification_method, pbt_properties[]}
+
+2. Create backend/app/services/workflow_engine/nodes/plan_node.py:
+   - @NodeRegistry.register("plan", label="Zero-Decision Plan", category="quality", icon="clipboard")
+   - CONFIG_SCHEMA: analysis_depth (enum), include_tests (bool), auto_resolve_conflicts (bool)
+   - execute():
+     a) Read upstream spec output (constraints, success_criteria)
+     b) If parallel_models: dispatch constraint analysis to 2 models simultaneously, merge results
+     c) _build_zero_decision_plan: convert constraints into step-by-step plan
+        Each step: {step_number, action(create_file|edit_file|delete_file|run_command), file, exact_content, constraint_ids, verification_command}
+     d) _find_conflicts: detect contradictions between models
+     e) Return: {constraints, plan[], conflicts[], artifacts.specs/design/tasks}
+
+   KEY: Each plan step must be ZERO-DECISION — the implementer should NOT need to think, just execute mechanically.
+
+3. Register both nodes in __init__.py
+
+### CC Task 2: review + verify nodes + artifact management
+
+1. Create backend/app/services/workflow_engine/nodes/review_node.py:
+   - @NodeRegistry.register("review", label="Cross-Model Review", category="quality", icon="shield")
+   - CONFIG_SCHEMA: review_dimensions (array), fail_on_critical (bool), models (array)
+   - execute():
+     a) Read upstream constraints + plan + execution result
+     b) Dispatch to 2 models for independent review (parallel if possible)
+     c) Review dimensions: spec_compliance, logic_correctness, security, maintainability, performance
+     d) Merge findings, check constraint compliance
+     e) If critical_count > 0: return FAILED
+
+2. Create backend/app/services/workflow_engine/nodes/verify_node.py:
+   - @NodeRegistry.register("verify", label="Constraint Verify", category="quality", icon="check-circle")
+   - CONFIG_SCHEMA: auto_fix (bool), generate_pbt (bool), test_framework (enum)
+   - execute():
+     a) Read upstream success_criteria + execution result
+     b) For each criterion, run verification
+     c) If generate_pbt: generate Property-Based Tests
+     d) Return: {results[], passed, total, pass_rate, artifacts.test_report}
+
+3. Create backend/app/models/spec_artifact.py:
+   - SpecArtifact model (id, project_id, change_id, artifact_type, content, constraints, success_criteria, status, parent_id, timestamps)
+   - Alembic migration
+
+4. Create backend/app/routers/spec.py:
+   - POST /api/v1/specs/changes — create change
+   - GET /api/v1/specs/changes — list changes
+   - GET /api/v1/specs/changes/{id} — detail
+   - POST /api/v1/specs/changes/{id}/artifacts — add artifact
+   - GET /api/v1/specs/changes/{id}/artifacts — list artifacts
+   - POST /api/v1/specs/changes/{id}/archive — archive
+
+5. Add spec router to main app
+
+6. Create a preset workflow template "约束驱动开发":
+   spec → plan → human(optional) → agent → review → verify → output
+   Each node passes data via upstream_outputs
+
+Build checks:
+- cd backend && python3 -c "from app.services.workflow_engine.nodes.spec_node import SpecNode; from app.services.workflow_engine.nodes.plan_node import PlanNode; from app.services.workflow_engine.nodes.review_node import ReviewNode; from app.services.workflow_engine.nodes.verify_node import VerifyNode; print('OK')"
+- cd backend && python3 -c "from app.models.spec_artifact import SpecArtifact; print('OK')"
+
+Commit 1: git add -A && git commit -m "feat(P0): spec + plan nodes — constraint analysis + zero-decision planning"
+Commit 2: git add -A && git commit -m "feat(P0): review + verify nodes + spec artifact management"
+Do NOT push.
+```
 
 ---
 
@@ -535,20 +984,33 @@ Do NOT push.
 | 三 | T9-T11 重试+路由+成本 | backend + frontend | 1 | 迭代一 |
 | 四 | T12-T14 沙盒+仪表板 | 全部 | 2 | 迭代一 |
 | 五 | T15-T18 增强功能 | 全部 | 2 | 迭代二 |
+| **六** | **T19-T24 OPSX约束驱动** | **backend(nodes+models+routers) + frontend** | **2** | **迭代一** |
 
-**总计：8 个 CC 任务**
+**总计：10 个 CC 任务**
 
 ---
 
-## CCG 参考文件索引
+## CCG + OPSX 参考文件索引
 
-在 CCG 仓库中查看以下文件获取实现参考：
-
-| CCG 文件 | 参考内容 |
+### CCG Workflow (github.com/fengshao1227/ccg-workflow)
+| 文件 | 参考内容 |
 |---|---|
 | `codeagent-wrapper/server.go` | SSE 服务器架构、ContentEvent 设计 |
 | `codeagent-wrapper/parser.go` | stream-json 解析、UnifiedEvent 设计 |
 | `codeagent-wrapper/executor.go` | 进程管理、超时处理 |
 | `codeagent-wrapper/config.go` | 多后端抽象、Backend interface |
 | `codeagent-wrapper/logger.go` | 异步日志、错误缓存 |
-| `codeagent-wrapper/filter.go` | 噪声过滤（参考减少 Nexus 日志噪音）|
+| `codeagent-wrapper/filter.go` | 噪声过滤 |
+| `templates/commands/spec-research.md` | 约束推理流程 + Prompt 增强 |
+| `templates/commands/spec-plan.md` | 零决策计划 + 多模型分析 |
+| `templates/commands/spec-impl.md` | 按规范执行 + 外部模型只读 |
+| `templates/commands/spec-review.md` | 双模型交叉审查 |
+
+### OPSX (fission-ai/opsx)
+| 概念 | 参考内容 |
+|---|---|
+| Change lifecycle | new → research → plan → impl → verify → archive |
+| Constraint schema | id, text, category, priority, verifiable, anti_pattern |
+| Success criteria | id, text, constraint_ids, pbt_properties |
+| Task format | checkbox `- [ ] X.Y description`（机器可解析） |
+| State machine | active → implementing → verifying → verified → archived |
