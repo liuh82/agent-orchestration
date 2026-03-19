@@ -484,7 +484,254 @@ Do NOT push.
 
 ---
 
-## 迭代五：P2 — 增强功能
+## 迭代五：P1 — 多 CLI 后端支持（Codex + OpenCode）
+
+**目标：** 扩展 oc-bridge 支持更多 AI 编码 CLI，参考 CCG 的 Backend interface 抽象。
+**参考：** CCG codeagent-wrapper/config.go 的多后端注册 + 路由设计。
+
+### 背景
+
+CCG 支持 3 个后端（Codex、Claude、Gemini），通过统一的 Backend interface 调度。
+Nexus 目前只支持 Claude Code CLI。需要扩展支持：
+- **OpenAI Codex CLI** (`codex`) — OpenAI 的编码代理
+- **OpenCode** (`opencode`) — 开源终端 AI 编码工具
+
+### T25: 多后端抽象层
+**文件：**
+- `bridges/oc-bridge/src/agent/base.ts`（新建）— 统一后端接口
+- `bridges/oc-bridge/src/agent/claude-code.ts` — 重构为 implements BaseAgent
+- `bridges/oc-bridge/src/agent/codex-code.ts`（新建）— Codex CLI 封装
+- `bridges/oc-bridge/src/agent/opencode.ts`（新建）— OpenCode 封装
+- `bridges/oc-bridge/src/agent/registry.ts` — 后端注册表
+
+**设计（参考 CCG Backend interface）：**
+```typescript
+// 统一后端接口
+interface BaseAgent {
+  name: string;              // "claude" | "codex" | "opencode"
+  command: string;           // CLI 可执行文件名
+  buildArgs(config: AgentConfig, prompt: string): string[];
+  parseOutput(line: string): CCEvent | null;
+  buildStructuredResult(events: CCEvent[]): StructuredResult;
+  detectPresence(): boolean; // 检测 CLI 是否已安装
+}
+
+// 后端注册表
+const agentRegistry: Record<string, () => BaseAgent> = {
+  claude: () => new ClaudeCodeAgent(),
+  codex: () => new CodexCodeAgent(),
+  opencode: () => new OpenCodeAgent(),
+};
+```
+
+### T26: Codex CLI 适配
+**文件：**
+- `bridges/oc-bridge/src/agent/codex-code.ts`
+
+**Codex CLI 特性：**
+```bash
+# Codex 执行方式
+codex --full-auto --json "prompt"  # 自动模式 + JSON 输出
+codex -q -a full-auto "prompt"     # 安静模式
+
+# 输出格式：JSON stream
+# { "type": "message", "content": "..." }
+# { "type": "tool_call", "name": "shell", "arguments": { "command": "..." } }
+# { "type": "tool_result", "output": "..." }
+# { "type": "done", "cost": 0.05, "tokens": { "input": 1000, "output": 500 } }
+```
+
+**适配要点：**
+- `buildArgs`: `["--full-auto", "--json", prompt]`
+- `parseOutput`: 解析 Codex JSON stream 格式
+- 权限模式：`--full-auto`（Codex 没有 skip-permissions 概念）
+- 工作目录：通过 `--cwd` 参数指定（或 codex 的默认行为）
+
+### T27: OpenCode 适配
+**文件：**
+- `bridges/oc-bridge/src/agent/opencode.ts`
+
+**OpenCode 特性：**
+```bash
+# OpenCode 执行方式
+opencode "prompt"                    # 交互模式
+opencode -p "prompt"                 # 单次执行（pipe mode）
+opencode --provider openai "prompt"  # 指定 provider
+
+# 输出格式：可能为纯文本或 JSON（取决于版本）
+```
+
+**适配要点：**
+- 需要调研 OpenCode 的最新 CLI 参数和输出格式
+- `buildArgs`: `["-p", prompt]`（pipe mode）
+- `parseOutput`: 根据实际输出格式适配
+- OpenCode 可能需要配置文件（`~/.config/opencode/config.json`）
+
+### T28: 后端自动检测 + 路由
+**文件：**
+- `bridges/oc-bridge/src/cli/start.ts` — 启动时检测可用后端
+- `bridges/oc-bridge/src/websocket/connection.ts` — 上报可用后端列表
+- `backend/app/services/gateway/bridge_manager.py` — 按后端类型路由
+
+**自动检测：**
+```typescript
+// 启动时检测
+async function detectAgents(): Promise<DetectResult[]> {
+  const results: DetectResult[] = [];
+  for (const [name, factory] of Object.entries(agentRegistry)) {
+    const agent = factory();
+    const present = agent.detectPresence();
+    let version = null;
+    if (present) {
+      version = await getAgentVersion(agent.command);
+    }
+    results.push({ name, present, version });
+  }
+  return results;
+}
+```
+
+**Gateway 路由增强：**
+```python
+# SubmitTaskRequest 新增 backend_preference
+class SubmitTaskRequest(BaseModel):
+    backend: Optional[str] = None  # "claude" | "codex" | "opencode" | None(auto)
+
+# task_router.select_bridge:
+# 1. 如果指定了 backend，找支持该 backend 的 bridge
+# 2. 如果未指定，按任务类型自动选择
+#    - agent_type=cli → 优先 claude（已验证稳定）
+#    - agent_type=codex → 只用 codex bridge
+#    - agent_type=opencode → 只用 opencode bridge
+```
+
+### T29: 后端配置管理
+**文件：**
+- `bridges/oc-bridge/src/config/agent-config.ts`（新建）
+
+```typescript
+interface AgentConfig {
+  name: string;
+  enabled: boolean;
+  command: string;           // CLI 路径（可自定义）
+  defaultArgs: string[];     // 默认参数
+  timeout: number;           // 默认超时
+  workDir: string;           // 默认工作目录
+  envVars: Record<string, string>;  // 环境变量
+}
+
+// 配置文件：~/.oc-bridge/agents.json
+{
+  "claude": {
+    "enabled": true,
+    "command": "claude",
+    "defaultArgs": ["--output-format", "stream-json", "--verbose"],
+    "timeout": 600
+  },
+  "codex": {
+    "enabled": true,
+    "command": "codex",
+    "defaultArgs": ["--full-auto", "--json"],
+    "timeout": 600
+  },
+  "opencode": {
+    "enabled": false,
+    "command": "opencode",
+    "defaultArgs": ["-p"],
+    "timeout": 600
+  }
+}
+```
+
+### T30: 前端后端选择 UI
+**文件：**
+- `frontend/src/components/workflow/NodeConfigPanel.tsx` — agent 节点配置增加后端选择
+- `frontend/src/components/gateway/BridgeDetail.tsx` — 显示 bridge 支持的后端列表
+
+**UI 设计：**
+- agent 节点配置新增 "AI 后端" 下拉框：Claude / Codex / OpenCode / 自动
+- Bridge 详情页显示支持的后端列表和版本
+- 任务提交时显示后端选择状态
+
+### 迭代五 CC 执行 Prompt
+
+```
+Read CLAUDE.md first.
+
+Context: Iteration 5 — Multi-backend support (Codex CLI + OpenCode).
+Reference: CCG codeagent-wrapper/config.go Backend interface pattern.
+CCG supports 3 backends (Codex, Claude, Gemini) via unified interface.
+
+Project: /root/.openclaw/workspace/agent-orchestration
+
+## IMPORTANT: Research first
+Before writing code, research the CLI interfaces:
+
+1. Codex CLI: Run `codex --help` to check current CLI arguments and output format
+   Check: `codex --full-auto --json` output format (JSON stream structure)
+
+2. OpenCode: Check https://github.com/opencode-ai/opencode for CLI usage
+   Check: `opencode --help` and `opencode -p` output format
+
+## Steps
+
+1. Create bridges/oc-bridge/src/agent/base.ts:
+   - BaseAgent interface (name, command, buildArgs, parseOutput, buildStructuredResult, detectPresence)
+   - AgentConfig interface
+   - Common CCEvent and StructuredResult types (move from output-parser.ts if needed)
+
+2. Refactor bridges/oc-bridge/src/agent/claude-code.ts:
+   - Implement BaseAgent interface
+   - Move CLI-specific logic into buildArgs and parseOutput
+   - Keep existing WebSocket and progress logic unchanged
+
+3. Create bridges/oc-bridge/src/agent/codex-code.ts:
+   - Implement BaseAgent interface for Codex CLI
+   - buildArgs: ["--full-auto", "--json", prompt]
+   - parseOutput: parse Codex JSON stream format
+   - detectPresence: check if `codex` command exists
+
+4. Create bridges/oc-bridge/src/agent/opencode.ts:
+   - Implement BaseAgent interface for OpenCode
+   - Research actual CLI args and output format first
+   - parseOutput: handle OpenCode output format
+
+5. Update bridges/oc-bridge/src/agent/registry.ts:
+   - Register all 3 backends
+   - addAgent(name, factory) for extensibility
+   - getAgent(name): BaseAgent
+
+6. Update bridges/oc-bridge/src/cli/start.ts:
+   - On startup: detect all available agents and their versions
+   - Report available agents in heartbeat message
+
+7. Create bridges/oc-bridge/src/config/agent-config.ts:
+   - AgentConfigManager: load/save ~/.oc-bridge/agents.json
+   - Per-agent enable/disable, custom command path, default args, timeout, env vars
+
+8. Update backend/app/models/gateway_schemas.py:
+   - Add backend: Optional[str] = None to SubmitTaskRequest
+   - Add supported_backends field to BridgeInfo
+
+9. Update backend/app/services/gateway/task_router.py:
+   - select_bridge: filter by backend preference
+   - Auto-select based on agent_type if backend not specified
+
+10. Frontend: Agent node config backend selector
+    - Dropdown: Claude / Codex / OpenCode / Auto
+    - Bridge detail: show supported backends
+
+Build checks:
+- cd bridges/oc-bridge && npm run build
+- cd backend && python3 -c "from app.models.gateway_schemas import *; print('OK')"
+
+Commit: git add -A && git commit -m "feat(P1): multi-backend support — Codex CLI + OpenCode"
+Do NOT push.
+```
+
+---
+
+## 迭代六：P2 — 增强功能
 
 ### T15: Prompt 模板管理
 - CRUD API + 前端编辑器
@@ -500,7 +747,7 @@ Do NOT push.
 
 ---
 
-## 迭代六：P0 — OPSX 约束驱动体系（质量革命）
+## 迭代七：P0 — OPSX 约束驱动体系（质量革命）
 
 **目标：** 解决 AI 编码的核心问题——质量和可复现性。让 Nexus 不仅是"怎么调度"，还能"怎么做对"。
 **参考：** OPSX（fission-ai/opsx）+ CCG spec-* 命令
@@ -983,10 +1230,11 @@ Do NOT push.
 | 二 | T6-T8 断点续传+依赖链 | backend + oc-bridge | 1 | 迭代一 |
 | 三 | T9-T11 重试+路由+成本 | backend + frontend | 1 | 迭代一 |
 | 四 | T12-T14 沙盒+仪表板 | 全部 | 2 | 迭代一 |
-| 五 | T15-T18 增强功能 | 全部 | 2 | 迭代二 |
-| **六** | **T19-T24 OPSX约束驱动** | **backend(nodes+models+routers) + frontend** | **2** | **迭代一** |
+| **五** | **T25-T30 Codex+OpenCode 多后端** | **oc-bridge + backend + frontend** | **1** | **迭代一** |
+| 六 | T15-T18 增强功能 | 全部 | 2 | 迭代二 |
+| **七** | **T19-T24 OPSX约束驱动** | **backend(nodes+models+routers) + frontend** | **2** | **迭代一** |
 
-**总计：10 个 CC 任务**
+**总计：11 个 CC 任务**
 
 ---
 
