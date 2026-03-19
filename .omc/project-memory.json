@@ -1,0 +1,246 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1773892635994,
+  "projectRoot": "/root/.openclaw/workspace/agent-orchestration",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "@playwright/test",
+        "version": "1.58.2",
+        "category": "testing"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "scripts"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "backend": {
+      "path": "backend",
+      "purpose": null,
+      "fileCount": 35,
+      "lastAccessed": 1773892635980,
+      "keyFiles": [
+        "=1.13.0",
+        "CODE_REVIEW_FIX_REPORT.md",
+        "TEST_VERIFICATION_REPORT.md",
+        "agents.db.backup.20260313_145548",
+        "agents.db.backup.20260313_145909"
+      ]
+    },
+    "bridges": {
+      "path": "bridges",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1773892635981,
+      "keyFiles": []
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 39,
+      "lastAccessed": 1773892635987,
+      "keyFiles": [
+        "CLAUDE-CODE-GUIDE.md",
+        "INDEX.md",
+        "NEW_CLAUDE.md",
+        "architecture-design-task.md",
+        "architecture-v1.md"
+      ]
+    },
+    "docs_local_backup": {
+      "path": "docs_local_backup",
+      "purpose": null,
+      "fileCount": 26,
+      "lastAccessed": 1773892635987,
+      "keyFiles": [
+        "MIGRATION_REPORT_PHASE5.md",
+        "acp-bridge-plan.md",
+        "acpx-config.json",
+        "architect-task-brief.md",
+        "architecture-task-prompt.md"
+      ]
+    },
+    "e2e": {
+      "path": "e2e",
+      "purpose": null,
+      "fileCount": 6,
+      "lastAccessed": 1773892635987,
+      "keyFiles": [
+        "01-front-office.spec.ts",
+        "02-admin-pages.spec.ts",
+        "03-permissions.spec.ts",
+        "04-style-check.spec.ts",
+        "full-api-test.spec.ts"
+      ]
+    },
+    "frontend": {
+      "path": "frontend",
+      "purpose": null,
+      "fileCount": 9,
+      "lastAccessed": 1773892635988,
+      "keyFiles": [
+        "DESIGN_SPEC.md",
+        "index.html",
+        "package-lock.json",
+        "package.json",
+        "test-all-pages.mjs"
+      ]
+    },
+    "remote-agent-bridge": {
+      "path": "remote-agent-bridge",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1773892635989,
+      "keyFiles": [
+        "README.md",
+        "jest.config.json",
+        "package-lock.json",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 2,
+      "lastAccessed": 1773892635991,
+      "keyFiles": [
+        "rename-to-nexus.sh",
+        "test-all-apis.sh"
+      ]
+    },
+    "test-results": {
+      "path": "test-results",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1773892635991,
+      "keyFiles": []
+    },
+    "frontend/dist": {
+      "path": "frontend/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 1,
+      "lastAccessed": 1773892635992,
+      "keyFiles": [
+        "index.html"
+      ]
+    },
+    "frontend/node_modules": {
+      "path": "frontend/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1773892635993,
+      "keyFiles": []
+    },
+    "frontend/src": {
+      "path": "frontend/src",
+      "purpose": "Source code",
+      "fileCount": 3,
+      "lastAccessed": 1773892635993,
+      "keyFiles": [
+        "App.tsx",
+        "main.tsx",
+        "vite-env.d.ts"
+      ]
+    },
+    "remote-agent-bridge/node_modules": {
+      "path": "remote-agent-bridge/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1773892635994,
+      "keyFiles": []
+    },
+    "remote-agent-bridge/src": {
+      "path": "remote-agent-bridge/src",
+      "purpose": "Source code",
+      "fileCount": 9,
+      "lastAccessed": 1773892635994,
+      "keyFiles": [
+        "bridge.ts",
+        "checkpoint.ts",
+        "database.ts"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "frontend/src/components/workflow/edges/NormalEdge.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1773892919900,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/components/workflow/edges/ParallelEdge.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1773892919947,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/components/workflow/edges/ConditionalEdge.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1773892919971,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/pages/workflows/WorkflowEditorPage.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1773892922225,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src/pages/agents/AgentNewPage.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1773892922246,
+      "type": "file"
+    },
+    {
+      "path": "frontend/src",
+      "accessCount": 1,
+      "lastAccessed": 1773892663048,
+      "type": "directory"
+    },
+    {
+      "path": "frontend/src/types/bridge.ts",
+      "accessCount": 1,
+      "lastAccessed": 1773892679915,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

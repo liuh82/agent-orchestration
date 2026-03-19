@@ -385,12 +385,14 @@ export const WorkflowEditorPage = () => {
         return;
       }
 
-      /* Delete / Backspace -> delete selected */
+      /* Delete / Backspace -> delete selected nodes or edges */
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        const ids = useWorkflowStore.getState().selectedNodeIds;
+        const state = useWorkflowStore.getState();
+        const ids = state.selectedNodeIds;
         if (ids.length > 0) {
           e.preventDefault();
-          useWorkflowStore.getState().deleteSelected();
+          state.deleteSelected();
+          return;
         }
         return;
       }
@@ -431,7 +433,6 @@ export const WorkflowEditorPage = () => {
             edgeTypes={edgeTypes}
             defaultEdgeOptions={defaultEdgeOptions}
             fitView
-            deleteKeyCode={null}
           >
             <Background
               variant={BackgroundVariant.Dots}

@@ -410,13 +410,19 @@ export const AgentNewPage = () => {
                     allowClear
                     notFoundContent={
                       bridges.length === 0 ? (
-                        <span style={{ color: colors.text.error }}>请先在设置中添加 Bridge 连接</span>
+                        <span style={{ color: colors.text.error }}>暂无 Bridge，请先在设置或后台管理中添加</span>
                       ) : undefined
                     }
                   >
-                    {bridges.filter((b) => b.status === 'online').map((b) => (
-                      <Select.Option key={b.bridge_id} value={b.bridge_id}>
+                    {bridges.map((b) => (
+                      <Select.Option
+                        key={b.bridge_id}
+                        value={b.bridge_id}
+                        disabled={b.status !== 'online'}
+                        style={b.status !== 'online' ? { color: colors.text.muted } : undefined}
+                      >
                         {b.hostname || b.bridge_id} ({b.platform})
+                        {b.status !== 'online' ? ` [${b.status}]` : ''}
                       </Select.Option>
                     ))}
                   </Select>

@@ -39,7 +39,9 @@ export const ConditionalEdge = memo(function ConditionalEdge({
   data,
   style,
   markerEnd,
+  selected,
 }: EdgeProps) {
+  const isSelected = selected ?? false;
   const edgeData = data as CustomEdgeData | undefined;
   const color = edgeData?.color ?? getConditionalColor(edgeData?.sourceHandle);
   const labelText = getConditionalLabel(edgeData?.sourceHandle, edgeData?.label ?? (edgeLabel as string | undefined));
@@ -56,6 +58,14 @@ export const ConditionalEdge = memo(function ConditionalEdge({
 
   return (
     <>
+      {/* Selection glow */}
+      {isSelected && (
+        <BaseEdge
+          id={`${id}-selection`}
+          path={edgePath}
+          style={{ stroke: '#6366f1', strokeWidth: 5, opacity: 0.35, filter: 'blur(2px)' }}
+        />
+      )}
       {/* Animated background for flow effect */}
       <BaseEdge
         id={`${id}-bg`}
@@ -75,7 +85,7 @@ export const ConditionalEdge = memo(function ConditionalEdge({
         style={{
           ...style,
           stroke: color,
-          strokeWidth: 2,
+          strokeWidth: isSelected ? 3 : 2,
           strokeDasharray: '8 4',
           animation: 'conditionalFlow 1s linear infinite',
         }}

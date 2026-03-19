@@ -14,7 +14,9 @@ export const ParallelEdge = memo(function ParallelEdge({
   data,
   style,
   markerEnd,
+  selected,
 }: EdgeProps) {
+  const isSelected = selected ?? false;
   const edgeData = data as CustomEdgeData | undefined;
   const color = edgeData?.color ?? '#3b82f6';
   const labelText = edgeData?.label ?? (edgeLabel as string | undefined);
@@ -38,13 +40,21 @@ export const ParallelEdge = memo(function ParallelEdge({
 
   return (
     <>
+      {/* Selection glow */}
+      {isSelected && (
+        <BaseEdge
+          id={`${id}-selection`}
+          path={edgePath}
+          style={{ stroke: '#6366f1', strokeWidth: 5, opacity: 0.35, filter: 'blur(2px)' }}
+        />
+      )}
       <BaseEdge
         id={id}
         path={edgePath}
         style={{
           ...style,
           stroke: color,
-          strokeWidth: 2.5,
+          strokeWidth: isSelected ? 3.5 : 2.5,
           animation: 'parallelPulse 2s ease-in-out infinite',
         }}
         markerEnd={markerEnd}
