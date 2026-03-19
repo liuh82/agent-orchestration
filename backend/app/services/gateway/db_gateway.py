@@ -144,6 +144,7 @@ class GatewayDB:
             callback_id=task.callback_id,
             status='pending',
             submitted_at=int(time.time()),
+            sandbox_mode=int(task.sandbox_mode) if task.sandbox_mode else 0,
         )
         self.db.add(record)
         try:

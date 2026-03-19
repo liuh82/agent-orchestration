@@ -5,7 +5,7 @@
 import { logger } from "../logger/index.js";
 import { getExecutor } from "../agent/registry.js";
 import type { Task, ExecutionResult } from "./types.js";
-import type { TaskSubmit, TaskProgress, TaskComplete, TaskAck } from "../websocket/types.js";
+import type { TaskSubmit, TaskComplete, TaskAck } from "../websocket/types.js";
 import { loadState, saveState, toPersisted } from "../storage/state.js";
 
 /** Callbacks for sending messages back over WebSocket. */
@@ -42,6 +42,7 @@ export class TaskManager {
       preferredIde: taskMsg.preferredIde,
       skipPermissions: taskMsg.skipPermissions,
       allowedTools: taskMsg.allowedTools,
+      sandboxMode: taskMsg.sandboxMode,
       status: "pending",
     };
 
@@ -139,21 +140,39 @@ export class TaskManager {
 
     logger.info(`Task started: ${task.taskId} (${this.running.size}/${this.maxConcurrent})`);
 
-    // Set up timeout via AbortController
+    // Set up timeout via AbortController — 优雅退出: SIGINT → 等 30s → SIGKILL
     const abortController = new AbortController();
     task.abortController = abortController;
     const timeoutMs = task.timeout * 1000;
+    const GRACE_PERIOD_MS = 30_000; // 优雅退出等待时间
+
     const timer = setTimeout(() => {
-      logger.warn(`Task ${task.taskId} timed out after ${task.timeout}s`);
-      abortController.abort();
+      logger.warn(`Task ${task.taskId} timed out after ${task.timeout}s, sending SIGINT...`);
+      // 先发 SIGINT 让 Claude 优雅退出
+      if (task.childProcess && task.childProcess.pid) {
+        try {
+          process.kill(task.childProcess.pid, "SIGINT");
+        } catch {
+          // 进程可能已退出
+        }
+      }
+      // 等待 grace period 后强制 SIGKILL
+      setTimeout(() => {
+        logger.warn(`Task ${task.taskId} grace period expired, force killing`);
+        abortController.abort();
+        if (task.childProcess && !task.childProcess.killed) {
+          task.childProcess.kill("SIGKILL");
+        }
+      }, GRACE_PERIOD_MS);
     }, timeoutMs);
 
-    // Progress callback
-    const onProgress = (progress: number) => {
-      const msg: TaskProgress = {
+    // Progress callback — 接收结构化事件并推送到 WebSocket
+    const onProgress = (progress: number, event?: import("../agent/output-parser.js").CCEvent) => {
+      const msg = {
         type: "task.progress",
         taskId: task.taskId,
         progress,
+        event: event ?? undefined,
         ts: Date.now(),
       };
       this.sender.send(msg);
@@ -195,6 +214,11 @@ export class TaskManager {
       exitCode: result.exitCode,
       changedFiles: result.changedFiles,
       duration: result.duration,
+      structuredResult: result.structuredResult,
+      // 超时/失败时标记 partial_result 便于断点续传
+      partial_result: !result.success ? result.output : undefined,
+      // sandbox 模式生成的 diff patch
+      sandboxPatch: result.sandboxPatch,
       ts: Date.now(),
     };
     this.sender.send(msg);
@@ -205,7 +229,7 @@ export class TaskManager {
       taskId: task.taskId,
       progress: 100,
       ts: Date.now(),
-    } satisfies TaskProgress);
+    });
 
     // Update state — remove completed/failed task from persistence
     this.persistState();

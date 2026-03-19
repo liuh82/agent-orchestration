@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { Button, Table, Tag, Space, Tooltip, message, Tabs, Modal, Form, Input, Select, Popconfirm } from 'antd';
+import { Button, Table, Tag, Space, Tooltip, message, Tabs, Modal, Form, Input, Select, Popconfirm, Progress } from 'antd';
 import {
   EditOutlined,
   DeleteOutlined,
   ReloadOutlined,
   ArrowLeftOutlined,
+  LoadingOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import styled from 'styled-components';
 import { colors } from '@/styles/tokens/color';
@@ -17,6 +20,9 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorBlock } from '@/components/common/ErrorBlock';
+import { ToolUseCard } from '@/components/tasks/ToolUseCard';
+import { FileChangeList } from '@/components/tasks/FileChangeList';
+import { useTaskStream } from '@/hooks/useTaskStream';
 import api from '@/api/client';
 import { tasksApi } from '@/api/tasks';
 import type { ApiResponse } from '@/types/api';
@@ -129,6 +135,68 @@ const NoteBanner = styled.div`
   color: ${colors.text.warning};
 `;
 
+// ---- 实时输出样式 ----
+
+const StreamPanel = styled.div`
+  background: ${colors.surface.DEFAULT};
+  border: 1px solid ${colors.border.DEFAULT};
+  border-radius: ${radius.xl};
+  padding: ${spacing[4]};
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+`;
+
+const StreamHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${spacing[3]};
+  margin-bottom: ${spacing[3]};
+  flex-shrink: 0;
+`;
+
+const StreamStatus = styled.span<{ $color: string }>`
+  font-size: ${typography.fontSize.sm};
+  font-weight: ${typography.fontWeight.semibold};
+  color: ${({ $color }) => $color};
+  display: flex;
+  align-items: center;
+  gap: ${spacing[1]};
+`;
+
+const StreamBody = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding: ${spacing[2]};
+  background: ${colors.neutral[50]};
+  border-radius: ${radius.lg};
+  min-height: 200px;
+`;
+
+const StreamTextLine = styled.div<{ $isError?: boolean; $isThinking?: boolean }>`
+  font-family: ${({ $isThinking }) => $isThinking ? typography.fontFamily.mono : typography.fontFamily.sans};
+  font-size: ${({ $isThinking }) => $isThinking ? typography.fontSize.xs : typography.fontSize.sm};
+  color: ${({ $isError, $isThinking }) =>
+    $isError ? colors.text.error : $isThinking ? colors.text.muted : colors.text.primary};
+  padding: ${spacing[1]} 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  opacity: ${({ $isThinking }) => $isThinking ? 0.7 : 1};
+`;
+
+const StreamSummary = styled.div`
+  margin-top: ${spacing[3]};
+  padding: ${spacing[3]} ${spacing[4]};
+  background: ${colors.neutral[50]};
+  border-radius: ${radius.lg};
+  border-left: 3px solid ${colors.primary[500]};
+  font-size: ${typography.fontSize.sm};
+  color: ${colors.text.secondary};
+  line-height: 1.6;
+  flex-shrink: 0;
+`;
+
 const { Option } = Select;
 const { TextArea } = Input;
 
@@ -165,6 +233,7 @@ export const TaskDetailPage: React.FC = () => {
 
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editForm] = Form.useForm();
+  const streamEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch task detail
   const {
@@ -180,6 +249,27 @@ export const TaskDetailPage: React.FC = () => {
   );
 
   const task = taskRes?.data;
+
+  // SSE 实时流 — 任务 running 时才连接
+  const isTaskRunning = task?.status === 'running';
+  const { events: streamEvents, progress: streamProgress, isConnected, isDone } = useTaskStream(id, {
+    enabled: isTaskRunning,
+  });
+
+  // 从事件流中提取文件变更列表
+  const fileChanges = streamEvents
+    .filter((e) => e.event?.type === 'tool_use' && (e.event.toolName === 'Write' || e.event.toolName === 'Edit'))
+    .map((e) => {
+      const input = e.event!.toolInput as Record<string, unknown> | undefined;
+      const path = String(input?.file_path ?? '');
+      const action = e.event!.toolName === 'Write' ? 'created' as const : 'edited' as const;
+      return { path, action };
+    });
+
+  // 自动滚动到底部
+  useEffect(() => {
+    streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [streamEvents.length]);
 
   // Fetch task logs
   const {
@@ -497,13 +587,131 @@ export const TaskDetailPage: React.FC = () => {
               </InfoValue>
             </InfoItem>
           )}
+          {task.cost_usd != null && task.cost_usd > 0 && (
+            <InfoItem>
+              <InfoLabel>费用</InfoLabel>
+              <InfoValue style={{ color: colors.text.brand }}>
+                ${task.cost_usd.toFixed(4)}
+              </InfoValue>
+            </InfoItem>
+          )}
+          {task.retry_count != null && task.retry_count > 0 && (
+            <InfoItem>
+              <InfoLabel>重试</InfoLabel>
+              <InfoValue>
+                {task.retry_count} / {task.max_retries ?? 0}
+              </InfoValue>
+            </InfoItem>
+          )}
         </InfoGrid>
       </InfoCard>
 
-      {/* Job list + Logs */}
+      {/* Job list + Logs + 实时输出 */}
       <Tabs
-        defaultActiveKey="jobs"
+        defaultActiveKey="stream"
         items={[
+          {
+            key: 'stream',
+            label: '实时输出',
+            children: (
+              <StreamPanel>
+                <StreamHeader>
+                  <Progress
+                    percent={streamProgress}
+                    size="small"
+                    style={{ flex: 1, maxWidth: 200 }}
+                    status={isDone ? (streamEvents[streamEvents.length - 1]?.success !== false ? 'success' : 'exception') : 'active'}
+                  />
+                  {isConnected && (
+                    <StreamStatus $color={colors.info[500]}>
+                      <LoadingOutlined spin /> 连接中
+                    </StreamStatus>
+                  )}
+                  {isDone && (
+                    <StreamStatus $color={streamEvents[streamEvents.length - 1]?.success !== false ? colors.success[700] : colors.error[700]}>
+                      {streamEvents[streamEvents.length - 1]?.success !== false ? (
+                        <><CheckCircleOutlined /> 已完成</>
+                      ) : (
+                        <><CloseCircleOutlined /> 已结束</>
+                      )}
+                    </StreamStatus>
+                  )}
+                  {!isConnected && !isDone && !isTaskRunning && (
+                    <StreamStatus $color={colors.text.muted}>未连接</StreamStatus>
+                  )}
+                </StreamHeader>
+
+                <StreamBody>
+                  {streamEvents.length === 0 && (
+                    <EmptyState
+                      description={isTaskRunning ? '等待事件...' : '暂无实时输出'}
+                    />
+                  )}
+
+                  {streamEvents.map((msg, i) => {
+                    const evt = msg.event;
+                    if (!evt) return null;
+
+                    // 工具调用 → 使用 ToolUseCard
+                    if (evt.type === 'tool_use') {
+                      return <ToolUseCard key={i} event={evt} />;
+                    }
+
+                    // 工具结果 → 内联展示
+                    if (evt.type === 'tool_result' && evt.isError) {
+                      return (
+                        <StreamTextLine key={i} $isError>
+                          [错误] {evt.toolName ? `[${evt.toolName}] ` : ''}{evt.content}
+                        </StreamTextLine>
+                      );
+                    }
+
+                    // 思考过程
+                    if (evt.type === 'thinking') {
+                      return (
+                        <StreamTextLine key={i} $isThinking>
+                          💭 {evt.content}
+                        </StreamTextLine>
+                      );
+                    }
+
+                    // 错误事件
+                    if (evt.type === 'error') {
+                      return (
+                        <StreamTextLine key={i} $isError>
+                          ⚠ {evt.content}
+                        </StreamTextLine>
+                      );
+                    }
+
+                    // 普通文本
+                    if (evt.type === 'text' && evt.content) {
+                      return (
+                        <StreamTextLine key={i}>
+                          {evt.content}
+                        </StreamTextLine>
+                      );
+                    }
+
+                    return null;
+                  })}
+                  <div ref={streamEndRef} />
+                </StreamBody>
+
+                {/* 文件变更列表 */}
+                {fileChanges.length > 0 && (
+                  <FileChangeList files={fileChanges} />
+                )}
+
+                {/* 完成摘要 */}
+                {isDone && streamEvents[streamEvents.length - 1]?.event?.content && (
+                  <StreamSummary>
+                    {streamEvents[streamEvents.length - 1].event!.content}
+                  </StreamSummary>
+                )}
+              </StreamPanel>
+            ),
+          },
           {
             key: 'jobs',
             label: 'Job 列表',

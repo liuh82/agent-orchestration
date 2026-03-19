@@ -26,6 +26,12 @@ export interface Task {
   completed_at?: string;
   created_at: string;
   updated_at: string;
+  /** Gateway 费用（美元） */
+  cost_usd?: number;
+  /** Gateway 重试次数 */
+  retry_count?: number;
+  /** Gateway 最大重试次数 */
+  max_retries?: number;
 }
 
 export type TaskStatus =

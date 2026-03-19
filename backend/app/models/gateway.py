@@ -2,7 +2,7 @@
 import time
 from typing import Optional, List, Dict
 
-from sqlalchemy import String, Integer, Text, ForeignKey, JSON, Index
+from sqlalchemy import String, Integer, Float, Text, ForeignKey, JSON, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -91,6 +91,15 @@ class TaskRecord(Base):
     changed_files: Mapped[Optional[List[str]]] = mapped_column(JSON)
     duration: Mapped[Optional[int]] = mapped_column(Integer)
     progress: Mapped[int] = mapped_column(Integer, default=0)
+    result_data: Mapped[Optional[str]] = mapped_column(Text)  # 结构化结果 JSON
+    depends_on: Mapped[Optional[List[str]]] = mapped_column(JSON)  # 依赖的 task_id 列表
+    parent_task_id: Mapped[Optional[str]] = mapped_column(String(255))  # 断点续传原始任务 ID
+    partial_result: Mapped[Optional[str]] = mapped_column(Text)  # 超时时部分输出
+    max_retries: Mapped[int] = mapped_column(Integer, default=0)  # 最大重试次数
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)  # 当前已重试次数
+    cost_usd: Mapped[Optional[float]] = mapped_column(Float, default=0)  # 费用（美元）
+    sandbox_mode: Mapped[bool] = mapped_column(Integer, default=0)  # 沙盒模式
+    sandbox_patch: Mapped[Optional[str]] = mapped_column(Text)  # sandbox 模式生成的 diff patch
 
     # Timestamps
     submitted_at: Mapped[int] = mapped_column(Integer, nullable=False)

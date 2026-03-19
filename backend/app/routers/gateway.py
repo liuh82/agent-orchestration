@@ -1,5 +1,6 @@
 """Gateway router - HTTP API + WebSocket endpoint."""
 import asyncio
+import json
 import logging
 import threading
 import time
@@ -9,7 +10,7 @@ from typing import Optional
 from fastapi import (
     APIRouter, Query, Request, WebSocket, WebSocketDisconnect, Depends,
 )
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -18,7 +19,8 @@ from app.models.gateway_schemas import (
     AgentType, TaskPriority, TaskStatus, BridgeStatus, BridgeInfo,
     AdapterInfo, TaskRequest, TaskInfo, TaskListResponse,
     SubmitTaskRequest, SubmitTaskResponse, TaskStatusResponse,
-    BridgeListResponse, BridgeFilter,
+    BridgeListResponse, BridgeFilter, ResumeTaskRequest,
+    TaskLogResponse, TaskLogEntry, PatchActionResponse,
 )
 from app.rate_limit import limiter
 from app.services.gateway.ws_server import WSServer
@@ -27,6 +29,7 @@ from app.services.gateway.task_router import (
     TaskRouter, NoAvailableBridgeError, TaskNotFoundError,
 )
 from app.services.gateway.db_gateway import GatewayDB
+from app.services.gateway.event_store import event_store
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +100,15 @@ def _task_record_to_info(record) -> TaskInfo:
         changed_files=record.changed_files,
         duration=record.duration,
         progress=record.progress,
+        result_data=record.result_data,
+        depends_on=record.depends_on,
+        parent_task_id=record.parent_task_id,
+        partial_result=record.partial_result,
+        max_retries=record.max_retries,
+        retry_count=record.retry_count,
+        cost_usd=record.cost_usd or 0,
+        sandbox_mode=bool(record.sandbox_mode),
+        sandbox_patch=record.sandbox_patch,
         submitted_at=record.submitted_at,
         started_at=record.started_at,
         completed_at=record.completed_at,
@@ -150,6 +162,9 @@ async def submit_task(
         skip_permissions=body.skip_permissions,
         allowed_tools=body.allowed_tools,
         source=source,
+        depends_on=body.depends_on,
+        max_retries=body.max_retries,
+        sandbox_mode=body.sandbox_mode,
     )
 
     try:
@@ -219,6 +234,170 @@ async def list_tasks(
     )
 
 
+@router.get("/tasks/{task_id}/logs", response_model=TaskLogResponse)
+@limiter.limit("30/minute")
+async def get_task_logs(
+    request: Request,
+    task_id: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    event_type: Optional[str] = Query(default=None, description="Filter by event type: text|tool_use|tool_result|thinking|error|done"),
+    db: Session = Depends(get_db),
+    _api_key: str = Depends(verify_api_key),
+):
+    """分页查询任务执行日志（进度事件）。
+
+    注意: 事件存储在内存中，已完成任务的事件 5 分钟后过期。
+    """
+    gw_db = GatewayDB(db)
+    task = gw_db.get_task(task_id)
+    if not task:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Task not found"},
+        )
+
+    offset = (page - 1) * page_size
+
+    if event_type:
+        # 需要过滤时: 先获取全部事件（受 _MAX_EVENTS_PER_TASK 限制），
+        # 过滤后再分页
+        all_events, _ = event_store.get_events(task_id, offset=0, limit=500)
+        filtered = [e for e in all_events if e.get("event", {}).get("type") == event_type]
+        total = len(filtered)
+        page_events = filtered[offset:offset + page_size]
+    else:
+        # 无过滤: 直接使用 event_store 的原生分页
+        page_events, total = event_store.get_events(task_id, offset=offset, limit=page_size)
+
+    return TaskLogResponse(
+        success=True,
+        data=[TaskLogEntry(
+            type=e.get("type", ""),
+            event=e.get("event"),
+            progress=e.get("progress", 0),
+            ts=e.get("ts", 0),
+        ) for e in page_events],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.post("/tasks/{task_id}/apply-patch", response_model=PatchActionResponse)
+@limiter.limit("10/minute")
+async def apply_patch(
+    request: Request,
+    task_id: str,
+    db: Session = Depends(get_db),
+    _api_key: str = Depends(verify_admin_key),
+):
+    """应用 sandbox 模式生成的 diff patch。
+
+    从 task record 中读取 sandbox_patch，在 project_path 上执行 git apply。
+    安全校验: 拒绝包含路径遍历(../)的 patch。
+    """
+    import subprocess
+
+    gw_db = GatewayDB(db)
+    task = gw_db.get_task(task_id)
+    if not task:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Task not found"},
+        )
+
+    if not task.sandbox_patch:
+        return PatchActionResponse(
+            success=False,
+            message="No sandbox patch available for this task",
+        )
+
+    if task.status != "completed":
+        return PatchActionResponse(
+            success=False,
+            message=f"Cannot apply patch: task status is {task.status}",
+        )
+
+    # C1 安全检查: 拒绝包含路径遍历的 patch
+    if "../" in task.sandbox_patch:
+        return PatchActionResponse(
+            success=False,
+            message="Patch rejected: contains path traversal",
+        )
+
+    try:
+        # --reject: 拒绝模糊匹配, --3way: 尝试三方合并减少冲突
+        result = subprocess.run(
+            ["git", "apply", "--check", "--reject"],
+            input=task.sandbox_patch,
+            capture_output=True,
+            text=True,
+            cwd=task.project_path,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return PatchActionResponse(
+                success=False,
+                message="Patch check failed: the changes conflict with the current state",
+            )
+
+        result = subprocess.run(
+            ["git", "apply", "--3way"],
+            input=task.sandbox_patch,
+            capture_output=True,
+            text=True,
+            cwd=task.project_path,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return PatchActionResponse(
+                success=False,
+                message="Patch apply failed",
+            )
+
+        return PatchActionResponse(
+            success=True,
+            message="Patch applied successfully",
+        )
+    except Exception as e:
+        logger.error(f"Patch apply error for task {task_id}: {e}")
+        return PatchActionResponse(
+            success=False,
+            message="Internal error while applying patch",
+        )
+
+
+@router.post("/tasks/{task_id}/discard-patch", response_model=PatchActionResponse)
+@limiter.limit("10/minute")
+async def discard_patch(
+    request: Request,
+    task_id: str,
+    db: Session = Depends(get_db),
+    _api_key: str = Depends(verify_admin_key),
+):
+    """丢弃 sandbox 模式生成的 diff patch。"""
+    gw_db = GatewayDB(db)
+    task = gw_db.get_task(task_id)
+    if not task:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Task not found"},
+        )
+
+    if not task.sandbox_patch:
+        return PatchActionResponse(
+            success=False,
+            message="No sandbox patch to discard",
+        )
+
+    gw_db.update_task_status(task_id, task.status, sandbox_patch=None)
+    return PatchActionResponse(
+        success=True,
+        message="Patch discarded",
+    )
+
+
 @router.post("/tasks/{task_id}/cancel")
 @limiter.limit("20/minute")
 async def cancel_task(
@@ -237,6 +416,98 @@ async def cancel_task(
         return JSONResponse(
             status_code=404,
             content={"success": False, "message": "Task not found"},
+        )
+
+
+@router.get("/tasks/{task_id}/stream")
+@limiter.limit("30/minute")
+async def stream_task_events(
+    request: Request,
+    task_id: str,
+    db: Session = Depends(get_db),
+    _api_key: str = Depends(verify_api_key),
+):
+    """SSE 端点 — 实时推送任务事件流。
+
+    事件格式:
+      data: {"type": "event", "event": {...}, "progress": 50, "ts": ...}
+      data: {"type": "done", "success": true, "ts": ...}
+    """
+    gw_db = GatewayDB(db)
+    task = gw_db.get_task(task_id)
+    if not task:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Task not found"},
+        )
+
+    async def event_generator():
+        q = event_store.subscribe(task_id)
+        try:
+            while True:
+                # 如果任务已完成且队列为空，结束流
+                if task.status in ('completed', 'failed', 'cancelled'):
+                    # 先把剩余事件推完
+                    while not q.empty():
+                        evt = await asyncio.wait_for(q.get(), timeout=1.0)
+                        yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
+                    break
+
+                try:
+                    evt = await asyncio.wait_for(q.get(), timeout=30.0)
+                    yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
+
+                    # 收到 done 事件后结束流
+                    if evt.get("type") == "done":
+                        break
+                except asyncio.TimeoutError:
+                    # 30s 无新事件，发送心跳保持连接
+                    yield f": heartbeat\n\n"
+        finally:
+            event_store.unsubscribe(task_id, q)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/tasks/{task_id}/resume")
+@limiter.limit("10/minute")
+async def resume_task_endpoint(
+    request: Request,
+    task_id: str,
+    body: ResumeTaskRequest,
+    db: Session = Depends(get_db),
+    _api_key: str = Depends(verify_api_key),
+):
+    """断点续传 — 从原任务上下文恢复执行，返回新任务 ID。"""
+    gw_db, bm, ws, tr = _get_shared_components(db)
+    try:
+        new_task_id = await tr.resume_task(
+            task_id,
+            prompt=body.prompt,
+            timeout=body.timeout,
+        )
+        return SubmitTaskResponse(
+            success=True,
+            task_id=new_task_id,
+            message=f"Task resumed from {task_id}",
+        )
+    except TaskNotFoundError:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Original task not found"},
+        )
+    except NoAvailableBridgeError:
+        return JSONResponse(
+            status_code=503,
+            content={"success": False, "message": "No available Bridge"},
         )
 
 

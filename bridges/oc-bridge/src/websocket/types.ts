@@ -1,6 +1,7 @@
 /**
  * Protocol message types — must match backend gateway_schemas.py + ws_server.py
  */
+import type { StructuredResult } from "../agent/output-parser.js";
 
 // ---- Outgoing: Bridge → Server ----
 
@@ -37,6 +38,8 @@ export interface TaskProgress {
   type: "task.progress";
   taskId: string;
   progress: number;
+  /** 解析后的结构化事件 */
+  event?: Record<string, unknown>;
   ts: number;
 }
 
@@ -49,6 +52,12 @@ export interface TaskComplete {
   exitCode?: number;
   changedFiles?: string[];
   duration?: number;
+  /** 聚合结构化结果 */
+  structuredResult?: StructuredResult;
+  /** 超时/失败时的部分输出，便于断点续传 */
+  partial_result?: string;
+  /** sandbox 模式生成的 diff patch */
+  sandboxPatch?: string;
   ts: number;
 }
 
@@ -87,6 +96,7 @@ export interface TaskSubmit {
   preferredIde: string | null;
   skipPermissions?: boolean;
   allowedTools?: string[];
+  sandboxMode?: boolean;
 }
 
 export interface TaskCancel {

@@ -30,6 +30,15 @@ _SQLITE_MIGRATIONS = [
     ("projects", "git_repo_url", "VARCHAR(500)"),
     ("projects", "git_default_branch", "VARCHAR(100)"),
     ("projects", "git_auto_merge", "BOOLEAN DEFAULT 0"),
+    ("gateway_tasks", "result_data", "TEXT"),
+    ("gateway_tasks", "depends_on", "JSON"),
+    ("gateway_tasks", "parent_task_id", "VARCHAR(255)"),
+    ("gateway_tasks", "partial_result", "TEXT"),
+    ("gateway_tasks", "max_retries", "INTEGER DEFAULT 0"),
+    ("gateway_tasks", "retry_count", "INTEGER DEFAULT 0"),
+    ("gateway_tasks", "cost_usd", "REAL DEFAULT 0"),
+    ("gateway_tasks", "sandbox_mode", "INTEGER DEFAULT 0"),
+    ("gateway_tasks", "sandbox_patch", "TEXT"),
 ]
 
 
