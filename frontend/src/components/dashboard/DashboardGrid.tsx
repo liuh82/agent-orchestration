@@ -8,7 +8,9 @@ import { TokenUsageCard } from './cards/TokenUsageCard';
 import { CostCard } from './cards/CostCard';
 import { ActiveProjectsCard } from './cards/ActiveProjectsCard';
 import { AgentStatusCard } from './cards/AgentStatusCard';
+import { BridgeStatusCard } from './cards/BridgeStatusCard';
 import { RecentTasksCard } from './cards/RecentTasksCard';
+import { TaskTimelineCard } from './cards/TaskTimelineCard';
 import { useDashboardStore } from '@/stores/useDashboardStore';
 import type { CardType } from '@/stores/useDashboardStore';
 
@@ -53,7 +55,9 @@ const CARD_META: Record<string, { title: string }> = {
   cost: { title: '成本统计' },
   active_projects: { title: '活跃项目' },
   agent_status: { title: 'Agent 状态' },
+  bridge_status: { title: 'Bridge 状态' },
   recent_tasks: { title: '最近任务' },
+  task_timeline: { title: '任务时间线' },
 };
 
 const CARD_COMPONENTS: Record<CardType, React.FC<{ data: any }>> = {
@@ -62,7 +66,9 @@ const CARD_COMPONENTS: Record<CardType, React.FC<{ data: any }>> = {
   cost: CostCard,
   active_projects: ActiveProjectsCard,
   agent_status: AgentStatusCard,
+  bridge_status: BridgeStatusCard,
   recent_tasks: RecentTasksCard,
+  task_timeline: TaskTimelineCard,
 };
 
 interface DashboardGridProps {

@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { ErrorBlock } from '@/components/common/ErrorBlock';
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid';
 import { dashboardApi } from '@/api/dashboard';
+import { gatewayApi } from '@/api/gateway';
 
 const SkeletonCard = styled(Skeleton)`
   background: ${colors.surface.DEFAULT};
@@ -41,6 +42,20 @@ export const DashboardPage = () => {
     data: recentResponse,
   } = useQuery(['dashboard-recent-tasks'], () => dashboardApi.getRecentTasks());
 
+  // Bridge status — 10s 轮询
+  const { data: bridgesResponse } = useQuery(
+    ['gateway-bridges'],
+    () => gatewayApi.listBridges(),
+    { refetchInterval: 10_000 },
+  );
+
+  // Gateway tasks — 15s 轮询
+  const { data: gatewayTasksResponse } = useQuery(
+    ['gateway-tasks'],
+    () => gatewayApi.listTasks({ limit: 50, sort_by: 'submitted_at', sort_order: 'desc' }),
+    { refetchInterval: 15_000 },
+  );
+
   const stats = statsResponse?.data ?? statsResponse;
 
   const cardData = {
@@ -49,7 +64,9 @@ export const DashboardPage = () => {
     cost: stats?.cost ?? { today: 0, week: 0, month: 0, total: 0 },
     active_projects: stats?.projects ?? { active: 0, total: 0 },
     agent_status: stats?.agents ?? { online: 0, offline: 0, total: 0 },
+    bridge_status: bridgesResponse?.data ?? [],
     recent_tasks: recentResponse?.data ?? recentResponse ?? [],
+    task_timeline: gatewayTasksResponse?.data?.items ?? [],
   };
 
   if (statsError) {
