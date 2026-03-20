@@ -154,7 +154,10 @@ async def execute_workflow(
     if not workflow:
         return error_response(404, "Workflow not found")
 
-    definition = workflow.definition
+    definition = workflow.get("definition")
+    if not definition:
+        return error_response(400, "Workflow definition not found")
+
     if isinstance(definition, str):
         try:
             definition = json.loads(definition)
@@ -180,7 +183,7 @@ async def execute_workflow(
             input_params=input_params,
             user_id=user.id,
             db=db,
-            name=body.get("name", workflow.name),
+            name=body.get("name", workflow.get("name", "")),
         )
 
         return success_response({
