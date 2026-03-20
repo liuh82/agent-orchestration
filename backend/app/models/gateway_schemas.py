@@ -144,6 +144,7 @@ class SubmitTaskRequest(BaseModel):
     depends_on: Optional[List[str]] = Field(default=None, description="依赖的 task_id 列表，全部完成后才执行")
     max_retries: int = Field(default=0, ge=0, le=5, description="失败时自动重试次数（指数退避，切换 bridge）")
     sandbox_mode: bool = Field(default=False, description="沙盒模式：隔离工作目录，执行后生成 diff patch")
+    backend: Optional[str] = Field(default=None, description="指定后端（claude/codex/opencode），默认自动选择")
 
 
 class ResumeTaskRequest(BaseModel):

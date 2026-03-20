@@ -47,7 +47,7 @@ class TaskRouter:
 
         MVP: select Bridge with lowest active task count.
         Filters out bridges that are DB-online but WS-offline (ghost bridges).
-        Optionally filters by IDE preference.
+        Optionally filters by IDE preference and backend type.
         """
         candidates = self.bridge_manager.get_available_bridges()
         if not candidates:
@@ -70,7 +70,19 @@ class TaskRouter:
         if not candidates:
             return None
 
-        # Step 1: filter by IDE preference if specified
+        # Step 1: 按 backend 字段筛选（如果指定了后端类型）
+        if hasattr(task, 'backend') and task.backend:
+            backend = str(task.backend).lower()
+            backend_matches = [
+                b for b in candidates
+                if any(a.type.value.lower() == backend for a in b.available_adapters)
+            ]
+            if backend_matches:
+                candidates = backend_matches
+                logger.debug(f"Backend filter '{backend}': {len(candidates)} bridge(s)")
+            # else: fall through with all candidates
+
+        # Step 2: filter by IDE preference if specified
         if task.preferred_ide:
             ide_matches = [
                 b for b in candidates
@@ -80,7 +92,7 @@ class TaskRouter:
                 candidates = ide_matches
             # else: fall through with all candidates
 
-        # Step 2: 按活跃任务数升序 + 任务类型亲和性
+        # Step 3: 按活跃任务数升序 + 任务类型亲和性
         # 任务类型亲和性: 优先选择已注册对应 agent_type 适配器的 bridge
         task_type = task.agent_type.value
         type_matches = [

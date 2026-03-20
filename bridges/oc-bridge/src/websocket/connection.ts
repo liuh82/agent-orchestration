@@ -6,11 +6,13 @@ import { v4 } from "uuid";
 import WebSocket from "ws";
 import { logger } from "../logger/index.js";
 import { getPlatformInfo, findClaudeCli } from "../utils/platform.js";
+import { getAvailableAgents, getRegisteredAgentNames } from "../agent/registry.js";
 import type { BridgeConfig } from "../storage/config.js";
 import type {
   ServerMessage,
   AuthRequest,
   BridgeRegister,
+  AdapterInfo,
   Pong,
   TaskSubmit,
   TaskCancel,
@@ -184,48 +186,78 @@ export class WSConnection {
       }, AUTH_TIMEOUT_MS);
 
       const platform = getPlatformInfo();
-      const claudePath = findClaudeCli() || "claude";
 
-      const msg: BridgeRegister = {
-        type: "bridge.register",
-        bridgeId: this.config.bridgeId,
-        platform: platform.platform,
-        hostname: platform.hostname,
-        osVersion: platform.osVersion,
-        nodeVersion: platform.nodeVersion,
-        bridgeVersion: BRIDGE_VERSION,
-        adapters: [
+      // 异步检测所有已注册后端，然后构建适配器列表
+      getAvailableAgents().then((availableAgents) => {
+        const claudePath = findClaudeCli() || "claude";
+
+        // 基础适配器列表（保证 Claude CLI 始终在列）
+        const adapters: AdapterInfo[] = [
           {
             type: "cli",
             name: "claude-code",
             version: "1.0.0",
             executablePath: claudePath,
           },
-        ],
-        activeTasks: 0,
-        maxConcurrent: this.config.maxConcurrent,
-      };
+        ];
 
-      // One-time handler for bridge.registered
-      const handler = (data: WebSocket.Data) => {
-        const parsed = JSON.parse(data.toString()) as ServerMessage;
-        if (parsed.type === "bridge.registered") {
-          clearTimeout(timeout);
-          this.ws?.removeListener("message", handler);
-          logger.info(`Registered as ${parsed.bridgeId}, status=${parsed.status}`);
-          if (parsed.resumedTasks.length > 0) {
-            logger.info(`Resumed ${parsed.resumedTasks.length} task(s)`);
+        // 追加检测到的其他后端
+        const existingTypes = new Set(adapters.map((a) => a.type));
+        for (const agent of availableAgents) {
+          if (!existingTypes.has(agent.name)) {
+            adapters.push({
+              type: agent.name,
+              name: agent.displayName,
+              version: "1.0.0",
+              executablePath: agent.command,
+            });
+            existingTypes.add(agent.name);
           }
-          this.eventHandler({
-            type: "registered",
-            resumedTasks: parsed.resumedTasks,
-          });
-          resolve();
         }
-      };
 
-      this.ws!.on("message", handler);
-      this.send(msg);
+        // 日志输出检测到的后端
+        const allNames = getRegisteredAgentNames();
+        const availableNames = availableAgents.map((a) => a.name);
+        logger.info(`已注册后端: ${allNames.join(", ")}`);
+        logger.info(`可用后端: ${availableNames.length > 0 ? availableNames.join(", ") : "无"}`);
+
+        const msg: BridgeRegister = {
+          type: "bridge.register",
+          bridgeId: this.config.bridgeId,
+          platform: platform.platform,
+          hostname: platform.hostname,
+          osVersion: platform.osVersion,
+          nodeVersion: platform.nodeVersion,
+          bridgeVersion: BRIDGE_VERSION,
+          adapters,
+          activeTasks: 0,
+          maxConcurrent: this.config.maxConcurrent,
+        };
+
+        // One-time handler for bridge.registered
+        const handler = (data: WebSocket.Data) => {
+          const parsed = JSON.parse(data.toString()) as ServerMessage;
+          if (parsed.type === "bridge.registered") {
+            clearTimeout(timeout);
+            this.ws?.removeListener("message", handler);
+            logger.info(`Registered as ${parsed.bridgeId}, status=${parsed.status}`);
+            if (parsed.resumedTasks.length > 0) {
+              logger.info(`Resumed ${parsed.resumedTasks.length} task(s)`);
+            }
+            this.eventHandler({
+              type: "registered",
+              resumedTasks: parsed.resumedTasks,
+            });
+            resolve();
+          }
+        };
+
+        this.ws!.on("message", handler);
+        this.send(msg);
+      }).catch((err) => {
+        clearTimeout(timeout);
+        reject(new Error(`Backend detection failed: ${err}`));
+      });
     });
   }
 

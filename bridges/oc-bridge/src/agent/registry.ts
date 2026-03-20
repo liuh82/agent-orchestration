@@ -8,6 +8,8 @@
  * 每个 Agent 后端应同时注册 executor 和 agent。
  */
 import { ClaudeCodeExecutor } from "./claude-code.js";
+import { CodexCodeAgent } from "./codex-code.js";
+import { OpenCodeAgent } from "./opencode.js";
 import { AgentExecutor } from "./executor.js";
 import type { BaseAgent } from "./base.js";
 
@@ -20,6 +22,14 @@ export function initRegistry(): void {
   executorRegistry.set("cli", claude);
   executorRegistry.set("claude", claude);
   agentRegistry.set("claude", claude);
+
+  // 注册 Codex 后端（仅 BaseAgent，进程管理由 AgentExecutor 桥接）
+  const codex = new CodexCodeAgent();
+  agentRegistry.set("codex", codex);
+
+  // 注册 OpenCode 后端
+  const opencode = new OpenCodeAgent();
+  agentRegistry.set("opencode", opencode);
 }
 
 /** Register an additional executor (for custom / plugin agents). */

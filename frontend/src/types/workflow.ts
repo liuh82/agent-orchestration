@@ -91,6 +91,8 @@ export interface AgentNodeData {
   outputFormat?: 'text' | 'json' | 'markdown';
   outputAlias?: string;
   gitEnabled?: boolean;
+  // 后端选择（P1: 多后端支持）
+  backend?: 'claude' | 'codex' | 'opencode' | 'auto';
 }
 
 // --- Logic Nodes ---

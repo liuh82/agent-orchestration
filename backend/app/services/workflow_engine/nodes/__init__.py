@@ -23,3 +23,9 @@ from .join import JoinNode
 from .input import InputNodeExecutor
 from .context_output import ContextOutputNode
 from .result_output import ResultOutputNode
+
+# OPSX 质量节点
+from .spec_node import SpecNode
+from .plan_node import PlanNode
+from .review_node import ReviewNode
+from .verify_node import VerifyNode

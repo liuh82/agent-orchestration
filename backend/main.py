@@ -8,7 +8,7 @@ from app.rate_limit import limiter
 from app.routers import agents_legacy, tasks_legacy, workflows, cost, org, heartbeats, gateway, auth
 from app.routers import agents as agents_v1, projects, tasks as tasks_v1, jobs
 from app.routers import admin, settings as settings_router, notifications, stats
-from app.routers import bridges, agent_types, project_documents, task_files, tasks_v3
+from app.routers import bridges, agent_types, project_documents, task_files, tasks_v3, spec
 from app.services.scheduler import scheduler
 from app.services.heartbeat import HeartbeatService
 # Import workflow engine to register node types
@@ -131,6 +131,7 @@ async def health_check():
     return {"status": "healthy"}
 
 # ── API path compatibility: /api/* → /api/v1/* ──
+app.include_router(spec.router, prefix="/api/v1/specs", tags=["v1-specs"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects-compat"])
 app.include_router(agents_v1.router, prefix="/api/agent-types", tags=["agent-types-compat"])
 app.include_router(tasks_v1.router, prefix="/api/projects/{project_id}/tasks", tags=["tasks-compat"])

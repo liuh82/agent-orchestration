@@ -318,6 +318,22 @@ const AgentForm: React.FC<AgentFormProps> = ({ data, agents, onUpdate }) => {
         />
       )}
 
+      {/* 后端选择器 — 选择执行 Agent 的后端 */}
+      <Form.Item label="执行后端" style={{ marginBottom: spacing[2] as string }}>
+        <Select
+          value={data.backend ?? 'auto'}
+          onChange={(val: string) => onUpdate({ backend: val as AgentNodeData['backend'] })}
+          size="small"
+          style={LIGHT_SELECT_STYLE}
+          options={[
+            { label: '自动（由 Bridge 决定）', value: 'auto' },
+            { label: 'Claude Code', value: 'claude' },
+            { label: 'Codex CLI', value: 'codex' },
+            { label: 'OpenCode', value: 'opencode' },
+          ]}
+        />
+      </Form.Item>
+
       <Form.Item label="Prompt" style={{ marginBottom: spacing[2] as string }}>
         <Input.TextArea
           value={data.prompt}
