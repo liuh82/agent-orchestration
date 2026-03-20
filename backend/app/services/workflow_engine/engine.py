@@ -197,8 +197,6 @@ class WorkflowEngine:
 
         node_id = node_def["id"]
         node_type = node_def["type"]
-        with open("/tmp/wf-debug.log","a") as _f:
-            _f.write(f"ENTER: {node_id} ({node_type})\n")
         # Schema v1 uses "data" for node config (fallback to "config" for legacy)
         node_config = node_def.get("data", node_def.get("config", {}))
 
@@ -380,11 +378,7 @@ class WorkflowEngine:
             )
             next_nodes = next_info["nodes"]
             routing = next_info.get("routing", {})
-            with open("/tmp/wf-debug.log","a") as _f:
-                _f.write(f"STEP10: {node_id} next={[n['id'] for n in next_nodes]}\n")
         except Exception as _e:
-            with open("/tmp/wf-debug.log","a") as _f:
-                _f.write(f"STEP10-ERR: {node_id} err={_e}\n")
             raise
 
         # 11. Handle loop routing

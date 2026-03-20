@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Button, Select, Space } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useQuery } from 'react-query';
@@ -21,6 +21,11 @@ const statusOptions = [
 export const TaskCenterPage = () => {
   const { selectedTaskIds } = useTaskStore();
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const selectContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleFilterChange = useCallback((val: string | undefined) => {
+    setStatusFilter(val);
+  }, []);
 
   const {
     data: treeData,
@@ -44,6 +49,8 @@ export const TaskCenterPage = () => {
       refetchInterval: 10_000,
       keepPreviousData: true,
       staleTime: 5_000,
+      // prevent query refetch from resetting UI state
+      notifyOnChangeProps: ['data', 'error'],
     }
   );
 
@@ -57,14 +64,19 @@ export const TaskCenterPage = () => {
         title="任务中心"
         actions={
           <Space>
-            <Select
-              allowClear
-              placeholder="筛选状态"
-              style={{ width: 140 }}
-              options={statusOptions}
-              value={statusFilter}
-              onChange={(val) => setStatusFilter(val)}
-            />
+            <div ref={selectContainerRef} style={{ position: 'relative' }}>
+              <Select
+                allowClear
+                placeholder="筛选状态"
+                style={{ width: 140 }}
+                options={statusOptions}
+                value={statusFilter}
+                onChange={handleFilterChange}
+                virtual={false}
+                getPopupContainer={() => selectContainerRef.current ?? document.body}
+                listHeight={200}
+              />
+            </div>
             <Button
               icon={<ReloadOutlined spin={isFetching} />}
               onClick={() => void refetch()}
