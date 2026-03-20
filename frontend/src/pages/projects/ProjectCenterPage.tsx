@@ -113,7 +113,7 @@ export const ProjectCenterPage: React.FC = () => {
     () => projectApi.list({ page: 1, page_size: 100 }),
     { refetchOnWindowFocus: false },
   );
-  const projects = projectsData?.data?.items ?? [];
+  const projects = (projectsData as any)?.items ?? (projectsData as any)?.data?.items ?? [];
 
   // ── Independent tasks ──
   const {
@@ -133,7 +133,7 @@ export const ProjectCenterPage: React.FC = () => {
     } as any),
     { enabled: activeTab === 'indie-tasks', refetchOnWindowFocus: false },
   );
-  const indieTasks = indieTasksData?.data?.items ?? [];
+  const indieTasks = (indieTasksData as any)?.items ?? (indieTasksData as any)?.data?.items ?? [];
 
   // ── Create project handler ──
   const handleProjectCreated = useCallback(
@@ -205,7 +205,7 @@ export const ProjectCenterPage: React.FC = () => {
             />
           ) : (
             <GridContainer>
-              {projects.map((project) => (
+              {projects.map((project: any) => (
                 <ProjectCard
                   key={project.id}
                   project={project}

@@ -1380,7 +1380,7 @@ const SubWorkflowForm: React.FC<SubWorkflowFormProps> = ({ data, onUpdate }) => 
       .list()
       .then((res: any) => {
         if (cancelled) return;
-        const items = res?.data?.items ?? res?.items ?? [];
+        const items = res?.items ?? res?.data?.items ?? [];
         setWorkflowList(items.map((w: any) => ({ id: w.id, name: w.name })));
         if (items.length === 0) setManualInput(true);
       })

@@ -64,9 +64,9 @@ export const DashboardPage = () => {
     cost: stats?.cost ?? { today: 0, week: 0, month: 0, total: 0 },
     active_projects: stats?.projects ?? { active: 0, total: 0 },
     agent_status: stats?.agents ?? { online: 0, offline: 0, total: 0 },
-    bridge_status: bridgesResponse?.data ?? [],
-    recent_tasks: recentResponse?.data ?? recentResponse ?? [],
-    task_timeline: gatewayTasksResponse?.data?.items ?? [],
+    bridge_status: (bridgesResponse as any)?.data ?? bridgesResponse ?? [],
+    recent_tasks: (recentResponse as any)?.data ?? recentResponse ?? [],
+    task_timeline: (gatewayTasksResponse as any)?.items ?? (gatewayTasksResponse as any)?.data?.items ?? [],
   };
 
   if (statsError) {

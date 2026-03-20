@@ -224,8 +224,8 @@ export const ProjectDetailPage: React.FC = () => {
     { enabled: !!id, refetchOnWindowFocus: false },
   );
 
-  const tasks = tasksRes?.data?.items ?? [];
-  const total = tasksRes?.data?.total ?? 0;
+  const tasks = (tasksRes as any)?.items ?? (tasksRes as any)?.data?.items ?? [];
+  const total = (tasksRes as any)?.total ?? (tasksRes as any)?.data?.total ?? 0;
 
   // Edit project mutation
   const editMutation = useMutation(

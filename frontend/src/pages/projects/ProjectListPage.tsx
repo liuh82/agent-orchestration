@@ -61,7 +61,7 @@ export const ProjectListPage: React.FC = () => {
     { refetchOnWindowFocus: false },
   );
 
-  const projects = projectsData?.data?.items ?? [];
+  const projects = (projectsData as any)?.items ?? (projectsData as any)?.data?.items ?? [];
 
   // Create project mutation
   const createMutation = useMutation(
@@ -163,7 +163,7 @@ export const ProjectListPage: React.FC = () => {
       {/* Project card grid */}
       {projects.length > 0 && (
         <GridContainer>
-          {projects.map((project) => (
+          {projects.map((project: any) => (
             <ProjectCard
               key={project.id}
               project={project}

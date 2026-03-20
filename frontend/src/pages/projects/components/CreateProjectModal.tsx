@@ -188,7 +188,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     () => workflowsApi.list(),
     { enabled: open },
   );
-  const workflows = (workflowsRes?.data?.items ?? workflowsRes?.data ?? []) as Array<{
+  const workflows = ((workflowsRes as any)?.items ?? (workflowsRes as any)?.data?.items ?? (workflowsRes as any)?.data ?? []) as Array<{
     id: string;
     name: string;
   }>;

@@ -267,7 +267,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   );
 
   const workflowOptions = useMemo(() => {
-    const items = workflowListData?.data?.items ?? workflowListData?.data ?? workflowListData?.items ?? [];
+    const items = Array.isArray(workflowListData) ? workflowListData : (workflowListData?.items ?? workflowListData?.data?.items ?? workflowListData?.data ?? []);
     return (Array.isArray(items) ? items : []).map(
       (wf: { id: string; name: string }) => ({
         label: wf.name,
