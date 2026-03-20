@@ -7,7 +7,6 @@ import tempfile
 from typing import Any, Dict
 
 from ..registry import NodeRegistry
-from ..variable_resolver import resolve_template
 from .base import BaseNodeExecutor, NodeContext, NodeResult, NodeStatus
 
 logger = logging.getLogger(__name__)
@@ -82,13 +81,17 @@ class CodeNode(BaseNodeExecutor):
             )
 
         # Resolve {{ }} in code using upstream outputs
-        code = resolve_template(
-            code,
-            context.upstream_outputs,
-            context.input_data.get("_workflow_variables", {}),
-            context.input_data.get("_loop_context"),
-            context.input_data.get("_execution_context", {}),
-        )
+        if context.resolver:
+            code = context.resolver.resolve_template(code)
+        else:
+            from ..variable_resolver import resolve_template
+            code = resolve_template(
+                code,
+                context.upstream_outputs,
+                context.input_data.get("_workflow_variables", {}),
+                context.input_data.get("_loop_context"),
+                context.input_data.get("_execution_context", {}),
+            )
 
         # Prepare input variables as JSON
         input_vars = {

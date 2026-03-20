@@ -11,7 +11,6 @@ import os
 from typing import Any, Dict, List, Optional
 
 from ..registry import NodeRegistry
-from ..variable_resolver import resolve_template
 from .base import BaseNodeExecutor, NodeContext, NodeResult, NodeStatus
 
 logger = logging.getLogger(__name__)

@@ -4,7 +4,6 @@ import re
 from typing import Any, Dict, List, Optional
 
 from ..registry import NodeRegistry
-from ..variable_resolver import VariableResolver, resolve_variable
 from .base import BaseNodeExecutor, NodeContext, NodeResult, NodeStatus
 
 logger = logging.getLogger(__name__)
@@ -157,12 +156,16 @@ class IfNode(BaseNodeExecutor):
                 field_expr = field_expr[2:-2].strip()
 
             # Resolve the field value
-            actual_value = resolve_variable(
-                field_expr, node_outputs,
-                workflow_variables=workflow_vars,
-                loop_context=loop_ctx,
-                execution_context=exec_ctx,
-            )
+            if context.resolver:
+                actual_value = context.resolver.resolve(field_expr)
+            else:
+                from ..variable_resolver import resolve_variable
+                actual_value = resolve_variable(
+                    field_expr, node_outputs,
+                    workflow_variables=workflow_vars,
+                    loop_context=loop_ctx,
+                    execution_context=exec_ctx,
+                )
 
             # Coerce expected value
             expected_value = _coerce_expected(expected_str) if expected_str else ""

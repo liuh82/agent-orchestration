@@ -4,7 +4,6 @@ import logging
 from typing import Any, Dict, Optional
 
 from ..registry import NodeRegistry
-from ..variable_resolver import resolve_variable
 from .base import BaseNodeExecutor, NodeContext, NodeResult, NodeStatus
 
 logger = logging.getLogger(__name__)
@@ -108,12 +107,16 @@ class SubWorkflowNode(BaseNodeExecutor):
                 # Strip {{ }} if present
                 if source_path.startswith("{{") and source_path.endswith("}}"):
                     source_path = source_path[2:-2].strip()
-                value = resolve_variable(
-                    source_path, node_outputs,
-                    workflow_variables=workflow_vars,
-                    loop_context=loop_ctx,
-                    execution_context=exec_ctx,
-                )
+                if context.resolver:
+                    value = context.resolver.resolve(source_path)
+                else:
+                    from ..variable_resolver import resolve_variable
+                    value = resolve_variable(
+                        source_path, node_outputs,
+                        workflow_variables=workflow_vars,
+                        loop_context=loop_ctx,
+                        execution_context=exec_ctx,
+                    )
                 child_variables[target_var] = value
 
         # Load and execute the target workflow

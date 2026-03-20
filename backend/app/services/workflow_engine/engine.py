@@ -251,6 +251,7 @@ class WorkflowEngine:
                 workflow_id=input_data.get("_execution_context", {}).get("workflow_id", ""),
                 upstream_outputs=upstream_outputs,
                 db_session=db,
+                resolver=resolver,
             )
 
             start_time = time.time()

@@ -7,7 +7,6 @@ import time
 from typing import Any, Dict, Optional
 
 from ..registry import NodeRegistry
-from ..variable_resolver import resolve_template
 from .base import BaseNodeExecutor, NodeContext, NodeResult, NodeStatus
 
 logger = logging.getLogger(__name__)
@@ -133,13 +132,17 @@ class AgentNodeExecutor(BaseNodeExecutor):
             )
 
         # Resolve variables in prompt
-        rendered_prompt = resolve_template(
-            prompt,
-            context.upstream_outputs,
-            context.input_data.get("_workflow_variables", {}),
-            context.input_data.get("_loop_context"),
-            context.input_data.get("_execution_context", {}),
-        )
+        if context.resolver:
+            rendered_prompt = context.resolver.resolve_template(prompt)
+        else:
+            from ..variable_resolver import resolve_template
+            rendered_prompt = resolve_template(
+                prompt,
+                context.upstream_outputs,
+                context.input_data.get("_workflow_variables", {}),
+                context.input_data.get("_loop_context"),
+                context.input_data.get("_execution_context", {}),
+            )
 
         try:
             result = await self._dispatch_agent(

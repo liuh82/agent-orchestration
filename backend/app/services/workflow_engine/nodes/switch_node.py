@@ -3,7 +3,6 @@ import logging
 from typing import Any, Dict
 
 from ..registry import NodeRegistry
-from ..variable_resolver import resolve_variable
 from .base import BaseNodeExecutor, NodeContext, NodeResult, NodeStatus
 from .if_node import _evaluate_operator, _coerce_expected
 
@@ -82,12 +81,16 @@ class SwitchNode(BaseNodeExecutor):
             field_expr = field_expr[2:-2].strip()
 
         # Resolve field value
-        actual_value = resolve_variable(
-            field_expr, node_outputs,
-            workflow_variables=workflow_vars,
-            loop_context=loop_ctx,
-            execution_context=exec_ctx,
-        )
+        if context.resolver:
+            actual_value = context.resolver.resolve(field_expr)
+        else:
+            from ..variable_resolver import resolve_variable
+            actual_value = resolve_variable(
+                field_expr, node_outputs,
+                workflow_variables=workflow_vars,
+                loop_context=loop_ctx,
+                execution_context=exec_ctx,
+            )
 
         # Try matching cases in order
         for idx, case in enumerate(cases):

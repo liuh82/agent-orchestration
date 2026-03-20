@@ -3,7 +3,10 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+if TYPE_CHECKING:
+    from ..variable_resolver import VariableResolver
 
 
 class NodeStatus(str, Enum):
@@ -26,6 +29,7 @@ class NodeContext:
     workflow_id: str = ""
     upstream_outputs: Dict[str, Any] = field(default_factory=dict)
     db_session: Any = None
+    resolver: Optional["VariableResolver"] = None
 
 
 @dataclass

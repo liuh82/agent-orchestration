@@ -11,7 +11,6 @@ import os
 from typing import Any, Dict, List, Optional
 
 from ..registry import NodeRegistry
-from ..variable_resolver import resolve_template
 from .base import BaseNodeExecutor, NodeContext, NodeResult, NodeStatus
 
 logger = logging.getLogger(__name__)
@@ -85,13 +84,17 @@ class SpecNode(BaseNodeExecutor):
         model = context.node_config.get("model") or _LLM_MODEL
 
         # 解析变量模板
-        requirement = resolve_template(
-            requirement,
-            context.upstream_outputs,
-            context.input_data.get("_workflow_variables", {}),
-            context.input_data.get("_loop_context"),
-            context.input_data.get("_execution_context", {}),
-        )
+        if context.resolver:
+            requirement = context.resolver.resolve_template(requirement)
+        else:
+            from ..variable_resolver import resolve_template
+            requirement = resolve_template(
+                requirement,
+                context.upstream_outputs,
+                context.input_data.get("_workflow_variables", {}),
+                context.input_data.get("_loop_context"),
+                context.input_data.get("_execution_context", {}),
+            )
 
         if not requirement.strip():
             return NodeResult(

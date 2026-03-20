@@ -3,7 +3,6 @@ import logging
 from typing import Any, Dict
 
 from ..registry import NodeRegistry
-from ..variable_resolver import resolve_variable
 from .base import BaseNodeExecutor, NodeContext, NodeResult, NodeStatus
 
 logger = logging.getLogger(__name__)
@@ -82,12 +81,16 @@ class TransformNodeExecutor(BaseNodeExecutor):
                         # Strip {{ }} if present
                         if source_expr.startswith("{{") and source_expr.endswith("}}"):
                             source_expr = source_expr[2:-2].strip()
-                        value = resolve_variable(
-                            source_expr, node_outputs,
-                            workflow_variables=workflow_vars,
-                            loop_context=loop_ctx,
-                            execution_context=exec_ctx,
-                        )
+                        if context.resolver:
+                            value = context.resolver.resolve(source_expr)
+                        else:
+                            from ..variable_resolver import resolve_variable
+                            value = resolve_variable(
+                                source_expr, node_outputs,
+                                workflow_variables=workflow_vars,
+                                loop_context=loop_ctx,
+                                execution_context=exec_ctx,
+                            )
                     else:
                         value = None
 
@@ -104,12 +107,16 @@ class TransformNodeExecutor(BaseNodeExecutor):
                 for target_path, source_expr in extract.items():
                     if source_expr.startswith("{{") and source_expr.endswith("}}"):
                         source_expr = source_expr[2:-2].strip()
-                    value = resolve_variable(
-                        source_expr, node_outputs,
-                        workflow_variables=workflow_vars,
-                        loop_context=loop_ctx,
-                        execution_context=exec_ctx,
-                    )
+                    if context.resolver:
+                        value = context.resolver.resolve(source_expr)
+                    else:
+                        from ..variable_resolver import resolve_variable
+                        value = resolve_variable(
+                            source_expr, node_outputs,
+                            workflow_variables=workflow_vars,
+                            loop_context=loop_ctx,
+                            execution_context=exec_ctx,
+                        )
                     output[target_path] = value
 
             # Pass through input if no transform rules

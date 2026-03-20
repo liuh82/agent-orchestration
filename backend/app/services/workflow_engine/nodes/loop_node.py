@@ -3,7 +3,6 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from ..registry import NodeRegistry
-from ..variable_resolver import resolve_variable
 from .base import BaseNodeExecutor, NodeContext, NodeResult, NodeStatus
 
 logger = logging.getLogger(__name__)
@@ -127,12 +126,16 @@ class LoopNode(BaseNodeExecutor):
                 list_path = list_path[2:-2].strip()
 
             # Resolve the list
-            items = resolve_variable(
-                list_path, node_outputs,
-                workflow_variables=workflow_vars,
-                loop_context=loop_ctx,
-                execution_context=exec_ctx,
-            )
+            if context.resolver:
+                items = context.resolver.resolve(list_path)
+            else:
+                from ..variable_resolver import resolve_variable
+                items = resolve_variable(
+                    list_path, node_outputs,
+                    workflow_variables=workflow_vars,
+                    loop_context=loop_ctx,
+                    execution_context=exec_ctx,
+                )
 
             if not isinstance(items, (list, tuple)):
                 return NodeResult(
@@ -163,12 +166,16 @@ class LoopNode(BaseNodeExecutor):
         break_cond = context.node_config.get("breakCondition")
         if break_cond:
             # Evaluate break condition against current state
-            break_resolved = resolve_variable(
-                break_cond.strip(), node_outputs,
-                workflow_variables=workflow_vars,
-                loop_context=loop_ctx,
-                execution_context=exec_ctx,
-            )
+            if context.resolver:
+                break_resolved = context.resolver.resolve(break_cond.strip())
+            else:
+                from ..variable_resolver import resolve_variable
+                break_resolved = resolve_variable(
+                    break_cond.strip(), node_outputs,
+                    workflow_variables=workflow_vars,
+                    loop_context=loop_ctx,
+                    execution_context=exec_ctx,
+                )
             if break_resolved is not None and break_resolved:
                 return NodeResult(
                     status=NodeStatus.SUCCESS,

@@ -5,7 +5,6 @@ import logging
 from typing import Any, Dict, Optional
 
 from ..registry import NodeRegistry
-from ..variable_resolver import resolve_template_deep
 from .base import BaseNodeExecutor, NodeContext, NodeResult, NodeStatus
 
 logger = logging.getLogger(__name__)
@@ -93,9 +92,15 @@ class HttpRequestNode(BaseNodeExecutor):
         resolve_kwargs = self._build_resolve_kwargs(context)
 
         # Resolve variables in all fields
-        url = resolve_template_deep(url_template, **resolve_kwargs)
-        headers = resolve_template_deep(headers_template, **resolve_kwargs)
-        body = resolve_template_deep(body_template, **resolve_kwargs) if body_template else None
+        if context.resolver:
+            url = context.resolver.resolve_deep(url_template)
+            headers = context.resolver.resolve_deep(headers_template)
+            body = context.resolver.resolve_deep(body_template) if body_template else None
+        else:
+            from ..variable_resolver import resolve_template_deep
+            url = resolve_template_deep(url_template, **resolve_kwargs)
+            headers = resolve_template_deep(headers_template, **resolve_kwargs)
+            body = resolve_template_deep(body_template, **resolve_kwargs) if body_template else None
 
         last_error = None
         for attempt in range(max_retries + 1):
