@@ -10,19 +10,19 @@ export const SwitchNode = memo(function SwitchNode({
   type,
 }: NodeProps) {
   const d = data as unknown as SwitchNodeData;
+  const cases = d.cases ?? [];
 
   // Build dynamic case_N outputs based on data.cases
   // The 'default' output is already defined in NODE_META, so don't duplicate
-  const extraOutputs: ExtraOutput[] =
-    d.cases?.map((c, i) => ({
-      id: `case_${i}`,
-      type: 'source' as const,
-      label: c.label,
-      color: '#3b82f6',
-    })) ?? [];
+  const extraOutputs: ExtraOutput[] = cases.map((c, i) => ({
+    id: `case_${i}`,
+    type: 'source' as const,
+    label: c.label,
+    color: '#3b82f6',
+  }));
 
   const description =
-    d.cases.length > 0 ? `${d.cases.length} branches` : 'no branches';
+    cases.length > 0 ? `${cases.length} branches` : 'no branches';
 
   return (
     <BaseNode

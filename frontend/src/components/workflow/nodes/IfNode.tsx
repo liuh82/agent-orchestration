@@ -10,9 +10,11 @@ export const IfNode = memo(function IfNode({
   type,
 }: NodeProps) {
   const d = data as unknown as IfNodeData;
+  const conditions = d.conditions ?? (d.condition ? [d.condition] : []);
+  const logic = d.logic ?? 'and';
   const description =
-    d.conditions.length > 0
-      ? `${d.conditions.length} condition${d.conditions.length > 1 ? 's' : ''} (${d.logic})`
+    conditions.length > 0
+      ? `${conditions.length} condition${conditions.length > 1 ? 's' : ''} (${logic})`
       : 'no conditions';
 
   return (
