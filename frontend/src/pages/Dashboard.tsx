@@ -11,14 +11,18 @@ export const DashboardPage = () => {
   useQuery('agents', fetchAgents);
   useQuery('tasks', fetchTasks);
 
-  const totalAgents = agents.length;
-  const onlineAgents = agents.filter(a => a.status === 'online').length;
-  const busyAgents = agents.filter(a => a.status === 'busy').length;
+  // Defensive: ensure agents and tasks are arrays
+  const safeAgents = Array.isArray(agents) ? agents : [];
+  const safeTasks = Array.isArray(tasks) ? tasks : [];
 
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === 'completed').length;
-  const runningTasks = tasks.filter(t => t.status === 'running').length;
-  const failedTasks = tasks.filter(t => t.status === 'failed').length;
+  const totalAgents = safeAgents.length;
+  const onlineAgents = safeAgents.filter(a => a.status === 'online').length;
+  const busyAgents = safeAgents.filter(a => a.status === 'busy').length;
+
+  const totalTasks = safeTasks.length;
+  const completedTasks = safeTasks.filter(t => t.status === 'completed').length;
+  const runningTasks = safeTasks.filter(t => t.status === 'running').length;
+  const failedTasks = safeTasks.filter(t => t.status === 'failed').length;
 
   const taskCompletionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
@@ -36,7 +40,7 @@ export const DashboardPage = () => {
             />
             <div style={{ marginTop: 12 }}>
               <Progress
-                percent={(onlineAgents / totalAgents) * 100}
+                percent={totalAgents > 0 ? (onlineAgents / totalAgents) * 100 : 0}
                 status="success"
                 strokeColor="#52c41a"
               />
@@ -96,12 +100,12 @@ export const DashboardPage = () => {
           <Card>
             <Statistic
               title="Agent 使用率"
-              value={(busyAgents / totalAgents) * 100}
+              value={totalAgents > 0 ? (busyAgents / totalAgents) * 100 : 0}
               precision={2}
               suffix="%"
               prefix={<DashboardOutlined />}
             />
-            <Progress percent={(busyAgents / totalAgents) * 100} status="active" />
+            <Progress percent={totalAgents > 0 ? (busyAgents / totalAgents) * 100 : 0} status="active" />
           </Card>
         </Col>
       </Row>
