@@ -13,6 +13,7 @@ import {
   CheckCircleOutlined,
   ThunderboltOutlined,
   UnorderedListOutlined,
+  ArrowLeftOutlined,
 } from '@ant-design/icons';
 import styled from 'styled-components';
 import { colors } from '@/styles/tokens/color';
@@ -306,7 +307,12 @@ export const ProjectDetailPage: React.FC = () => {
   if (projectError) {
     return (
       <div>
-        <PageHeader title="项目详情" />
+        <PageHeader
+          title="项目详情"
+          actions={
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>返回</Button>
+          }
+        />
         <ErrorBlock
           message={projectErr instanceof Error ? projectErr.message : '项目加载失败，请稍后重试'}
           onRetry={() => refetchProject()}
@@ -318,7 +324,12 @@ export const ProjectDetailPage: React.FC = () => {
   if (!project) {
     return (
       <div>
-        <PageHeader title="项目详情" />
+        <PageHeader
+          title="项目详情"
+          actions={
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>返回</Button>
+          }
+        />
         <EmptyState description="项目不存在" />
       </div>
     );
