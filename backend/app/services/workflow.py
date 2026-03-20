@@ -10,6 +10,18 @@ from ..models.workflow import WorkflowDefinition, WorkflowTemplate
 from ..models.orm_models import Workflow as WorkflowDefinitionORM, WorkflowTemplate as WorkflowTemplateORM
 
 
+def _safe_json_parse(val, default=None):
+    """Safely parse JSON string, returning dict or default on failure."""
+    if not val:
+        return default
+    if isinstance(val, (dict, list)):
+        return val
+    try:
+        return json.loads(val)
+    except (json.JSONDecodeError, TypeError):
+        return default
+
+
 class WorkflowService:
     def __init__(self, db: Session):
         self.db = db
@@ -28,8 +40,8 @@ class WorkflowService:
                 "name": wo.name,
                 "description": wo.description,
                 "engine": wo.engine,
-                "definition": json.loads(wo.definition) if wo.definition else None,
-                "config": json.loads(wo.config) if wo.config else {},
+                "definition": _safe_json_parse(wo.definition),
+                "config": _safe_json_parse(wo.config, default={}),
                 "created_by": wo.created_by,
                 "created_at": wo.created_at,
                 "updated_at": wo.updated_at,
@@ -52,8 +64,8 @@ class WorkflowService:
             "name": wo.name,
             "description": wo.description,
             "engine": wo.engine,
-            "definition": json.loads(wo.definition) if wo.definition else None,
-            "config": json.loads(wo.config) if wo.config else {},
+            "definition": _safe_json_parse(wo.definition),
+            "config": _safe_json_parse(wo.config, default={}),
             "created_by": wo.created_by,
             "created_at": wo.created_at,
             "updated_at": wo.updated_at,
