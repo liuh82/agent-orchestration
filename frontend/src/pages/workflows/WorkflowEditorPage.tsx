@@ -41,6 +41,12 @@ import {
   ResultOutputNode,
   ForkNode,
   JoinNode,
+  SpecNode,
+  PlanNode,
+  ReviewNode,
+  VerifyNode,
+  NotificationNode,
+  HumanNode,
 } from '@/components/workflow/nodes';
 import { ConditionalEdge, ParallelEdge, NormalEdge } from '@/components/workflow/edges';
 import type {
@@ -92,6 +98,12 @@ const nodeTypes: Record<string, any> = {
   result_output: ResultOutputNode,
   ForkNode,
   JoinNode,
+  notification: NotificationNode,
+  human: HumanNode,
+  spec: SpecNode,
+  plan: PlanNode,
+  review: ReviewNode,
+  verify: VerifyNode,
 };
 
 /* ── Edge Type Registration ── */

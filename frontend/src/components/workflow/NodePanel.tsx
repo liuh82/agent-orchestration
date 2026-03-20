@@ -17,6 +17,8 @@ import {
   SendOutlined,
   FileTextOutlined,
   CheckCircleOutlined,
+  SearchOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import styled from 'styled-components';
 import { spacing } from '@/styles/tokens/spacing';
@@ -43,6 +45,8 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   SendOutlined: <SendOutlined />,
   FileTextOutlined: <FileTextOutlined />,
   CheckCircleOutlined: <CheckCircleOutlined />,
+  SearchOutlined: <SearchOutlined />,
+  SafetyCertificateOutlined: <SafetyCertificateOutlined />,
 };
 
 /* ── Light Theme Colors ── */

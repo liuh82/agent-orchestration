@@ -1948,6 +1948,8 @@ import {
   SwapOutlined,
   FileTextOutlined,
   CheckCircleOutlined,
+  SearchOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 
 import type { ReactNode } from 'react';
@@ -1973,6 +1975,10 @@ const NODE_ICON_MAP: Record<WorkflowNodeType, ReactNode> = {
   notification: <BellOutlined />,
   human: <UserOutlined />,
   join: <ApartmentOutlined />,
+  spec: <SearchOutlined />,
+  plan: <FileTextOutlined />,
+  review: <SafetyCertificateOutlined />,
+  verify: <CheckCircleOutlined />,
 };
 
 /* ================================================================
@@ -2231,6 +2237,115 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ agents }) => {
                 max={86400}
                 value={(nodeData as any).timeout ?? 3600}
                 onChange={(val) => updateNodeData(selectedNode.id, { timeout: val ?? 3600 } as any)}
+              />
+            </Form.Item>
+          </Form>
+        );
+      case 'spec':
+        return (
+          <Form layout="vertical" size="small">
+            <Form.Item label="需求描述">
+              <Input.TextArea
+                rows={4}
+                value={(nodeData as any).requirement ?? ''}
+                onChange={(e) => updateNodeData(selectedNode.id, { requirement: e.target.value } as any)}
+                placeholder="输入需要分析的需求描述，支持 {{ 变量 }} 语法"
+              />
+            </Form.Item>
+            <Form.Item label="分析范围">
+              <Select
+                value={(nodeData as any).scope ?? 'full'}
+                onChange={(val) => updateNodeData(selectedNode.id, { scope: val } as any)}
+                options={[
+                  { value: 'full', label: '完整分析' },
+                  { value: 'backend', label: '仅后端' },
+                  { value: 'frontend', label: '仅前端' },
+                  { value: 'infrastructure', label: '仅基础设施' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item label="最大约束数">
+              <InputNumber
+                min={1} max={50}
+                value={(nodeData as any).max_constraints ?? 20}
+                onChange={(val) => updateNodeData(selectedNode.id, { max_constraints: val ?? 20 } as any)}
+              />
+            </Form.Item>
+            <Form.Item label="多模型并行">
+              <Switch
+                checked={(nodeData as any).parallel_models ?? false}
+                onChange={(val) => updateNodeData(selectedNode.id, { parallel_models: val } as any)}
+              />
+            </Form.Item>
+          </Form>
+        );
+      case 'plan':
+        return (
+          <Form layout="vertical" size="small">
+            <Form.Item label="分析深度">
+              <Select
+                value={(nodeData as any).analysis_depth ?? 'normal'}
+                onChange={(val) => updateNodeData(selectedNode.id, { analysis_depth: val } as any)}
+                options={[
+                  { value: 'quick', label: '快速' },
+                  { value: 'normal', label: '标准' },
+                  { value: 'deep', label: '深入' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item label="包含测试步骤">
+              <Switch
+                checked={(nodeData as any).include_tests ?? true}
+                onChange={(val) => updateNodeData(selectedNode.id, { include_tests: val } as any)}
+              />
+            </Form.Item>
+            <Form.Item label="目标技术栈">
+              <Input
+                value={(nodeData as any).target_framework ?? ''}
+                onChange={(e) => updateNodeData(selectedNode.id, { target_framework: e.target.value } as any)}
+                placeholder="如 fastapi / react / django"
+              />
+            </Form.Item>
+          </Form>
+        );
+      case 'review':
+        return (
+          <Form layout="vertical" size="small">
+            <Form.Item label="严重问题时失败">
+              <Switch
+                checked={(nodeData as any).fail_on_critical ?? true}
+                onChange={(val) => updateNodeData(selectedNode.id, { fail_on_critical: val } as any)}
+              />
+            </Form.Item>
+            <Form.Item label="审查者 A 模型">
+              <Input
+                value={(nodeData as any).reviewer_a_model ?? ''}
+                onChange={(e) => updateNodeData(selectedNode.id, { reviewer_a_model: e.target.value } as any)}
+                placeholder="留空使用默认模型"
+              />
+            </Form.Item>
+            <Form.Item label="审查者 B 模型">
+              <Input
+                value={(nodeData as any).reviewer_b_model ?? ''}
+                onChange={(e) => updateNodeData(selectedNode.id, { reviewer_b_model: e.target.value } as any)}
+                placeholder="留空使用默认模型（同 A）"
+              />
+            </Form.Item>
+          </Form>
+        );
+      case 'verify':
+        return (
+          <Form layout="vertical" size="small">
+            <Form.Item label="自动修复">
+              <Switch
+                checked={(nodeData as any).auto_fix ?? false}
+                onChange={(val) => updateNodeData(selectedNode.id, { auto_fix: val } as any)}
+              />
+            </Form.Item>
+            <Form.Item label="生成属性测试 (PBT)">
+              <Switch
+                checked={(nodeData as any).generate_pbt ?? false}
+                onChange={(val) => updateNodeData(selectedNode.id, { generate_pbt: val } as any)}
               />
             </Form.Item>
           </Form>

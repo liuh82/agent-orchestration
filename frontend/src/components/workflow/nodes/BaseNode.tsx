@@ -49,10 +49,11 @@ export const BaseNode = memo(function BaseNode({
   const meta = NODE_META[type as WorkflowNodeType];
   const color = meta?.color ?? '#64748b';
   const isTrigger = meta?.category === 'trigger';
-  const hasInput = (meta?.handles.inputs.length ?? 0) > 0;
+  const inputs = meta?.handles?.inputs ?? [];
+  const hasInput = inputs.length > 0;
 
   // Merge static outputs from NODE_META with dynamic extraOutputs
-  const staticOutputs = meta?.handles.outputs ?? [];
+  const staticOutputs = meta?.handles?.outputs ?? [];
   const allOutputs = [...staticOutputs, ...(extraOutputs ?? [])];
 
   const label = (data as Record<string, unknown>).label || meta?.label || type;
@@ -68,7 +69,7 @@ export const BaseNode = memo(function BaseNode({
         <Handle
           type="target"
           position={Position.Top}
-          id={meta!.handles.inputs[0].id}
+          id={inputs[0]?.id ?? 'source'}
           style={targetHandleStyle}
         />
       )}

@@ -27,11 +27,15 @@ export type WorkflowNodeType =
   | 'context_output'
   | 'result_output'
   | 'notification'
-  | 'human';
+  | 'human'
+  | 'spec'    // OPSX: requirement → constraint set
+  | 'plan'    // OPSX: constraints → zero-decision execution plan
+  | 'review'  // OPSX: dual-model cross-review
+  | 'verify';  // OPSX: automated constraint verification
 
 /* ── 2. Node Category ── */
 
-export type NodeCategory = 'trigger' | 'agent' | 'logic' | 'workflow' | 'data' | 'output';
+export type NodeCategory = 'trigger' | 'agent' | 'logic' | 'workflow' | 'data' | 'output' | 'quality';
 
 /* ── 3. Node Data Interfaces ── */
 
@@ -251,6 +255,41 @@ export interface HumanNodeData {
   require_comment?: boolean;
 }
 
+// --- OPSX Quality Nodes ---
+
+export interface SpecNodeData {
+  label: string;
+  requirement: string;
+  scope: 'full' | 'backend' | 'frontend' | 'infrastructure';
+  parallel_models: boolean;
+  max_constraints: number;
+  model: string;
+}
+
+export interface PlanNodeData {
+  label: string;
+  analysis_depth: 'quick' | 'normal' | 'deep';
+  include_tests: boolean;
+  target_framework: string;
+  model: string;
+}
+
+export interface ReviewNodeData {
+  label: string;
+  review_dimensions: string[];
+  fail_on_critical: boolean;
+  reviewer_a_model: string;
+  reviewer_b_model: string;
+}
+
+export interface VerifyNodeData {
+  label: string;
+  auto_fix: boolean;
+  generate_pbt: boolean;
+  verification_methods: { code_review: boolean; test_execution: boolean; static_analysis: boolean };
+  model: string;
+}
+
 /* ── 4. Node Data Union ── */
 
 export type NodeData =
@@ -271,7 +310,11 @@ export type NodeData =
   | ContextOutputNodeData
   | ResultOutputNodeData
   | NotificationNodeData
-  | HumanNodeData;
+  | HumanNodeData
+  | SpecNodeData
+  | PlanNodeData
+  | ReviewNodeData
+  | VerifyNodeData;
 
 /* ── 5. Handle Definitions ── */
 
@@ -662,6 +705,83 @@ export const NODE_META: Record<WorkflowNodeType, NodeMeta> = {
       outputs: [{ id: 'target', type: 'source' }],
     },
   },
+
+  spec: {
+    type: 'spec',
+    label: '约束分析',
+    category: 'quality',
+    color: '#8b5cf6',
+    icon: 'SearchOutlined',
+    defaultData: (): SpecNodeData => ({
+      label: '约束分析',
+      requirement: '',
+      scope: 'full',
+      parallel_models: false,
+      max_constraints: 20,
+      model: '',
+    }),
+    handles: {
+      inputs: [{ id: 'source', type: 'target' }],
+      outputs: [{ id: 'target', type: 'source' }],
+    },
+  },
+
+  plan: {
+    type: 'plan',
+    label: '零决策计划',
+    category: 'quality',
+    color: '#8b5cf6',
+    icon: 'FileTextOutlined',
+    defaultData: (): PlanNodeData => ({
+      label: '零决策计划',
+      analysis_depth: 'normal',
+      include_tests: true,
+      target_framework: '',
+      model: '',
+    }),
+    handles: {
+      inputs: [{ id: 'source', type: 'target' }],
+      outputs: [{ id: 'target', type: 'source' }],
+    },
+  },
+
+  review: {
+    type: 'review',
+    label: '交叉验证',
+    category: 'quality',
+    color: '#8b5cf6',
+    icon: 'SafetyCertificateOutlined',
+    defaultData: (): ReviewNodeData => ({
+      label: '交叉验证',
+      review_dimensions: ['spec_compliance', 'logic_correctness', 'security', 'maintainability'],
+      fail_on_critical: true,
+      reviewer_a_model: '',
+      reviewer_b_model: '',
+    }),
+    handles: {
+      inputs: [{ id: 'source', type: 'target' }],
+      outputs: [{ id: 'target', type: 'source' }],
+    },
+  },
+
+  verify: {
+    type: 'verify',
+    label: '约束验证',
+    category: 'quality',
+    color: '#8b5cf6',
+    icon: 'CheckCircleOutlined',
+    defaultData: (): VerifyNodeData => ({
+      label: '约束验证',
+      auto_fix: false,
+      generate_pbt: false,
+      verification_methods: { code_review: true, test_execution: true, static_analysis: false },
+      model: '',
+    }),
+    handles: {
+      inputs: [{ id: 'source', type: 'target' }],
+      outputs: [{ id: 'target', type: 'source' }],
+    },
+  },
 };
 
 /* ── 7b. Edge Data & Type Rules ── */
@@ -729,6 +849,12 @@ export const NODE_CATEGORIES: NodeCategoryDef[] = [
     label: '输出',
     color: '#ec4899',
     nodeTypes: ['output', 'context_output', 'result_output'],
+  },
+  {
+    key: 'quality',
+    label: '质量保证',
+    color: '#8b5cf6',
+    nodeTypes: ['spec', 'plan', 'review', 'verify'],
   },
 ];
 
