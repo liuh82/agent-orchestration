@@ -13,42 +13,43 @@ interface AuthState {
   fetchMe: () => Promise<void>;
 }
 
+/** Extract the inner `data` field from our standard API response envelope. */
+function unwrap<T>(res: { data: { code: number; data: T; message: string } }): T {
+  return res.data.data;
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
   isAuthenticated: false,
 
   login: async (email, password) => {
-    // 直接用 axios 避免拦截器（login 时尚无 token）
     const res = await api.post('/auth/login', { email, password });
-    const { user, access_token } = res.data;
+    const { user, access_token } = unwrap<{ user: User; access_token: string }>(res);
     set({ user, accessToken: access_token, isAuthenticated: true });
   },
 
   register: async (email, password, name) => {
     const res = await api.post('/auth/register', { email, password, name });
-    const { user, access_token } = res.data;
+    const { user, access_token } = unwrap<{ user: User; access_token: string }>(res);
     set({ user, accessToken: access_token, isAuthenticated: true });
   },
 
   logout: () => {
-    // 调后端 logout 清除 httpOnly cookie + 撤销 token
     api.post('/auth/logout').catch(() => {});
     set({ user: null, accessToken: null, isAuthenticated: false });
     window.location.href = '/login';
   },
 
   refreshAccessToken: async () => {
-    // refresh_token 通过 httpOnly cookie 自动发送，无需手动传参
     const res = await api.post('/auth/refresh');
-    const { access_token } = res.data;
+    const { access_token } = unwrap<{ access_token: string }>(res);
     set({ accessToken: access_token });
     return { access_token };
   },
 
   fetchMe: async () => {
     try {
-      // 如果没有 accessToken，先尝试刷新
       const state = get();
       if (!state.accessToken) {
         try {
@@ -59,7 +60,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
       const res = await api.get('/auth/me');
-      set({ user: res.data, isAuthenticated: true });
+      const user = unwrap<User>(res);
+      set({ user, isAuthenticated: true });
     } catch {
       set({ user: null, isAuthenticated: false });
     }
