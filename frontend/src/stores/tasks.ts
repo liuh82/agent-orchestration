@@ -28,7 +28,7 @@ export const useTasksStore = create<TasksState>((set) => ({
     set({ loading: true, error: null });
     try {
       const response = await tasksApi.list(params);
-      set({ tasks: response.data, loading: false });
+      set({ tasks: (response.data as any)?.items ?? [], loading: false });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to fetch tasks', loading: false });
     }
