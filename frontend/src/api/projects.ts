@@ -55,9 +55,13 @@ export const projectApi = {
 
   createDocument: (
     projectId: string,
-    data: { title: string; doc_type: string; content?: string; file_id?: string },
-  ) =>
-    api.post(`/projects/${projectId}/documents/`, data) as Promise<any>,
+    data: Record<string, unknown> | FormData,
+  ) => {
+    const isFormData = data instanceof FormData;
+    return api.post(`/projects/${projectId}/documents/`, data, {
+      headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {},
+    }) as Promise<any>;
+  },
 
   updateDocument: (
     projectId: string,

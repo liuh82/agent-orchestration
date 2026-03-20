@@ -66,7 +66,7 @@ export const AgentConfigEditor = ({ projectId }: AgentConfigEditorProps) => {
     ['project-agent-configs', projectId],
     () => projectApi.getAgentConfigs(projectId),
   );
-  const configs = data?.data ?? [];
+  const configs = Array.isArray(data) ? data : (data?.data ?? data?.items ?? []);
 
   const saveMutation = useMutation(
     (data: { agent_type: string; config_type: string; content: string }) =>

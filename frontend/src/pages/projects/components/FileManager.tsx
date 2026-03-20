@@ -55,7 +55,7 @@ export const FileManager = ({ projectId }: FileManagerProps) => {
     ['project-files', projectId],
     () => projectApi.getFiles(projectId),
   );
-  const files: ProjectFile[] = data?.data ?? [];
+  const files: ProjectFile[] = Array.isArray(data) ? data : (data?.data ?? data?.items ?? []);
 
   const filteredFiles = filterType ? files.filter((f) => f.file_type === filterType) : files;
 
