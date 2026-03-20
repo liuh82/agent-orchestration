@@ -13,11 +13,6 @@ interface AuthState {
   fetchMe: () => Promise<void>;
 }
 
-/** Extract the inner `data` field from our standard API response envelope. */
-function unwrap<T>(res: { data: { code: number; data: T; message: string } }): T {
-  return res.data.data;
-}
-
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
@@ -25,13 +20,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (email, password) => {
     const res = await api.post('/auth/login', { email, password });
-    const { user, access_token } = unwrap<{ user: User; access_token: string }>(res);
+    const { user, access_token } = res.data as any;
     set({ user, accessToken: access_token, isAuthenticated: true });
   },
 
   register: async (email, password, name) => {
     const res = await api.post('/auth/register', { email, password, name });
-    const { user, access_token } = unwrap<{ user: User; access_token: string }>(res);
+    const { user, access_token } = res.data as any;
     set({ user, accessToken: access_token, isAuthenticated: true });
   },
 
@@ -43,7 +38,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   refreshAccessToken: async () => {
     const res = await api.post('/auth/refresh');
-    const { access_token } = unwrap<{ access_token: string }>(res);
+    const { access_token } = res.data as any;
     set({ accessToken: access_token });
     return { access_token };
   },
@@ -60,7 +55,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
       const res = await api.get('/auth/me');
-      const user = unwrap<User>(res);
+      const user = res.data as User;
       set({ user, isAuthenticated: true });
     } catch {
       set({ user: null, isAuthenticated: false });
