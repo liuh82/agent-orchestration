@@ -123,6 +123,8 @@ export interface IfNodeData {
   label: string;
   conditions: ConditionRule[];
   logic: 'and' | 'or';
+  /** 旧格式兼容：单个条件对象 */
+  condition?: Record<string, unknown>;
 }
 
 export interface SwitchCase {
