@@ -114,8 +114,8 @@ class AgentNodeExecutor(BaseNodeExecutor):
     }
 
     async def execute(self, context: NodeContext) -> NodeResult:
-        agent_id = context.node_config.get("agentId", "")
-        prompt = context.node_config.get("prompt", "")
+        agent_id = context.node_config.get("agentId") or context.node_config.get("agent_id", "")
+        prompt = context.node_config.get("prompt") or context.node_config.get("prompt_template", "")
         model = context.node_config.get("model", "")
         temperature = context.node_config.get("temperature", 0.7)
         max_tokens = context.node_config.get("maxTokens", 4096)

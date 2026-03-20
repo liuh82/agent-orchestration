@@ -312,7 +312,7 @@ class ReviewNode(BaseNodeExecutor):
             timeout=_LLM_TIMEOUT,
         )
 
-    def _parse_json(text: str, default: Any = None) -> Any:
+    def _parse_json(self, text: str, default: Any = None) -> Any:
         """解析 LLM 返回的 JSON，容忍 markdown 代码块包裹。"""
         try:
             return json.loads(text)
