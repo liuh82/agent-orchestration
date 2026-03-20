@@ -53,6 +53,8 @@ def _evaluate_operator(
 
 def _coerce_expected(value: str) -> Any:
     """Try to coerce a string expected value to its natural type."""
+    if not isinstance(value, str):
+        return value
     if value.lower() == "true":
         return True
     if value.lower() == "false":
