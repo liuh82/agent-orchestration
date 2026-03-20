@@ -76,7 +76,8 @@ class ReviewNode(BaseNodeExecutor):
             ["spec_compliance", "logic_correctness", "security", "maintainability"],
         )
         fail_on_critical = context.node_config.get("fail_on_critical", True)
-        model_a = context.node_config.get("reviewer_a_model") or _LLM_MODEL
+        default_model = context.node_config.get("model") or _LLM_MODEL
+        model_a = context.node_config.get("reviewer_a_model") or default_model
         model_b = context.node_config.get("reviewer_b_model") or model_a
 
         # Step 1: 组装审查上下文

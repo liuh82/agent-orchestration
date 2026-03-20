@@ -197,8 +197,14 @@ class AgentNodeExecutor(BaseNodeExecutor):
                 task_id = generate_uuid()
                 task = NexusTask(
                     id=task_id,
-                    project_id=context.node_config.get("project_id"),
-                    user_id=context.node_config.get("user_id"),
+                    project_id=(
+                        context.node_config.get("project_id")
+                        or context.input_data.get("project_id")
+                    ),
+                    user_id=(
+                        context.node_config.get("user_id")
+                        or context.input_data.get("_execution_context", {}).get("user_id")
+                    ),
                     name=f"WF-{context.node_id}",
                     title=f"Workflow node: {context.node_id}",
                     description=prompt[:500],

@@ -134,8 +134,10 @@ class LLMProvider:
                     )
                 data = await resp.json()
                 content = data["choices"][0]["message"]["content"]
-                # 清理 MiniMax 等模型的 thinking tokens
+                # 清理 MiniMax 等模型的 thinking tokens（多种格式兼容）
                 content = re.sub(r"<thinkin>.*?</thinkin>\s*", "", content, flags=re.DOTALL)
+                content = re.sub(r"💭.*?🔖", "", content, flags=re.DOTALL)
+                content = content.strip()
                 return content
 
     def get_provider_info(self, model_id: str) -> Dict[str, str]:
