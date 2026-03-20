@@ -298,7 +298,9 @@ class WorkflowEngine:
         # 5a. Per-node commit to persist progress immediately
         try:
             db.commit()
-        except Exception:
+            logger.info("Node %s execution record committed", node_id)
+        except Exception as e:
+            logger.warning("Node %s commit failed: %s, rolling back", node_id, e)
             db.rollback()
             # Re-flush after rollback to keep session usable
             db.flush()

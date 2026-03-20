@@ -10,6 +10,7 @@ Provider config via NEXUS_LLM_PROVIDERS env var (JSON):
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, Optional
 
 import aiohttp
@@ -132,7 +133,10 @@ class LLMProvider:
                         f"LLM API call failed: HTTP {resp.status}, {text[:500]}"
                     )
                 data = await resp.json()
-                return data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"]["content"]
+                # 清理 MiniMax 等模型的 thinking tokens
+                content = re.sub(r"<thinkin>.*?</thinkin>\s*", "", content, flags=re.DOTALL)
+                return content
 
     def get_provider_info(self, model_id: str) -> Dict[str, str]:
         """Get provider info for a model ID (useful for logging/debugging)."""
