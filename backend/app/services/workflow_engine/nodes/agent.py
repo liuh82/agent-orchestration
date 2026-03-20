@@ -239,7 +239,31 @@ class AgentNodeExecutor(BaseNodeExecutor):
             except Exception:
                 pass
 
-        # Fallback: simulated execution
+        # Fallback: try LLM provider, then simulated execution
+        if model:
+            try:
+                from app.services.llm_provider import llm_provider
+                content = await llm_provider.chat_completion(
+                    model_id=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    timeout=timeout,
+                )
+                return NodeResult(
+                    status=NodeStatus.SUCCESS,
+                    output_data={
+                        "agent_id": agent_id,
+                        "content": content,
+                        "model": model,
+                        "message": "Agent execution completed (LLM direct)",
+                        "simulated": False,
+                    },
+                    duration_ms=int((time.time() - start) * 1000),
+                )
+            except Exception as e:
+                logger.warning("LLM provider call failed, falling back to simulated: %s", e)
+
         await asyncio.sleep(0.1)
         return NodeResult(
             status=NodeStatus.SUCCESS,
