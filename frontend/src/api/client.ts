@@ -21,7 +21,7 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// 响应拦截 — 解包 { code, data, message } + 401 自动刷新
+// 响应拦截 — 解包各种 envelope 格式 + 401 自动刷新
 let isRefreshing = false;
 let pendingRequests: Array<{
   resolve: (token: string) => void;
@@ -42,8 +42,25 @@ function processPendingRequests(token: string | null, error?: unknown) {
 apiClient.interceptors.response.use(
   (response) => {
     const data = response.data;
-    if (data && typeof data === 'object' && 'code' in data && 'data' in data) {
-      response.data = data.data;
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      // 情况1: 标准 envelope { code, data, message }（如 /api/v1/ 下的接口）
+      if ('code' in data && 'data' in data) {
+        response.data = data.data;
+        return response;
+      }
+      // 情况2: Pydantic 格式 { success, data }（gateway 接口）
+      if ('success' in data && 'data' in data) {
+        // data.data 可能是数组（listBridges）或 dict（单个对象）
+        if (Array.isArray(data.data)) {
+          response.data = data.data;
+        } else if (data.data && typeof data.data === 'object') {
+          // data.data 是对象，尝试取 .items（分页列表）或保留对象本身
+          response.data = data.data;
+        } else {
+          response.data = data.data;
+        }
+        return response;
+      }
     }
     return response;
   },
