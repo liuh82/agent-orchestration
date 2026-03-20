@@ -23,7 +23,7 @@ function mapDashboardStats(raw: ApiDashboardData): DashboardStats {
 
 export const statsApi = {
   getDashboard: async (): Promise<{ data: DashboardStats }> => {
-    const res = await api.get<ApiDashboardData>('/v1/stats/dashboard');
+    const res = await api.get<ApiDashboardData>('/stats/dashboard');
     // client.ts 已自动解包 { code, data }，res.data 就是 ApiDashboardData
     return { data: mapDashboardStats(res.data) };
   },

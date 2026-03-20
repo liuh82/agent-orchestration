@@ -117,8 +117,8 @@ def list_tasks(
 
     wf_map = {}
     if workflow_ids:
-        from app.models.workflow import WorkflowDefinition
-        for wf in db.query(WorkflowDefinition).filter(WorkflowDefinition.id.in_(workflow_ids)).all():
+        from app.models.orm_models import Workflow
+        for wf in db.query(Workflow).filter(Workflow.id.in_(workflow_ids)).all():
             wf_map[wf.id] = wf.name
 
     agent_map = {}
@@ -153,8 +153,8 @@ def get_task(
     # Enrich with workflow/agent name
     workflow_name = None
     if task.workflow_id:
-        from app.models.workflow import WorkflowDefinition
-        wf = db.query(WorkflowDefinition).filter(WorkflowDefinition.id == task.workflow_id).first()
+        from app.models.orm_models import Workflow
+        wf = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
         if wf:
             workflow_name = wf.name
 
@@ -193,8 +193,8 @@ def create_task(
     # Validate workflow exists if workflow_id given
     workflow_snapshot = None
     if body.workflow_id:
-        from app.models.workflow import WorkflowDefinition
-        wf = db.query(WorkflowDefinition).filter(WorkflowDefinition.id == body.workflow_id).first()
+        from app.models.orm_models import Workflow
+        wf = db.query(Workflow).filter(Workflow.id == body.workflow_id).first()
         if not wf:
             return error_response(404, "Workflow not found")
         # Store snapshot of workflow definition

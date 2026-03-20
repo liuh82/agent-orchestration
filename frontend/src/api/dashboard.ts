@@ -3,15 +3,15 @@ import api from './client';
 export const dashboardApi = {
   /** 获取个人统计 */
   getPersonalStats: () =>
-    api.get('/v1/stats/personal') as Promise<any>,
+    api.get('/stats/personal') as Promise<any>,
 
   /** 获取全局统计 (admin) */
   getGlobalStats: () =>
-    api.get('/v1/stats/global') as Promise<any>,
+    api.get('/stats/global') as Promise<any>,
 
   /** 获取最近任务 */
   getRecentTasks: () =>
-    api.get('/v1/stats/recent-tasks') as Promise<any>,
+    api.get('/stats/recent-tasks') as Promise<any>,
 
   /** 获取布局方案列表 */
   getLayouts: (scope: string) =>
