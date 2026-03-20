@@ -524,6 +524,7 @@ export const TaskDetailPage: React.FC = () => {
         title={task.title}
         actions={
           <Space>
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>返回</Button>
             <Button icon={<EditOutlined />} onClick={handleEdit}>
               编辑
             </Button>
