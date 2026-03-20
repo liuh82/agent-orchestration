@@ -172,6 +172,11 @@ class WorkflowEngine:
                 )
             except Exception as e:
                 print(f"[DEBUG] node {node_def['id']} exception: {type(e).__name__}: {e}", flush=True)
+            # 确保当前轮节点执行记录写入
+            try:
+                db.flush()
+            except Exception:
+                pass
 
         # Safety net: ensure all pending changes are committed after all nodes finish
         try:
