@@ -406,7 +406,12 @@ export const TaskDetailPage: React.FC = () => {
   if (!task) {
     return (
       <div>
-        <PageHeader title="任务详情" />
+        <PageHeader
+          title="任务详情"
+          actions={
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>返回</Button>
+          }
+        />
         <EmptyState description="任务不存在" />
       </div>
     );
