@@ -50,6 +50,9 @@ export const projectApi = {
     api.post(`/projects/${projectId}/tasks/`, data) as Promise<any>,
 
   // ── 文档 ──
+  getDocument: (projectId: string, docId: string) =>
+    api.get(`/projects/${projectId}/documents/${docId}`) as Promise<any>,
+
   getDocuments: (projectId: string) =>
     api.get(`/projects/${projectId}/documents/`) as Promise<any>,
 

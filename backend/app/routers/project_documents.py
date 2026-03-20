@@ -152,7 +152,20 @@ def get_document(
     ).first()
     if not doc:
         return error_response(404, "Document not found")
-    return success_response(_doc_to_dict(doc))
+
+    doc_dict = _doc_to_dict(doc)
+
+    # Read file content for file-based documents
+    if doc.file_path:
+        abs_path = file_service.get_abs_path(doc.file_path)
+        if abs_path:
+            try:
+                with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
+                    doc_dict["content"] = f.read()
+            except Exception:
+                doc_dict["content"] = "(无法读取文件内容)"
+
+    return success_response(doc_dict)
 
 
 class DocumentUpdate(BaseModel):
@@ -179,6 +192,19 @@ def update_document(
     if not doc:
         return error_response(404, "Document not found")
 
+    # Read file content if file-based document
+    doc_dict = _doc_to_dict(doc)
+    if doc.file_path:
+        abs_path = file_service.get_abs_path(doc.file_path)
+        if abs_path:
+            try:
+                with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
+                    doc_dict["content"] = f.read()
+            except Exception:
+                doc_dict["content"] = f"(无法读取文件: {doc.file_path})"
+    else:
+        doc_dict = _doc_to_dict(doc)
+    return success_response(doc_dict)
     if body.title is not None:
         doc.title = body.title
     if body.content is not None:
@@ -208,6 +234,19 @@ def delete_document(
     if not doc:
         return error_response(404, "Document not found")
 
+    # Read file content if file-based document
+    doc_dict = _doc_to_dict(doc)
+    if doc.file_path:
+        abs_path = file_service.get_abs_path(doc.file_path)
+        if abs_path:
+            try:
+                with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
+                    doc_dict["content"] = f.read()
+            except Exception:
+                doc_dict["content"] = f"(无法读取文件: {doc.file_path})"
+    else:
+        doc_dict = _doc_to_dict(doc)
+    return success_response(doc_dict)
     if doc.file_path:
         file_service.delete_file(doc.file_path)
 

@@ -145,9 +145,25 @@ export const DocumentManager = ({ projectId }: DocumentManagerProps) => {
     setEditOpen(true);
   };
 
-  const handlePreview = (doc: Document) => {
+  const [previewContent, setPreviewContent] = useState<string>('');
+
+  const handlePreview = async (doc: Document) => {
     setSelectedDoc(doc);
+    setPreviewContent(doc.content || '');
     setPreviewOpen(true);
+    // Fetch file content if not already loaded
+    if (!doc.content && doc.file_path) {
+      try {
+        const res = await projectApi.getDocument(projectId, doc.id);
+        const docData = res?.data ?? res;
+        if (docData?.content) {
+          setPreviewContent(docData.content);
+          setSelectedDoc({ ...doc, content: docData.content });
+        }
+      } catch {
+        setPreviewContent('(无法加载文件内容)');
+      }
+    }
   };
 
   const handleFileSelect = (file: File) => {
@@ -293,7 +309,7 @@ export const DocumentManager = ({ projectId }: DocumentManagerProps) => {
       {/* 预览 Modal */}
       <Modal title={selectedDoc?.title} open={previewOpen} onCancel={() => setPreviewOpen(false)} footer={null} width={720}>
         <pre style={{ whiteSpace: 'pre-wrap', fontFamily: typography.fontFamily.mono, fontSize: 14, background: '#fafafa', color: '#1f2937', padding: spacing[5], borderRadius: radius.lg, maxHeight: 500, overflow: 'auto' }}>
-          {selectedDoc?.content || '无内容（文件上传文档暂不支持在线预览）'}
+          {previewContent || '加载中...'}
         </pre>
       </Modal>
     </div>
