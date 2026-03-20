@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from .registry import NodeRegistry
 from .state_machine import ExecutionState, StateMachine
-from .event_publisher import WorkflowEventPublisher
+from .event_publisher import WorkflowEventPublisher, register_execution_task, unregister_execution_task
 from .nodes.base import NodeContext, NodeResult, NodeStatus
 from .variable_resolver import VariableResolver
 
@@ -128,6 +128,11 @@ class WorkflowEngine:
         input_params["_workflow_variables"] = workflow_variables
         input_params["_execution_context"] = execution_context
         input_params["_workflow_config"] = workflow_config
+
+        # 7b. Register execution_id → task_id mapping for SSE bridge
+        task_id = input_params.get("task_id")
+        if task_id:
+            register_execution_task(execution_id, task_id)
 
         # 8. Schedule start nodes (fire-and-forget via asyncio task)
         _completed_nodes[execution_id] = set()
@@ -1026,6 +1031,7 @@ class WorkflowEngine:
         _pending_join_inputs.pop(execution_id, None)
         _pending_join_upstreams.pop(execution_id, None)
         _join_timeout_tasks.pop(execution_id, None)
+        unregister_execution_task(execution_id)
 
 
 # Global singleton

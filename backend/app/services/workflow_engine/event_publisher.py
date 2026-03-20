@@ -1,11 +1,30 @@
-"""Workflow event publisher — sends events to WebSocket subscribers."""
+"""Workflow event publisher — sends events to WebSocket subscribers and event_store (SSE)."""
 import logging
+import time
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from app.services.ws_manager import ws_manager
 
 logger = logging.getLogger(__name__)
+
+# execution_id → task_id mapping for SSE bridge
+_execution_task_map: Dict[str, str] = {}
+
+
+def register_execution_task(execution_id: str, task_id: str):
+    """Register execution_id → task_id mapping so workflow events can be bridged to SSE."""
+    _execution_task_map[execution_id] = task_id
+
+
+def unregister_execution_task(execution_id: str):
+    """Remove execution_id mapping after execution completes."""
+    _execution_task_map.pop(execution_id, None)
+
+
+def _get_task_id(execution_id: str) -> Optional[str]:
+    """Look up task_id for an execution_id."""
+    return _execution_task_map.get(execution_id)
 
 
 class WorkflowEventPublisher:
@@ -23,7 +42,7 @@ class WorkflowEventPublisher:
 
     @staticmethod
     async def publish(topic: str, event_type: str, data: dict):
-        """Publish an event to a WebSocket topic.
+        """Publish an event to a WebSocket topic and bridge to event_store (SSE).
 
         Args:
             topic: e.g. "workflow:{execution_id}"
@@ -36,6 +55,21 @@ class WorkflowEventPublisher:
             "timestamp": datetime.utcnow().isoformat() + "Z",
         }
         await ws_manager.broadcast(topic, event)
+
+        # Bridge to event_store for SSE consumers
+        if topic.startswith("workflow:"):
+            execution_id = topic.split(":", 1)[1]
+            task_id = _get_task_id(execution_id)
+            if task_id:
+                try:
+                    from app.services.gateway.event_store import event_store
+                    event_store.push(task_id, {
+                        "type": "workflow_event",
+                        "event": event,
+                        "ts": int(time.time() * 1000),
+                    })
+                except Exception as e:
+                    logger.warning("Failed to bridge event to event_store: %s", e)
 
     @staticmethod
     async def publish_node_status(

@@ -24,8 +24,10 @@ export interface TaskStreamEvent {
 
 /** SSE 消息 */
 export interface SSEMessage {
-  type: 'event' | 'done';
+  type: 'event' | 'done' | 'workflow_event';
   event?: TaskStreamEvent;
+  /** workflow_event 时的原始事件对象 */
+  data?: Record<string, any>;
   progress?: number;
   success?: boolean;
   ts: number;

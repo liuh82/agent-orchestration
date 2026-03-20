@@ -22,6 +22,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorBlock } from '@/components/common/ErrorBlock';
 import { ToolUseCard } from '@/components/tasks/ToolUseCard';
 import { FileChangeList } from '@/components/tasks/FileChangeList';
+import { TaskWorkflowDAG } from '@/components/tasks/TaskWorkflowDAG';
 import { useTaskStream } from '@/hooks/useTaskStream';
 import api from '@/api/client';
 import { tasksApi } from '@/api/tasks';
@@ -266,6 +267,9 @@ export const TaskDetailPage: React.FC = () => {
       const action = e.event!.toolName === 'Write' ? 'created' as const : 'edited' as const;
       return { path, action };
     });
+
+  // 从事件流中提取 workflow 事件
+  const workflowEvents = streamEvents.filter((e) => e.type === 'workflow_event');
 
   // 自动滚动到底部
   useEffect(() => {
@@ -621,7 +625,14 @@ export const TaskDetailPage: React.FC = () => {
             key: 'stream',
             label: '实时输出',
             children: (
-              <StreamPanel>
+              <>
+                {task.workflow_id && (
+                  <TaskWorkflowDAG
+                    workflowId={task.workflow_id}
+                    workflowEvents={workflowEvents}
+                  />
+                )}
+                <StreamPanel>
                 <StreamHeader>
                   <Progress
                     percent={streamProgress}
@@ -717,6 +728,7 @@ export const TaskDetailPage: React.FC = () => {
                   </StreamSummary>
                 )}
               </StreamPanel>
+              </>
             ),
           },
           {
