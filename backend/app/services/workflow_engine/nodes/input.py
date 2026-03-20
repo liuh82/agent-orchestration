@@ -98,12 +98,16 @@ class InputNodeExecutor(BaseNodeExecutor):
                     error_message=f"Unknown source type: {source}",
                 )
 
-            # Filter by requested fields
+            # Filter by requested fields (but always keep task_description)
             if fields:
                 filtered: Dict[str, Any] = {}
                 for f in fields:
                     if f in collected:
                         filtered[f] = collected[f]
+                # Always pass through extra fields like task_description
+                for key in collected:
+                    if key not in filtered and key.startswith('task_'):
+                        filtered[key] = collected[key]
                 collected = filtered
 
             # Template rendering
@@ -157,6 +161,11 @@ class InputNodeExecutor(BaseNodeExecutor):
         if "description" in fields:
             result["description"] = project.description or ""
 
+        # Merge task-level fields from input_data if present
+        task_desc = context.input_data.get("description", "")
+        if task_desc:
+            result["task_description"] = task_desc
+
         # Load project documents
         if "documents" in fields:
             from app.models.project_document import ProjectDocument
@@ -164,8 +173,9 @@ class InputNodeExecutor(BaseNodeExecutor):
             docs = db.query(ProjectDocument).filter(
                 ProjectDocument.project_id == project_id,
             ).all()
-            result["documents"] = [
-                {
+            result["documents"] = []
+            for d in docs:
+                doc_entry = {
                     "id": d.id,
                     "title": d.title,
                     "doc_type": d.doc_type,
@@ -173,8 +183,16 @@ class InputNodeExecutor(BaseNodeExecutor):
                     "file_path": d.file_path,
                     "file_type": d.file_type,
                 }
-                for d in docs
-            ]
+                # Read file content if content is empty but file exists
+                if not doc_entry["content"] and doc_entry["file_path"] and os.path.isfile(doc_entry["file_path"]):
+                    ext = os.path.splitext(doc_entry["file_path"])[1].lower()
+                    if ext in _TEXT_EXTENSIONS:
+                        try:
+                            with open(doc_entry["file_path"], "r", encoding="utf-8") as f:
+                                doc_entry["content"] = f.read()
+                        except Exception:
+                            pass
+                result["documents"].append(doc_entry)
 
         # Load files if includeFiles
         if include_files:

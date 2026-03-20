@@ -162,15 +162,16 @@ class WorkflowEngine:
         for node_def in node_defs:
             node_def["_all_nodes"] = all_nodes
 
-        tasks = []
+        # Execute nodes sequentially to avoid db session conflicts
         for node_def in node_defs:
-            tasks.append(
-                self._execute_node(
+            node_def["_all_nodes"] = all_nodes
+            try:
+                await self._execute_node(
                     execution_id, node_def, all_nodes, edges,
                     input_data, db, upstream_outputs, workflow_config,
                 )
-            )
-        await asyncio.gather(*tasks, return_exceptions=True)
+            except Exception as e:
+                print(f"[DEBUG] node {node_def['id']} exception: {type(e).__name__}: {e}", flush=True)
 
         # Safety net: ensure all pending changes are committed after all nodes finish
         try:
@@ -196,6 +197,8 @@ class WorkflowEngine:
 
         node_id = node_def["id"]
         node_type = node_def["type"]
+        with open("/tmp/wf-debug.log","a") as _f:
+            _f.write(f"ENTER: {node_id} ({node_type})\n")
         # Schema v1 uses "data" for node config (fallback to "config" for legacy)
         node_config = node_def.get("data", node_def.get("config", {}))
 
@@ -371,11 +374,18 @@ class WorkflowEngine:
                 return
 
         # 10. Determine next nodes based on sourceHandle routing
-        next_info = self._get_next_nodes_v1(
-            node_id, result, node_def, all_nodes, edges,
-        )
-        next_nodes = next_info["nodes"]
-        routing = next_info.get("routing", {})
+        try:
+            next_info = self._get_next_nodes_v1(
+                node_id, result, node_def, all_nodes, edges,
+            )
+            next_nodes = next_info["nodes"]
+            routing = next_info.get("routing", {})
+            with open("/tmp/wf-debug.log","a") as _f:
+                _f.write(f"STEP10: {node_id} next={[n['id'] for n in next_nodes]}\n")
+        except Exception as _e:
+            with open("/tmp/wf-debug.log","a") as _f:
+                _f.write(f"STEP10-ERR: {node_id} err={_e}\n")
+            raise
 
         # 11. Handle loop routing
         if node_type == "loop" and result.output_data:
@@ -810,6 +820,7 @@ class WorkflowEngine:
         # --- Default: follow all outgoing edges ---
         next_ids = [e.get("target") or e.get("to", "") for e in outgoing]
         nodes = [node_map[nid] for nid in next_ids if nid in node_map]
+        print(f"[DEBUG] _get_next_nodes_v1({node_id}): outgoing={len(outgoing)} next_ids={next_ids} nodes={[n['id'] for n in nodes]}", flush=True)
         return {"nodes": nodes, "routing": {}}
 
     def _find_edge_targets(

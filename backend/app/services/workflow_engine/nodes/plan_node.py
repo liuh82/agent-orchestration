@@ -317,32 +317,15 @@ class PlanNode(BaseNodeExecutor):
     # ---- LLM 调用（复用 spec_node 的模式） ----
 
     async def _call_llm(self, prompt: str, model: str) -> str:
-        """调用 OpenAI 兼容 API。"""
-        import aiohttp
-
-        url = f"{_LLM_API_BASE}/chat/completions"
-        headers = {"Content-Type": "application/json"}
-        if _LLM_API_KEY:
-            headers["Authorization"] = f"Bearer {_LLM_API_KEY}"
-
-        payload = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": "你是 Nexus OPSX 计划生成引擎。只返回 JSON 格式结果。"},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.2,
-            "max_tokens": 8192,
-        }
-
-        timeout = aiohttp.ClientTimeout(total=_LLM_TIMEOUT)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(url, headers=headers, json=payload) as resp:
-                if resp.status != 200:
-                    text = await resp.text()
-                    raise RuntimeError(f"LLM API 调用失败: HTTP {resp.status}, {text[:500]}")
-                data = await resp.json()
-                return data["choices"][0]["message"]["content"]
+        """Call LLM via llm_provider."""
+        from app.services.llm_provider import llm_provider
+        return await llm_provider.chat_completion(
+            model_id=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=4096,
+            timeout=_LLM_TIMEOUT,
+        )
 
     @staticmethod
     def _parse_json(text: str, default: Any = None) -> Any:

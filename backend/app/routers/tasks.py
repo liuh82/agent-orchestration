@@ -346,7 +346,7 @@ def delete_task(
 
 
 @router.post("/{task_id}/execute")
-def execute_task(
+async def execute_task(
     task_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -388,14 +388,24 @@ def execute_task(
                             if node.get("id") == cfg.workflow_node_id:
                                 node.get("config", {}).update(override)
 
-                asyncio.create_task(workflow_engine.start(
-                    workflow_id=task.workflow_id,
-                    definition=definition,
-                    input_params={},
-                    user_id=user.id,
-                    db=db,
-                    name=task.name,
-                ))
+                # Schedule workflow as a background task on the main event loop
+                async def _run_workflow():
+                    try:
+                        logger.info("[execute] Starting workflow for task %s", task.id)
+                        await workflow_engine.start(
+                            workflow_id=task.workflow_id,
+                            definition=definition,
+                            input_params={"project_id": task.project_id, "task_id": task.id, "description": task.description or ""},
+                            user_id=user.id,
+                            db=db,
+                            name=task.name,
+                        )
+                        logger.info("[execute] Workflow completed for task %s", task.id)
+                    except Exception as ex:
+                        logger.error("[execute] Workflow failed for task %s: %s", task.id, ex, exc_info=True)
+
+                # Execute workflow (await to ensure it runs)
+                await _run_workflow()
         except Exception as e:
             logger.error("Failed to trigger workflow for task %s: %s", task_id, e)
             task.status = "failed"

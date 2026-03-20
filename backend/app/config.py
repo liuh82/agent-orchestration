@@ -25,7 +25,12 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
-    model_config = {"env_file": ".env"}
+    # LLM
+    NEXUS_LLM_PROVIDERS: str = ""
+    NEXUS_LLM_MODEL: str = "deepseek/deepseek-chat"
+    NEXUS_LLM_TIMEOUT: int = 120
+
+    model_config = {"env_file": ".env", "extra": "ignore"}
 
 
 settings = Settings()
