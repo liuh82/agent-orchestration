@@ -227,7 +227,8 @@ function formatTokenCount(count?: number): string {
 
 // --------------- Component ---------------
 export const TaskDetailPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id, taskId } = useParams<{ id?: string; taskId?: string }>();
+  const effectiveTaskId = taskId || id || '';
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -243,8 +244,8 @@ export const TaskDetailPage: React.FC = () => {
     error: taskErr,
     refetch,
   } = useQuery<ApiResponse<Task>>(
-    ['task', id],
-    () => tasksApi.getById(id!) as any,
+    ['task', effectiveTaskId],
+    () => tasksApi.getById(effectiveTaskId!) as any,
     { enabled: !!id, refetchOnWindowFocus: false },
   );
 
@@ -252,7 +253,7 @@ export const TaskDetailPage: React.FC = () => {
 
   // SSE 实时流 — 任务 running 时才连接
   const isTaskRunning = task?.status === 'running';
-  const { events: streamEvents, progress: streamProgress, isConnected, isDone } = useTaskStream(id, {
+  const { events: streamEvents, progress: streamProgress, isConnected, isDone } = useTaskStream(effectiveTaskId, {
     enabled: isTaskRunning,
   });
 
@@ -288,7 +289,7 @@ export const TaskDetailPage: React.FC = () => {
 
   // Update mutation
   const updateMutation = useMutation(
-    (data: Partial<Task>) => tasksApi.update(id!, data),
+    (data: Partial<Task>) => tasksApi.update(effectiveTaskId!, data),
     {
       onSuccess: () => {
         void message.success('任务更新成功');
@@ -303,7 +304,7 @@ export const TaskDetailPage: React.FC = () => {
 
   // Delete mutation
   const deleteMutation = useMutation(
-    () => tasksApi.delete(id!),
+    () => tasksApi.delete(effectiveTaskId!),
     {
       onSuccess: () => {
         void message.success('任务删除成功');
