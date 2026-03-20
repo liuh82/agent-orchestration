@@ -172,6 +172,12 @@ class WorkflowEngine:
             )
         await asyncio.gather(*tasks, return_exceptions=True)
 
+        # Safety net: ensure all pending changes are committed after all nodes finish
+        try:
+            db.commit()
+        except Exception:
+            pass
+
     async def _execute_node(
         self,
         execution_id: str,
@@ -281,6 +287,14 @@ class WorkflowEngine:
                 node_exec.task_id = result.output_data["_task_id"]
             if "agent_id" in result.output_data:
                 node_exec.agent_id = result.output_data.get("agent_id")
+            db.flush()
+
+        # 5a. Per-node commit to persist progress immediately
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            # Re-flush after rollback to keep session usable
             db.flush()
 
         # 6. Publish result with output data
