@@ -29,6 +29,7 @@ from app.services.gateway.task_router import (
     TaskRouter, NoAvailableBridgeError, TaskNotFoundError,
 )
 from app.services.gateway.db_gateway import GatewayDB
+from app.models.orm_models import Task as WorkflowTask
 from app.services.gateway.event_store import event_store
 
 logger = logging.getLogger(__name__)
@@ -435,19 +436,31 @@ async def stream_task_events(
     """
     gw_db = GatewayDB(db)
     task = gw_db.get_task(task_id)
+
+    # Fallback: check workflow engine Task table
+    workflow_task = None
     if not task:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Task not found"},
-        )
+        workflow_task = db.execute(
+            __import__("sqlalchemy").select(WorkflowTask).where(WorkflowTask.id == task_id)
+        ).scalar_one_or_none()
+        if not workflow_task:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Task not found"},
+            )
 
     async def event_generator():
         q = event_store.subscribe(task_id)
         try:
             while True:
-                # 如果任务已完成且队列为空，结束流
-                if task.status in ('completed', 'failed', 'cancelled'):
-                    # 先把剩余事件推完
+                # Check if task is done (gateway or workflow engine)
+                task_done = False
+                if task and task.status in ('completed', 'failed', 'cancelled'):
+                    task_done = True
+                elif workflow_task and workflow_task.status in ('completed', 'failed', 'cancelled'):
+                    task_done = True
+                if task_done:
+                    # Drain remaining events then close
                     while not q.empty():
                         evt = await asyncio.wait_for(q.get(), timeout=1.0)
                         yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
