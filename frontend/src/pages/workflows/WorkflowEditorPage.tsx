@@ -72,7 +72,7 @@ const EditorBody = styled.div`
 
 const CanvasWrapper = styled.div`
   flex: 1;
-  background: #f8fafc;
+  background: #ffffff;
 `;
 
 /* ── Node Type Registration (13 nodes) ── */
@@ -418,7 +418,7 @@ export const WorkflowEditorPage = () => {
   const defaultEdgeOptions = useMemo(
     () => ({
       type: 'normal' as const,
-      style: { strokeWidth: 2, stroke: '#cbd5e1' },
+      style: { strokeWidth: 1.5, stroke: '#94a3b8' },
     }),
     [],
   );
@@ -448,9 +448,9 @@ export const WorkflowEditorPage = () => {
           >
             <Background
               variant={BackgroundVariant.Dots}
-              color="#e2e8f0"
+              color="#cbd5e1"
               gap={20}
-              size={1.5}
+              size={1}
             />
             <Controls />
             <MiniMap

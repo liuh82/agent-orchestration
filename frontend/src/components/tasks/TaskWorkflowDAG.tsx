@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ReactFlow, Background, BackgroundVariant, Controls, MiniMap, MarkerType } from '@xyflow/react';
+import { ReactFlow, Background, BackgroundVariant, Controls } from '@xyflow/react';
 import { useQuery } from 'react-query';
 import dagre from 'dagre';
 import styled from 'styled-components';
@@ -9,8 +9,6 @@ import { spacing } from '@/styles/tokens/spacing';
 import { typography } from '@/styles/tokens/typography';
 import { radius } from '@/styles/tokens/radius';
 import { workflowsApi } from '@/api/workflows';
-import { NODE_META, type WorkflowNodeType } from '@/types/workflow';
-import { pulseAnimation } from '@/components/workflow/nodes/node-styles';
 import {
   ManualTriggerNode,
   CronTriggerNode,
@@ -88,8 +86,8 @@ const DAGHeader = styled.div`
 `;
 
 const CanvasContainer = styled.div`
-  height: 380px;
-  background: #f8fafc;
+  height: 280px;
+  background: #fafafa;
 `;
 
 const NodeDetailPanel = styled.div`
@@ -125,7 +123,7 @@ function layoutWithDagre(nodes: any[], edges: any[]) {
 
   const validNodes = nodes.filter((n) => n.position);
   validNodes.forEach((n) => {
-    g.setNode(n.id, { width: 200, height: 80 });
+    g.setNode(n.id, { width: 180, height: 60 });
   });
   edges.forEach((e: any) => {
     const src = e.source || e.from;
@@ -141,7 +139,7 @@ function layoutWithDagre(nodes: any[], edges: any[]) {
     const pos = g.node(n.id);
     return {
       ...n,
-      position: { x: pos.x - 100, y: pos.y - 40 },
+      position: { x: pos.x - 90, y: pos.y - 30 },
       draggable: false,
       selectable: false,
     };
@@ -212,7 +210,7 @@ export const TaskWorkflowDAG: React.FC<TaskWorkflowDAGProps> = ({
     return states;
   }, [workflowEvents, executionNodes]);
 
-  // Apply node states with _runStatus passed into node data
+  // Apply node states as border color overlays
   const styledNodes = useMemo(() => {
     if (!definition?.nodes) return [];
     const raw = definition.nodes.map((n: any) => {
@@ -224,36 +222,17 @@ export const TaskWorkflowDAG: React.FC<TaskWorkflowDAGProps> = ({
         ...n,
         draggable: false,
         selectable: false,
-        data: { ...n.data, _runStatus: runState },
         style: {
           ...(borderColor ? { border: `2px solid ${borderColor}` } : {}),
           opacity: isPending ? 0.5 : 1,
-          ...(isRunning ? { animation: `${pulseAnimation} 2s ease-in-out infinite` } : {}),
+          ...(isRunning ? { boxShadow: `0 0 8px ${STATUS_COLORS.running}40` } : {}),
         },
       };
     });
     return layoutWithDagre(raw, definition.edges ?? []);
   }, [definition, nodeStates]);
 
-  // Styled edges with smoothstep, state-based coloring and animation
-  const styledEdges = useMemo(() => {
-    return (definition?.edges ?? []).map((e: any) => {
-      const srcId = e.source || e.from;
-      const srcStatus = nodeStates[srcId]?.status;
-      let stroke = '#cbd5e1';
-      let animated = false;
-      if (srcStatus === 'success' || srcStatus === 'completed') stroke = '#22c55e';
-      else if (srcStatus === 'failed') stroke = '#ef4444';
-      else if (srcStatus === 'running') { stroke = '#3b82f6'; animated = true; }
-      return {
-        ...e,
-        type: 'smoothstep',
-        animated,
-        style: { strokeWidth: 2, stroke },
-        markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: stroke },
-      };
-    });
-  }, [definition?.edges, nodeStates]);
+  const edges = definition?.edges ?? [];
 
   const selectedState = selectedNodeId ? nodeStates[selectedNodeId] : null;
   const selectedNodeDef = selectedNodeId
@@ -289,25 +268,17 @@ export const TaskWorkflowDAG: React.FC<TaskWorkflowDAGProps> = ({
               <CanvasContainer>
                 <ReactFlow
                   nodes={styledNodes}
-                  edges={styledEdges}
+                  edges={edges}
                   nodeTypes={nodeTypes}
                   nodesDraggable={false}
                   nodesConnectable={false}
                   elementsSelectable={false}
                   fitView
-                  fitViewOptions={{ padding: 0.3 }}
                   onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-                  defaultEdgeOptions={{ type: 'smoothstep', style: { strokeWidth: 2, stroke: '#cbd5e1' } }}
+                  defaultEdgeOptions={{ style: { strokeWidth: 2, stroke: colors.border.DEFAULT } }}
                 >
-                  <Background variant={BackgroundVariant.Dots} color="#e2e8f0" gap={20} size={1.5} />
+                  <Background variant={BackgroundVariant.Dots} color="#d1d5db" gap={16} size={1} />
                   <Controls showInteractive={false} />
-                  <MiniMap
-                    nodeColor={(node: any) =>
-                      NODE_META[node.type as WorkflowNodeType]?.color ?? '#64748b'
-                    }
-                    style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid #e2e8f0', borderRadius: 8 }}
-                    position="bottom-right"
-                  />
                 </ReactFlow>
               </CanvasContainer>
 
