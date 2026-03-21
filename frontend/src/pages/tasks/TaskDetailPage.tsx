@@ -252,6 +252,14 @@ export const TaskDetailPage: React.FC = () => {
   // 从事件流中提取 workflow 事件
   const workflowEvents = streamEvents.filter((e) => e.type === 'workflow_event');
 
+  // 从 workflow_event 进度事件中计算当前进度
+  const latestProgressEvent = [...workflowEvents].reverse().find(
+    (e) => e.data?.event?.type === 'execution.progress'
+  );
+  const wfProgress = latestProgressEvent
+    ? (((latestProgressEvent.data?.event?.data?.completed_nodes ?? 0) / (latestProgressEvent.data?.event?.data?.total_nodes ?? 1)) * 100)
+    : streamProgress;
+
   // 自动滚动到底部
   useEffect(() => {
     streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -589,14 +597,14 @@ export const TaskDetailPage: React.FC = () => {
                 <StreamPanel>
                 <StreamHeader>
                   <Progress
-                    percent={streamProgress}
+                    percent={wfProgress}
                     size="small"
                     style={{ flex: 1, maxWidth: 200 }}
                     status={isDone ? (streamEvents[streamEvents.length - 1]?.success !== false ? 'success' : 'exception') : 'active'}
                   />
                   {isConnected && (
                     <StreamStatus $color={colors.info[500]}>
-                      <LoadingOutlined spin /> 连接中
+                      <LoadingOutlined spin /> 接收中...
                     </StreamStatus>
                   )}
                   {isDone && (
@@ -654,6 +662,59 @@ export const TaskDetailPage: React.FC = () => {
                           ⚠ {evt.content}
                         </StreamTextLine>
                       );
+                    }
+
+                    // Workflow 事件（节点状态变更、进度更新）
+                    if (msg.type === 'workflow_event' && msg.data) {
+                      const evtData = msg.data;
+                      const wfEvt = evtData.event;
+                      const nodeEvt = wfEvt?.data;
+
+                      // 节点状态变更
+                      if (wfEvt?.type === 'node.status_changed' && nodeEvt?.node_id) {
+                        const nodeId = nodeEvt.node_id;
+                        const status = nodeEvt.status;
+                        const duration = nodeEvt.duration_ms;
+                        const durStr = duration ? ` (${(duration / 1000).toFixed(1)}s)` : '';
+                        const statusIcon = status === 'success' ? '✅' : status === 'failed' ? '❌' : status === 'running' ? '🔵' : '⬜';
+                        return (
+                          <StreamTextLine key={i}>
+                            {statusIcon} {nodeId}: {status}{durStr}
+                          </StreamTextLine>
+                        );
+                      }
+
+                      // 进度更新
+                      if (wfEvt?.type === 'execution.progress' && nodeEvt) {
+                        return (
+                          <StreamTextLine key={i} style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+                            📊 进度: {nodeEvt.completed_nodes}/{nodeEvt.total_nodes} — 当前: {nodeEvt.current_node}
+                          </StreamTextLine>
+                        );
+                      }
+
+                      // 执行状态变更
+                      if (wfEvt?.type === 'execution.status_changed') {
+                        const execStatus = nodeEvt?.status;
+                        const execError = nodeEvt?.error_message;
+                        if (execStatus === 'failed') {
+                          return (
+                            <StreamTextLine key={i} $isError>
+                              ⚠ 工作流执行失败: {execError || '未知错误'}
+                            </StreamTextLine>
+                          );
+                        }
+                        if (execStatus === 'completed') {
+                          return (
+                            <StreamTextLine key={i} style={{ color: 'var(--success)' }}>
+                              ✅ 工作流执行完成
+                            </StreamTextLine>
+                          );
+                        }
+                        return null;
+                      }
+
+                      return null;
                     }
 
                     // 普通文本
