@@ -72,7 +72,7 @@ class WorkflowEngine:
             created_by=user_id,
         )
         db.add(execution)
-        db.flush()
+        db.commit()
 
         # 2. Store state machine
         sm = StateMachine(ExecutionState.RUNNING)
