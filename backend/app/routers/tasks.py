@@ -583,6 +583,66 @@ def delete_config(
     return success_response(None, "Config deleted")
 
 
+# ── Execution Records ──────────────────────────────────────
+
+@router.get("/{task_id}/executions")
+def get_task_executions(
+    task_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """获取任务关联的工作流节点执行记录。
+
+    通过 task.workflow_id 找到最新的 workflow execution，
+    返回该 execution 下所有 node_executions。
+    """
+    from app.models.workflow_execution import WorkflowExecution, WorkflowNodeExecution
+
+    task = db.query(NexusTask).filter(NexusTask.id == task_id, NexusTask.user_id == user.id).first()
+    if not task:
+        return error_response(404, "Task not found")
+
+    if not task.workflow_id:
+        return success_response({"items": [], "total": 0})
+
+    # 获取该 workflow 下最新的 execution
+    latest_exec = (
+        db.query(WorkflowExecution)
+        .filter(WorkflowExecution.workflow_id == task.workflow_id)
+        .order_by(WorkflowExecution.started_at.desc())
+        .first()
+    )
+
+    if not latest_exec:
+        return success_response({"items": [], "total": 0})
+
+    # 获取该 execution 下所有 node executions
+    nodes = (
+        db.query(WorkflowNodeExecution)
+        .filter(WorkflowNodeExecution.execution_id == latest_exec.id)
+        .order_by(WorkflowNodeExecution.started_at.asc())
+        .all()
+    )
+
+    items = [
+        {
+            "execution_id": latest_exec.id,
+            "execution_status": latest_exec.status,
+            "id": n.id,
+            "node_id": n.node_id,
+            "node_type": n.node_type,
+            "status": n.status,
+            "duration_ms": n.duration_ms,
+            "error_message": n.error_message,
+            "started_at": n.started_at,
+            "completed_at": n.completed_at,
+        }
+        for n in nodes
+    ]
+
+    return success_response({"items": items, "total": len(items)})
+
+
 # ── Status Machine ─────────────────────────────────────────
 
 VALID_TRANSITIONS = {

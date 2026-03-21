@@ -26,7 +26,6 @@ import { TaskWorkflowDAG } from '@/components/tasks/TaskWorkflowDAG';
 import { useTaskStream } from '@/hooks/useTaskStream';
 import api from '@/api/client';
 import { tasksApi } from '@/api/tasks';
-import { workflowsApi } from '@/api/workflows';
 import type { ApiResponse } from '@/types/api';
 import type { Task } from '@/types/task';
 import type { Job } from '@/types/job';
@@ -258,22 +257,14 @@ export const TaskDetailPage: React.FC = () => {
     streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [streamEvents.length]);
 
-  // Fetch workflow execution nodes (执行记录)
-  const { data: execRes } = useQuery(
-    ['task-executions', task?.workflow_id],
-    async () => {
-      if (!task?.workflow_id) return null;
-      const execList = await workflowsApi.listExecutions({ workflow_id: task.workflow_id, page_size: 1 });
-      const items = execList?.data?.items ?? execList?.data ?? [];
-      if (items.length === 0) return null;
-      const latestExec = items[0];
-      const nodesRes = await workflowsApi.getExecutionNodes(latestExec.id);
-      return { execution: latestExec, nodes: nodesRes?.data ?? [] };
-    },
-    { enabled: !!task?.workflow_id, refetchOnWindowFocus: false },
+  // Fetch workflow execution nodes (执行记录) — 单步 API
+  const { data: execRes } = useQuery<ApiResponse<{ items: any[] }>>(
+    ['task-executions', effectiveTaskId],
+    () => api.get(`/tasks/${effectiveTaskId}/executions`) as any,
+    { enabled: !!effectiveTaskId, refetchOnWindowFocus: false },
   );
 
-  const executionNodes = execRes?.nodes ?? [];
+  const executionNodes = Array.isArray(execRes?.data?.items) ? execRes.data.items : [];
 
   // Fetch jobs
   const { data: jobsRes } = useQuery<ApiResponse<{ items: Job[]; total: number }>>(
