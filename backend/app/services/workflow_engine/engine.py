@@ -139,11 +139,9 @@ class WorkflowEngine:
         _pending_join_inputs[execution_id] = {}
         _pending_join_upstreams[execution_id] = {}
 
-        asyncio.create_task(
-            self._schedule_nodes(
-                execution_id, start_nodes, nodes, edges,
-                input_params, db, workflow_config,
-            )
+        await self._schedule_nodes(
+            execution_id, start_nodes, nodes, edges,
+            input_params, db, workflow_config,
         )
 
         return execution_id
@@ -186,7 +184,8 @@ class WorkflowEngine:
         # Safety net: ensure all pending changes are committed after all nodes finish
         try:
             db.commit()
-        except Exception:
+            logger.debug("Safety net commit OK")
+        except Exception as e:
             pass
 
     async def _execute_node(
