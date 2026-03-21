@@ -1,4 +1,4 @@
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { spacing } from '@/styles/tokens/spacing';
 import { typography } from '@/styles/tokens/typography';
 import { radius } from '@/styles/tokens/radius';
@@ -12,7 +12,22 @@ export const NODE_TEXT = '#0f172a';
 export const NODE_TEXT_SECONDARY = '#64748b';
 export const NODE_TEXT_MUTED = '#94a3b8';
 
-/* ── Shared Styled Components ── */
+/* ── Keyframe Animations ── */
+
+export const pulseAnimation = keyframes`
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+  50% { box-shadow: 0 0 0 6px rgba(59,130,246,0.25); }
+`;
+
+export const shakeAnimation = keyframes`
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-2px); }
+  40% { transform: translateX(2px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(1px); }
+`;
+
+/* ── Shared Styled Components (n8n style) ── */
 
 export const NodeWrapper = styled.div<{
   $color: string;
@@ -20,49 +35,57 @@ export const NodeWrapper = styled.div<{
   $disabled?: boolean;
   $isTrigger?: boolean;
 }>`
-  min-width: 180px;
-  min-height: 60px;
+  min-width: 200px;
   background: ${NODE_BG};
+  border-radius: 10px;
   border: 1px solid ${({ $selected }) =>
     $selected ? NODE_BORDER_SELECTED : NODE_BORDER};
-  border-radius: 10px;
   border-left: 4px solid ${({ $color, $selected }) => $selected ? NODE_BORDER_SELECTED : $color};
-  box-shadow: ${({ $selected }) =>
-    $selected
-      ? `0 0 0 2px ${NODE_BORDER_SELECTED}40, 0 2px 8px rgba(0,0,0,0.1)`
-      : '0 1px 4px rgba(0,0,0,0.08)'};
-  padding: ${spacing[2]} ${spacing[3]};
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   display: flex;
   flex-direction: column;
-  gap: ${spacing[1]};
+  overflow: hidden;
   opacity: ${({ $disabled }) => ($disabled ? 0.5 : 1)};
   border-style: ${({ $disabled }) => ($disabled ? 'dashed' : 'solid')};
   transition: border-color 0.15s, box-shadow 0.15s;
 
+  ${({ $selected }) =>
+    $selected &&
+    `
+    border-color: ${NODE_BORDER_SELECTED};
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.2), 0 2px 8px rgba(0,0,0,0.08);
+  `}
+
   &:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    ${({ $selected }) =>
+      !$selected &&
+      `box-shadow: 0 4px 12px rgba(0,0,0,0.12);`}
   }
 `;
 
-export const NodeHeader = styled.div`
+/* ── Node Header (n8n style colored top bar) ── */
+
+export const NodeHeader = styled.div<{ $color?: string }>`
   display: flex;
   align-items: center;
   gap: ${spacing[2]};
-  font-size: ${typography.fontSize.sm};
-  font-weight: ${typography.fontWeight.semibold};
-  color: ${NODE_TEXT};
+  height: 28px;
+  padding: 0 ${spacing[3]};
+  background: ${({ $color }) => `${$color || '#64748b'}20`};
+  border-bottom: 1px solid ${NODE_BORDER};
+  flex-shrink: 0;
 `;
 
 export const NodeIconWrapper = styled.div<{ $color: string }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: ${radius.md};
-  background: ${({ $color }) => `${$color}20`};
+  width: 18px;
+  height: 18px;
+  border-radius: ${radius.sm};
   color: ${({ $color }) => $color};
-  font-size: 14px;
+  font-size: 12px;
   flex-shrink: 0;
 `;
 
@@ -71,6 +94,9 @@ export const NodeLabel = styled.span`
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+  font-size: ${typography.fontSize.sm};
+  font-weight: ${typography.fontWeight.semibold};
+  color: ${NODE_TEXT};
 `;
 
 export const NodeDesc = styled.div`
@@ -80,7 +106,30 @@ export const NodeDesc = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 160px;
+  max-width: 200px;
+  padding: ${spacing[1]} ${spacing[3]} ${spacing[2]} ${spacing[3]};
+`;
+
+/* ── Node Status Badge ── */
+
+export const NodeBadge = styled.div<{ $status?: 'success' | 'failed' }>`
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: ${({ $status }) => ($status === 'success' ? '#22c55e' : '#ef4444')};
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  z-index: 10;
+  ${({ $status }) =>
+    $status === 'failed' &&
+    `animation: ${shakeAnimation} 0.4s ease-in-out;`}
 `;
 
 export const HandleContainer = styled.div`

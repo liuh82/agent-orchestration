@@ -6,6 +6,7 @@ import {
   NodeIconWrapper,
   NodeLabel,
   NodeDesc,
+  NodeBadge,
   HandleContainer,
   HandleLabelTag,
   sourceHandleStyle,
@@ -58,13 +59,26 @@ export const BaseNode = memo(function BaseNode({
 
   const label = (data as Record<string, unknown>).label || meta?.label || type;
 
+  // Extract run status from data (passed by TaskWorkflowDAG styledNodes)
+  const runStatus = (data as Record<string, unknown>)._runStatus as string | undefined;
+  const isSuccess = runStatus === 'success' || runStatus === 'completed';
+  const isFailed = runStatus === 'failed';
+
   return (
     <NodeWrapper
       $color={color}
       $selected={selected}
       $disabled={disabled}
       $isTrigger={isTrigger}
+      style={{ position: 'relative' }}
     >
+      {/* Status badge */}
+      {(isSuccess || isFailed) && (
+        <NodeBadge $status={isSuccess ? 'success' : 'failed'}>
+          {isSuccess ? '✓' : '✗'}
+        </NodeBadge>
+      )}
+
       {hasInput && (
         <Handle
           type="target"
@@ -74,7 +88,7 @@ export const BaseNode = memo(function BaseNode({
         />
       )}
 
-      <NodeHeader>
+      <NodeHeader $color={color}>
         <NodeIconWrapper $color={color}>{icon}</NodeIconWrapper>
         <NodeLabel>{label as string}</NodeLabel>
       </NodeHeader>
