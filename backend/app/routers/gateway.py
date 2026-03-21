@@ -11,6 +11,7 @@ from fastapi import (
     APIRouter, Query, Request, WebSocket, WebSocketDisconnect, Depends,
 )
 from fastapi.responses import JSONResponse, StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -441,7 +442,7 @@ async def stream_task_events(
     workflow_task = None
     if not task:
         workflow_task = db.execute(
-            __import__("sqlalchemy").select(WorkflowTask).where(WorkflowTask.id == task_id)
+            select(WorkflowTask).where(WorkflowTask.id == task_id)
         ).scalar_one_or_none()
         if not workflow_task:
             return JSONResponse(
