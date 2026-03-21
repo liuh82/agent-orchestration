@@ -134,17 +134,48 @@ class WorkflowEngine:
         if task_id:
             register_execution_task(execution_id, task_id)
 
-        # 8. Schedule start nodes (fire-and-forget via asyncio task)
+        # 8. Schedule start nodes as background task with independent db session
         _completed_nodes[execution_id] = set()
         _pending_join_inputs[execution_id] = {}
         _pending_join_upstreams[execution_id] = {}
 
-        await self._schedule_nodes(
+        asyncio.create_task(self._run_with_independent_session(
             execution_id, start_nodes, nodes, edges,
-            input_params, db, workflow_config,
-        )
+            input_params, workflow_config,
+        ))
 
         return execution_id
+
+    async def _run_with_independent_session(
+        self,
+        execution_id: str,
+        node_defs: List[dict],
+        all_nodes: List[dict],
+        edges: List[dict],
+        input_data: dict,
+        workflow_config: Optional[Dict[str, Any]] = None,
+    ):
+        """Run workflow in background with an independent db session.
+
+        This avoids the issue where the request's db session is closed
+        before long-running nodes (e.g. LLM calls) complete.
+        """
+        from app.database import SessionLocal
+
+        db = SessionLocal()
+        try:
+            await self._schedule_nodes(
+                execution_id, node_defs, all_nodes, edges,
+                input_data, db, workflow_config,
+            )
+        except Exception as e:
+            logger.error("Workflow %s execution error: %s", execution_id, e)
+            self._fail_execution(execution_id, db, str(e))
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
 
     async def _schedule_nodes(
         self,

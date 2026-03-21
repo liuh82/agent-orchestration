@@ -110,6 +110,10 @@ class InputNodeExecutor(BaseNodeExecutor):
                         filtered[key] = collected[key]
                 collected = filtered
 
+            # Ensure task_description is always available (aliased from description)
+            if "task_description" not in collected and "description" in collected:
+                collected["task_description"] = collected["description"]
+
             # Template rendering
             if template:
                 rendered = template

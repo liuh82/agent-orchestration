@@ -89,9 +89,18 @@ class PlanNode(BaseNodeExecutor):
         enhanced = spec_data.get("enhanced_requirement", {})
 
         if not constraints:
+            logger.warning(
+                "plan_node: spec 输出约束为空，spec_data keys=%s, enhanced=%s",
+                list(spec_data.keys()),
+                isinstance(enhanced, dict) and enhanced.get("requirement", "")[:100] or enhanced,
+            )
             return NodeResult(
                 status=NodeStatus.FAILED,
-                error_message="spec 节点输出的约束列表为空",
+                error_message=(
+                    "spec 节点输出的约束列表为空。"
+                    "请检查上游 spec 节点是否正常执行（enhanced_requirement 是否包含有效需求）。"
+                    f"spec_data keys: {list(spec_data.keys())}"
+                ),
             )
 
         try:
