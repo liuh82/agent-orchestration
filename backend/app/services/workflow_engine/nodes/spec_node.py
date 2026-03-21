@@ -299,5 +299,26 @@ class SpecNode(BaseNodeExecutor):
                     except (json.JSONDecodeError, TypeError):
                         pass
 
+        # 第三层 fallback：扫描最后一个 JSON 起始符，向后找匹配闭合括号
+        candidates = []
+        for opener, closer in [("[", "]"), ("{", "}")]:
+            pos = text.rfind(opener)
+            if pos != -1:
+                candidates.append((pos, opener, closer))
+        # 优先尝试更靠后的位置（更可能是 MiniMax 的 JSON 正文）
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        for open_pos, opener, closer in candidates:
+            depth = 0
+            for i in range(open_pos, len(text)):
+                if text[i] == opener:
+                    depth += 1
+                elif text[i] == closer:
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return json.loads(text[open_pos:i + 1])
+                        except (json.JSONDecodeError, TypeError):
+                            break
+
         logger.warning("LLM 返回的 JSON 解析失败，使用默认值")
         return default
