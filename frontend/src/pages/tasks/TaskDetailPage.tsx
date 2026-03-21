@@ -26,6 +26,7 @@ import { TaskWorkflowDAG } from '@/components/tasks/TaskWorkflowDAG';
 import { useTaskStream } from '@/hooks/useTaskStream';
 import api from '@/api/client';
 import { tasksApi } from '@/api/tasks';
+import { workflowsApi } from '@/api/workflows';
 import type { ApiResponse } from '@/types/api';
 import type { Task } from '@/types/task';
 import type { Job } from '@/types/job';
@@ -69,15 +70,6 @@ const jobStatusToBadge: Record<
   failed: 'failed',
   cancelled: 'cancelled',
 };
-
-// --------------- Log types ---------------
-interface TaskLog {
-  id: string;
-  task_id: string;
-  level: 'info' | 'warn' | 'error';
-  message: string;
-  created_at: string;
-}
 
 // --------------- Styled components ---------------
 const InfoCard = styled.div`
@@ -124,16 +116,6 @@ const DescriptionText = styled.p`
   color: ${colors.text.secondary};
   margin: ${spacing[3]} 0 ${spacing[4]} 0;
   line-height: 1.6;
-`;
-
-const NoteBanner = styled.div`
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  border-radius: ${radius.lg};
-  padding: ${spacing[3]} ${spacing[4]};
-  margin-bottom: ${spacing[4]};
-  font-size: ${typography.fontSize.sm};
-  color: ${colors.text.warning};
 `;
 
 // ---- 实时输出样式 ----
@@ -276,20 +258,31 @@ export const TaskDetailPage: React.FC = () => {
     streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [streamEvents.length]);
 
-  // Fetch task logs
-  const {
-    data: logsRes,
-    isLoading: logsLoading,
-  } = useQuery<ApiResponse<{ items: TaskLog[]; total: number }>>(
-    ['task-logs', id],
-    () => api.get(`/tasks/${id}/logs`) as any,
-    { enabled: !!id, refetchOnWindowFocus: false },
+  // Fetch workflow execution nodes (执行记录)
+  const { data: execRes } = useQuery(
+    ['task-executions', task?.workflow_id],
+    async () => {
+      if (!task?.workflow_id) return null;
+      const execList = await workflowsApi.listExecutions({ workflow_id: task.workflow_id, page_size: 1 });
+      const items = execList?.data?.items ?? execList?.data ?? [];
+      if (items.length === 0) return null;
+      const latestExec = items[0];
+      const nodesRes = await workflowsApi.getExecutionNodes(latestExec.id);
+      return { execution: latestExec, nodes: nodesRes?.data ?? [] };
+    },
+    { enabled: !!task?.workflow_id, refetchOnWindowFocus: false },
   );
 
-  const logs = Array.isArray(logsRes?.data?.items) ? logsRes.data.items : [];
+  const executionNodes = execRes?.nodes ?? [];
 
-  // Jobs: placeholder until job API is available
-  const jobs: Job[] = []; // TODO: replace with useQuery for job API
+  // Fetch jobs
+  const { data: jobsRes } = useQuery<ApiResponse<{ items: Job[]; total: number }>>(
+    ['task-jobs', effectiveTaskId],
+    () => api.get(`/tasks/${effectiveTaskId}/jobs`) as any,
+    { enabled: !!effectiveTaskId, refetchOnWindowFocus: false },
+  );
+
+  const jobs = Array.isArray(jobsRes?.data?.items) ? jobsRes.data.items : [];
 
   // Update mutation
   const updateMutation = useMutation(
@@ -389,7 +382,7 @@ export const TaskDetailPage: React.FC = () => {
           actions={
             <Button
               icon={<ArrowLeftOutlined />}
-              onClick={() => navigate(-1)}
+              onClick={() => navigate(id ? `/projects/${id}` : '/tasks')}
             >
               返回
             </Button>
@@ -413,44 +406,13 @@ export const TaskDetailPage: React.FC = () => {
         <PageHeader
           title="任务详情"
           actions={
-            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>返回</Button>
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(id ? `/projects/${id}` : '/tasks')}>返回</Button>
           }
         />
         <EmptyState description="任务不存在" />
       </div>
     );
   }
-
-  // ---- Log table columns ----
-  const logColumns = [
-    {
-      title: '时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 180,
-      render: (val: string) => new Date(val).toLocaleString('zh-CN'),
-    },
-    {
-      title: '级别',
-      dataIndex: 'level',
-      key: 'level',
-      width: 80,
-      render: (level: string) => {
-        const colorMap: Record<string, string> = {
-          info: 'blue',
-          warn: 'orange',
-          error: 'red',
-        };
-        return <Tag color={colorMap[level] || 'default'}>{level.toUpperCase()}</Tag>;
-      },
-    },
-    {
-      title: '消息内容',
-      dataIndex: 'message',
-      key: 'message',
-      ellipsis: true,
-    },
-  ];
 
   // ---- Job table columns ----
   const jobColumns = [
@@ -528,7 +490,7 @@ export const TaskDetailPage: React.FC = () => {
         title={task.title}
         actions={
           <Space>
-            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>返回</Button>
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(id ? `/projects/${id}` : '/tasks')}>返回</Button>
             <Button icon={<EditOutlined />} onClick={handleEdit}>
               编辑
             </Button>
@@ -630,6 +592,7 @@ export const TaskDetailPage: React.FC = () => {
                   <TaskWorkflowDAG
                     workflowId={task.workflow_id}
                     workflowEvents={workflowEvents}
+                    executionNodes={executionNodes}
                   />
                 )}
                 <StreamPanel>
@@ -733,11 +696,9 @@ export const TaskDetailPage: React.FC = () => {
           },
           {
             key: 'jobs',
-            label: 'Job 列表',
+            label: `Job 列表${jobs.length > 0 ? ` (${jobs.length})` : ''}`,
             children: (
               <TableWrapper>
-                <NoteBanner>Job API 尚未接入，以下为占位展示。</NoteBanner>
-
                 {jobs.length === 0 ? (
                   <EmptyState description="暂无 Job 记录" />
                 ) : (
@@ -752,22 +713,86 @@ export const TaskDetailPage: React.FC = () => {
             ),
           },
           {
-            key: 'logs',
-            label: '日志',
+            key: 'executions',
+            label: `执行记录${executionNodes.length > 0 ? ` (${executionNodes.length})` : ''}`,
             children: (
               <TableWrapper>
-                <Table<TaskLog>
-                  columns={logColumns}
-                  dataSource={logs}
-                  rowKey="id"
-                  loading={logsLoading}
-                  locale={{ emptyText: '暂无日志' }}
-                  pagination={{
-                    pageSize: 20,
-                    showSizeChanger: true,
-                    showTotal: (total) => `共 ${total} 条`,
-                  }}
-                />
+                {executionNodes.length === 0 ? (
+                  <EmptyState description="暂无执行记录" />
+                ) : (
+                  <Table
+                    dataSource={executionNodes}
+                    rowKey="id"
+                    pagination={false}
+                    size="small"
+                    columns={[
+                      {
+                        title: '节点',
+                        dataIndex: 'node_id',
+                        key: 'node_id',
+                        width: 140,
+                        render: (val: string) => (
+                          <span style={{ fontFamily: typography.fontFamily.mono, fontSize: typography.fontSize.xs }}>
+                            {val}
+                          </span>
+                        ),
+                      },
+                      {
+                        title: '类型',
+                        dataIndex: 'node_type',
+                        key: 'node_type',
+                        width: 100,
+                      },
+                      {
+                        title: '状态',
+                        dataIndex: 'status',
+                        key: 'status',
+                        width: 100,
+                        render: (status: string) => {
+                          const colorMap: Record<string, string> = {
+                            running: 'processing',
+                            success: 'success',
+                            completed: 'success',
+                            failed: 'error',
+                            skipped: 'default',
+                          };
+                          const labelMap: Record<string, string> = {
+                            running: '执行中',
+                            success: '成功',
+                            completed: '完成',
+                            failed: '失败',
+                            skipped: '跳过',
+                          };
+                          return <Tag color={colorMap[status] || 'default'}>{labelMap[status] || status}</Tag>;
+                        },
+                      },
+                      {
+                        title: '耗时',
+                        dataIndex: 'duration_ms',
+                        key: 'duration_ms',
+                        width: 100,
+                        render: (val: number | null) =>
+                          val != null ? `${(val / 1000).toFixed(1)}s` : '-',
+                      },
+                      {
+                        title: '错误信息',
+                        dataIndex: 'error_message',
+                        key: 'error_message',
+                        ellipsis: true,
+                        render: (val: string | null) =>
+                          val ? <span style={{ color: colors.text.error }}>{val}</span> : '-',
+                      },
+                      {
+                        title: '完成时间',
+                        dataIndex: 'completed_at',
+                        key: 'completed_at',
+                        width: 180,
+                        render: (val: string | null) =>
+                          val ? new Date(val).toLocaleString('zh-CN') : '-',
+                      },
+                    ]}
+                  />
+                )}
               </TableWrapper>
             ),
           },

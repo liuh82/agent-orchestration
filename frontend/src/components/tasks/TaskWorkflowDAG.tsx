@@ -149,11 +149,14 @@ function layoutWithDagre(nodes: any[], edges: any[]) {
 interface TaskWorkflowDAGProps {
   workflowId?: string;
   workflowEvents: SSEMessage[];
+  /** 当 SSE 不可用时，传入已获取的执行节点状态 */
+  executionNodes?: Array<Record<string, any>>;
 }
 
 export const TaskWorkflowDAG: React.FC<TaskWorkflowDAGProps> = ({
   workflowId,
   workflowEvents,
+  executionNodes,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -168,11 +171,15 @@ export const TaskWorkflowDAG: React.FC<TaskWorkflowDAGProps> = ({
   const workflow = wfRes?.data ?? wfRes;
   const definition = workflow?.definition;
 
-  // Extract node states from SSE workflow_event messages
+  // Extract node states from SSE workflow_event messages, fallback to executionNodes
   const nodeStates = useMemo(() => {
     const states: Record<string, { status: string; output?: any; error?: string; duration_ms?: number }> = {};
+
+    // Priority 1: SSE events
+    let hasSSE = false;
     for (const msg of workflowEvents) {
       if (msg.type === 'workflow_event' && msg.data) {
+        hasSSE = true;
         const data = msg.data.event?.data ?? msg.data;
         if (data.node_id) {
           const prev = states[data.node_id] || {};
@@ -183,14 +190,25 @@ export const TaskWorkflowDAG: React.FC<TaskWorkflowDAGProps> = ({
             duration_ms: data.duration_ms ?? prev.duration_ms,
           };
         }
-        // Auto-select running node
         if (data.status === 'running' && data.node_id) {
           setSelectedNodeId(data.node_id);
         }
       }
     }
+
+    // Priority 2: execution nodes fallback (when SSE has no data)
+    if (!hasSSE && executionNodes?.length) {
+      for (const node of executionNodes) {
+        states[node.node_id] = {
+          status: node.status,
+          error: node.error_message,
+          duration_ms: node.duration_ms,
+        };
+      }
+    }
+
     return states;
-  }, [workflowEvents]);
+  }, [workflowEvents, executionNodes]);
 
   // Apply node states as border color overlays
   const styledNodes = useMemo(() => {

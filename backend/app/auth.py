@@ -73,9 +73,18 @@ async def verify_api_key(
     # Fallback: accept JWT Bearer token for web UI requests
     if request:
         from app.services.auth import decode_token
+
+        # 1. Authorization header (standard)
         auth_header = request.headers.get("Authorization", "")
+        token = None
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
+
+        # 2. Query parameter (for SSE/EventSource which can't set headers)
+        if not token:
+            token = request.query_params.get("token")
+
+        if token:
             try:
                 payload = decode_token(token)
                 if payload.get("type") == "access":

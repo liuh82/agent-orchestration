@@ -78,8 +78,11 @@ export const workflowsApi = {
   getExecution: (executionId: string) =>
     api.get(`/workflows/executions/${executionId}`) as Promise<any>,
 
-  listExecutions: () =>
-    api.get('/workflows/executions') as Promise<any>,
+  listExecutions: (params?: { workflow_id?: string; page?: number; page_size?: number }) =>
+    api.get('/workflows/executions', { params }) as Promise<any>,
+
+  getExecutionNodes: (executionId: string) =>
+    api.get(`/workflows/executions/${executionId}/nodes`) as Promise<any>,
 
   /** 模板 */
   listTemplates: () =>
